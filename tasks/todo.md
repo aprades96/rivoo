@@ -98,49 +98,46 @@
 ## Fase 3: salon-service + Multi-Tenant + Gateway básico (Semana 3)
 
 ### 3A — salon-service
-- [ ] **3A.1** Migración Flyway V1: `salons` (patrón id + external_id) + `salon_business_hours`
-- [ ] **3A.2** Entidades JPA: `Salon` (extends TenantAwareEntity), `SalonBusinessHours`
-- [ ] **3A.3** Generación de external_id con prefijo `sal_` + UUID
-- [ ] **3A.4** Repositorios JPA
-- [ ] **3A.5** DTOs de request/response
-- [ ] **3A.6** Servicio de negocio: `SalonService`
-- [ ] **3A.7** Endpoints públicos (vía gateway con JWT):
-  - `POST /api/v1/salons` (onboarding — orquesta auth-service + billing-service)
-  - `GET /api/v1/salons/me` (mi salón)
-  - `PUT /api/v1/salons/me` (actualizar)
-  - `GET /api/v1/salons/public/{slug}` (público, sin JWT)
-  - CRUD business-hours
-- [ ] **3A.8** Endpoints internos:
-  - `PUT /api/internal/salons/{tenantId}/status` (para billing-service)
-  - `GET /api/internal/salons/by-slug/{slug}` (para booking público)
-  - `GET /api/internal/admin/salons` (para admin-service)
-- [ ] **3A.9** Flujo de Onboarding completo (orquestador):
-  1. Crear salon (status=ONBOARDING)
-  2. Llamar auth-service → crear usuario Keycloak
-  3. Llamar billing-service → crear suscripción FREE_TRIAL (mock por ahora)
-  4. Activar salon (status=ACTIVE)
-  5. Llamar notification-service → email bienvenida (mock por ahora)
-  - Con compensaciones en caso de fallo
-- [ ] **3A.10** Job @Scheduled: marcar salones ONBOARDING >1h como FAILED
+- [x] **3A.1** Migración Flyway V2: `salons` + `salon_business_hours` ✅
+- [x] **3A.2** Entidades JPA: `SalonJpaEntity` (extends TenantAwareEntity), `SalonBusinessHoursJpaEntity` ✅
+- [x] **3A.3** Generación de external_id: `ExternalIdGenerator` en rivoo-common (`sal_` + UUID) ✅
+- [x] **3A.4** Repositorios JPA: `SalonJpaRepository`, `SalonBusinessHoursJpaRepository` ✅
+- [x] **3A.5** DTOs: RegisterSalonRequest/Response, SalonResponse, SalonPublicResponse, UpdateSalonRequest, BusinessHoursRequest/Response, UpdateStatusRequest ✅
+- [x] **3A.6** Domain model puro: Salon, SalonBusinessHours, SalonStatus, SubscriptionPlan ✅
+- [x] **3A.7** Input ports (6): RegisterSalon, GetSalon, UpdateSalon, ManageBusinessHours, ManageSalonStatus, ListSalons ✅
+- [x] **3A.8** Output ports (3): SalonPersistencePort, BusinessHoursPersistencePort, AuthServicePort ✅
+- [x] **3A.9** SalonService (implements all 6 input ports) con onboarding saga + compensación ✅
+- [x] **3A.10** Persistence adapters: SalonPersistenceAdapter, BusinessHoursPersistenceAdapter ✅
+- [x] **3A.11** MapStruct mappers: SalonPersistenceMapper, SalonDtoMapper ✅
+- [x] **3A.12** AuthServiceAdapter (RestClient → auth-service POST /api/internal/auth/register-owner) ✅
+- [x] **3A.13** SalonSecurityConfig (overrides rivoo-common: POST /api/v1/salons + GET /api/v1/salons/public/** = permitAll) ✅
+- [x] **3A.14** SalonController: 9 endpoints (2 public, 4 auth, 3 internal) ✅
+- [x] **3A.15** SalonExceptionHandler (409 slug conflict, 404 not found) ✅
+- [x] **3A.16** SalonSchedulingConfig: @Scheduled stale ONBOARDING → FAILED cleanup every 5min ✅
+- [x] **3A.17** rivoo-common SecurityConfig: added @ConditionalOnMissingBean(SecurityFilterChain.class) ✅
 
 ### 3B — api-gateway básico
-- [ ] **3B.1** Configurar Spring Cloud Gateway
-- [ ] **3B.2** Rutas a todos los servicios (por ahora solo auth y salon activos)
-- [ ] **3B.3** Filtro JWT: validar firma via JWKS de Keycloak
-- [ ] **3B.4** `TenantPropagationFilter`: extraer claims → inyectar X-Tenant-Id, X-User-Id, X-User-Role
-- [ ] **3B.5** Anti-spoofing: ELIMINAR headers X-* del request original
-- [ ] **3B.6** CORS configurado
-- [ ] **3B.7** Test: petición autenticada a través del gateway llega a salon-service con tenant correcto
+- [x] **3B.1** TenantPropagationFilter (GlobalFilter): strip headers + extract JWT claims + inject X-Tenant-Id, X-User-Id, X-User-Role, X-User-Email, X-Subscription-Plan ✅
+- [x] **3B.2** GatewaySecurityConfig: added POST /api/v1/salons to permitAll ✅
+- [ ] **3B.3** CORS configurado (diferido a Fase 6)
 
 ### 3C — Verificación multi-tenant
-- [ ] **3C.1** Crear 2 salones con tenants distintos
-- [ ] **3C.2** Verificar que salon A NO ve datos de salon B (aislamiento Hibernate @Filter)
-- [ ] **3C.3** Verificar que el external_id se usa en la API (nunca el id interno)
+- [x] **3C.1** Crear 2 salones con tenants distintos ✅
+- [x] **3C.2** Verificar que salon A NO ve datos de salon B (aislamiento Hibernate @Filter) ✅
+- [x] **3C.3** Verificar que el external_id se usa en la API (nunca el id interno) ✅
 
 ### ✅ Verificación Fase 3
-- [ ] salon-service CRUD funcional con multi-tenancy
-- [ ] Gateway valida JWT de Keycloak y propaga headers
-- [ ] Aislamiento cross-tenant verificado
+- [x] `mvn clean package` → BUILD SUCCESS (11/11) ✅
+- [x] salon_db Flyway V2 migration applied ✅
+- [x] E2E: Register salon via gateway → 201 ACTIVE ✅
+- [x] E2E: Login via Keycloak → JWT with tenant_id, ROLE_SALON_OWNER ✅
+- [x] E2E: GET/PUT /api/v1/salons/me via gateway with JWT ✅
+- [x] E2E: GET/PUT business hours via gateway ✅
+- [x] E2E: Public salon page via slug ✅
+- [x] E2E: Internal endpoints with PSK (admin list, get-by-slug, status update) ✅
+- [x] E2E: Multi-tenant isolation — 2 tenants, each sees only own data ✅
+- [x] Gateway TenantPropagationFilter: X-Tenant-Id, X-User-Id, X-User-Role injected from JWT ✅
+- [x] Bugs fixed: SCG 5.0 config prefix, JPA flush for delete+save, @PrePersist timestamps ✅
 
 ---
 

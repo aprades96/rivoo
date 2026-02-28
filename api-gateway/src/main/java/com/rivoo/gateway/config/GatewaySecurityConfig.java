@@ -2,6 +2,7 @@ package com.rivoo.gateway.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.SecurityWebFilterChain;
@@ -16,8 +17,9 @@ public class GatewaySecurityConfig {
             .csrf(ServerHttpSecurity.CsrfSpec::disable)
             .authorizeExchange(exchanges -> {
                 exchanges.pathMatchers("/actuator/**").permitAll();
+                exchanges.pathMatchers(HttpMethod.POST, "/api/v1/salons").permitAll();
                 exchanges.pathMatchers("/api/v1/salons/public/**").permitAll();
-                exchanges.pathMatchers("/api/v1/appointments/book").permitAll();
+                exchanges.pathMatchers(HttpMethod.POST, "/api/v1/appointments/book").permitAll();
                 exchanges.pathMatchers("/api/webhooks/stripe").permitAll();
                 exchanges.anyExchange().authenticated();
             })

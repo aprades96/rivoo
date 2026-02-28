@@ -6,36 +6,38 @@ spring:
           jwk-set-uri: http://localhost:9080/realms/rivoo/protocol/openid-connect/certs
   cloud:
     gateway:
-      routes:
-        - id: auth-service
-          uri: http://localhost:8081
-          predicates:
-            - Path=/api/v1/auth/**
-        - id: salon-service
-          uri: http://localhost:8082
-          predicates:
-            - Path=/api/v1/salons/**
-        - id: staff-service
-          uri: http://localhost:8083
-          predicates:
-            - Path=/api/v1/staff/**,/api/v1/services/**
-        - id: client-service
-          uri: http://localhost:8084
-          predicates:
-            - Path=/api/v1/clients/**
-        - id: appointment-service
-          uri: http://localhost:8085
-          predicates:
-            - Path=/api/v1/appointments/**
-        - id: notification-service
-          uri: http://localhost:8086
-          predicates:
-            - Path=/api/v1/notifications/**
-        - id: billing-service
-          uri: http://localhost:8087
-          predicates:
-            - Path=/api/v1/billing/**,/api/webhooks/stripe
-        - id: admin-service
-          uri: http://localhost:8088
-          predicates:
-            - Path=/api/v1/admin/**
+      server:
+        webflux:
+          routes:
+            - id: auth-service
+              uri: http://localhost:8081
+              predicates:
+                - Path=/api/v1/auth/**
+            - id: salon-service
+              uri: http://localhost:8082
+              predicates:
+                - Path=/api/v1/salons,/api/v1/salons/**
+            - id: staff-service
+              uri: http://localhost:8083
+              predicates:
+                - Path=/api/v1/staff/**,/api/v1/services/**
+            - id: client-service
+              uri: http://localhost:8084
+              predicates:
+                - Path=/api/v1/clients/**
+            - id: appointment-service
+              uri: http://localhost:8085
+              predicates:
+                - Path=/api/v1/appointments/**
+            - id: notification-service
+              uri: http://localhost:8086
+              predicates:
+                - Path=/api/v1/notifications/**
+            - id: billing-service
+              uri: http://localhost:8087
+              predicates:
+                - Path=/api/v1/billing/**,/api/webhooks/stripe
+            - id: admin-service
+              uri: http://localhost:8088
+              predicates:
+                - Path=/api/v1/admin/**

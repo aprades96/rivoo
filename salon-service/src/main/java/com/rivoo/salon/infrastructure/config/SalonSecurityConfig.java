@@ -1,8 +1,10 @@
-package com.rivoo.common.security;
+package com.rivoo.salon.infrastructure.config;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import com.rivoo.common.security.InternalEndpointFilter;
+import com.rivoo.common.security.KeycloakJwtConverter;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -10,29 +12,30 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+@Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
-@ConditionalOnProperty(name = "spring.security.oauth2.resourceserver.jwt.jwk-set-uri")
-public class SecurityConfig {
+public class SalonSecurityConfig {
 
     private final KeycloakJwtConverter keycloakJwtConverter;
     private final InternalEndpointFilter internalEndpointFilter;
 
-    public SecurityConfig(KeycloakJwtConverter keycloakJwtConverter,
-                          InternalEndpointFilter internalEndpointFilter) {
+    public SalonSecurityConfig(KeycloakJwtConverter keycloakJwtConverter,
+                               InternalEndpointFilter internalEndpointFilter) {
         this.keycloakJwtConverter = keycloakJwtConverter;
         this.internalEndpointFilter = internalEndpointFilter;
     }
 
     @Bean
-    @ConditionalOnMissingBean(SecurityFilterChain.class)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> {
                 auth.requestMatchers("/actuator/**").permitAll();
-                auth.requestMatchers("/api/internal/**").permitAll(); // authenticated by InternalEndpointFilter (PSK)
+                auth.requestMatchers("/api/internal/**").permitAll();
+                auth.requestMatchers(HttpMethod.POST, "/api/v1/salons").permitAll();
+                auth.requestMatchers(HttpMethod.GET, "/api/v1/salons/public/**").permitAll();
                 auth.anyRequest().authenticated();
             })
             .addFilterBefore(internalEndpointFilter, UsernamePasswordAuthenticationFilter.class)
