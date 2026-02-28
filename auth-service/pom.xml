@@ -21,12 +21,6 @@
             <artifactId>rivoo-common</artifactId>
         </dependency>
 
-        <!-- Keycloak Admin Client -->
-        <dependency>
-            <groupId>org.keycloak</groupId>
-            <artifactId>keycloak-admin-client</artifactId>
-        </dependency>
-
         <!-- Flyway -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

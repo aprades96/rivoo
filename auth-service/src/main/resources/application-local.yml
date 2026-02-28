@@ -7,9 +7,6 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.MySQLDialect
     open-in-view: false
   flyway:
     enabled: true
@@ -23,3 +20,9 @@ spring:
 rivoo:
   security:
     internal-service-key: rivoo-dev-internal-key-2026
+  keycloak:
+    admin:
+      server-url: http://localhost:9080
+      realm: rivoo
+      client-id: salon-admin-cli
+      client-secret: rivoo-admin-cli-secret-dev

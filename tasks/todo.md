@@ -62,28 +62,36 @@
 
 ## Fase 2: auth-service — Wrapper Keycloak Admin API (Semana 2)
 
-- [ ] **2.1** Migración Flyway V1: `onboarding_events` + `tenant_user_mapping`
-- [ ] **2.2** Entidades JPA: `OnboardingEvent`, `TenantUserMapping`
-- [ ] **2.3** Integrar dependencia `keycloak-admin-client`
-- [ ] **2.4** Configurar bean `Keycloak` con credenciales de `salon-admin-cli`
-- [ ] **2.5** Implementar `KeycloakAdminService`:
+- [x] **2.1** Migración Flyway V1: `onboarding_events` + `tenant_user_mapping` ✅
+- [x] **2.2** Entidades JPA + domain models (hexagonal): `OnboardingEvent`, `TenantUserMapping` ✅
+- [x] **2.3** Keycloak Admin via RestClient (NO keycloak-admin-client — evita conflictos Jackson 2.x/3.x en SB4) ✅
+- [x] **2.4** KeycloakTokenManager (client_credentials grant con salon-admin-cli, token cache, auto-refresh) ✅
+- [x] **2.5** KeycloakAdminAdapter (implements KeycloakAdminPort): ✅
   - `createUser(email, password, firstName, lastName)` → crea user en Keycloak
   - `setUserAttributes(keycloakUserId, attributes)` → tenant_id, subscription_plan, salon_name
   - `assignRealmRole(keycloakUserId, roleName)`
-  - `disableUsersForTenant(tenantId)`
-  - `deleteUser(keycloakUserId)` (para compensación)
-- [ ] **2.6** Endpoints internos (protegidos por PSK):
-  - `POST /api/internal/auth/register-owner` — crea usuario + atributos + rol SALON_OWNER
+  - `searchUserIdsByAttribute(attr, value)` → busca usuarios por atributo
+  - `setUserEnabled(keycloakUserId, enabled)` → habilita/deshabilita
+  - `updateUserAttribute(keycloakUserId, key, value)` → actualiza atributo individual
+  - `deleteUser(keycloakUserId)` → compensación
+- [x] **2.6** 6 Endpoints internos (protegidos por PSK): ✅
+  - `POST /api/internal/auth/register-owner` — crea owner + atributos + ROLE_SALON_OWNER
+  - `POST /api/internal/auth/register-employee` — crea employee + atributos + ROLE_EMPLOYEE
   - `PUT /api/internal/auth/tenants/{tenantId}/disable` — deshabilita usuarios del tenant
+  - `PUT /api/internal/auth/tenants/{tenantId}/attributes` — actualiza atributos del tenant
   - `GET /api/internal/auth/tenants/{tenantId}/users` — lista usuarios del tenant
-- [ ] **2.7** Tests unitarios del servicio
-- [ ] **2.8** Test manual: obtener JWT de Keycloak con claims tenant_id via Postman
-- [ ] **2.9** Verificar que endpoints internos rechazan peticiones sin header PSK
+  - `PUT /api/internal/admin/tenants/{tenantId}/status` — enable/disable tenant (admin)
+- [ ] **2.7** Tests unitarios del servicio (pendiente para Fase 11)
+- [x] **2.8** Test manual: JWT contiene tenant_id, subscription_plan, salon_name, realm_access.roles ✅
+- [x] **2.9** Verificar que endpoints internos rechazan peticiones sin header PSK → 403 ✅
 
 ### ✅ Verificación Fase 2
-- [ ] auth-service crea usuario en Keycloak con atributos custom
-- [ ] El JWT obtenido contiene claims `tenant_id`, `subscription_plan`, `salon_name`
-- [ ] Endpoints internos protegidos por PSK
+- [x] auth-service crea usuario en Keycloak con atributos custom ✅
+- [x] El JWT obtenido contiene claims `tenant_id`, `subscription_plan`, `salon_name` ✅
+- [x] `realm_access.roles` contiene `ROLE_SALON_OWNER` / `ROLE_EMPLOYEE` ✅
+- [x] Endpoints internos protegidos por PSK (403 sin header) ✅
+- [x] Duplicate email detection → 409 con Problem Details ✅
+- [x] Compensación: si falla post-creación → deleteUser se invoca ✅
 
 ---
 

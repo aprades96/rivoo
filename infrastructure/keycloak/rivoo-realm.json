@@ -16,6 +16,9 @@
   "accessTokenLifespanForImplicitFlow": 900,
   "revokeRefreshToken": true,
   "refreshTokenMaxReuse": 0,
+  "attributes": {
+    "userProfileEnabled": "true"
+  },
   "roles": {
     "realm": [
       {
@@ -107,10 +110,7 @@
       "attributes": {
         "pkce.code.challenge.method": "S256",
         "post.logout.redirect.uris": "http://localhost:3000/*##http://localhost:5173/*"
-      },
-      "defaultClientScopes": [
-        "tenant-info"
-      ]
+      }
     },
     {
       "clientId": "salon-backend",
@@ -120,10 +120,7 @@
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": true,
-      "secret": "rivoo-backend-secret-dev",
-      "defaultClientScopes": [
-        "tenant-info"
-      ]
+      "secret": "rivoo-backend-secret-dev"
     },
     {
       "clientId": "salon-admin-cli",
@@ -133,10 +130,22 @@
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": true,
-      "secret": "rivoo-admin-cli-secret-dev",
-      "defaultClientScopes": [
-        "tenant-info"
-      ]
+      "secret": "rivoo-admin-cli-secret-dev"
+    }
+  ],
+  "users": [
+    {
+      "username": "service-account-salon-admin-cli",
+      "enabled": true,
+      "serviceAccountClientId": "salon-admin-cli",
+      "clientRoles": {
+        "realm-management": [
+          "manage-users",
+          "view-users",
+          "query-users",
+          "view-realm"
+        ]
+      }
     }
   ]
 }

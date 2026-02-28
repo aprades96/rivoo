@@ -42,18 +42,25 @@ Indexes: `idx_tenant_user_tenant (tenant_id)`, `idx_tenant_user_keycloak (keyclo
 
 ---
 
-## Keycloak Admin Client
+## Keycloak Admin Integration
 
-Dependency: `org.keycloak:keycloak-admin-client:26.x` (ONLY in this service)
+**Approach**: Spring `RestClient` calling Keycloak Admin REST API directly (NO `keycloak-admin-client` — avoids Jackson 2.x/3.x classpath conflicts in SB4).
 
-Core class: `KeycloakAdminService` (or adapter in hexagonal terms) using `Keycloak` bean:
+**Token**: `client_credentials` grant with `salon-admin-cli` client. `KeycloakTokenManager` caches token, auto-refreshes 30s before expiry.
 
-- `createUser(email, password, firstName, lastName)` → creates user in Keycloak realm `rivoo`
-- `setUserAttributes(keycloakUserId, attributes)` → sets `tenant_id`, `subscription_plan`, `salon_name`
-- `assignRealmRole(keycloakUserId, roleName)` → assigns `ROLE_SALON_OWNER` or `ROLE_EMPLOYEE`
-- `disableUsersForTenant(tenantId)` → searches by attribute, disables all users
-- `deleteUser(keycloakUserId)` → compensation: removes user if onboarding fails
-- `updateAttribute(keycloakUserId, key, value)` → updates single attribute (e.g., plan change)
+**Base URL**: `http://localhost:9080/admin/realms/rivoo` (configured via `rivoo.keycloak.admin.*`)
+
+Core class: `KeycloakAdminAdapter` (implements `KeycloakAdminPort`):
+
+- `createUser(email, password, firstName, lastName)` → POST `/users`, returns userId from Location header
+- `setUserAttributes(keycloakUserId, attributes)` → GET user + merge attributes + PUT (Map body, excludes credentials)
+- `assignRealmRole(keycloakUserId, roleName)` → GET role + POST role-mappings
+- `searchUserIdsByAttribute(attr, value)` → GET `/users?q=attr:value`
+- `setUserEnabled(keycloakUserId, enabled)` → GET user + PUT with Map body
+- `updateUserAttribute(keycloakUserId, key, value)` → delegates to setUserAttributes
+- `deleteUser(keycloakUserId)` → DELETE `/users/{id}` (compensation)
+
+**IMPORTANT**: User PUT operations use `Map<String, Object>` body (not records) to deliberately exclude `credentials` field — otherwise Keycloak wipes passwords.
 
 ---
 
@@ -65,16 +72,17 @@ Core class: `KeycloakAdminService` (or adapter in hexagonal terms) using `Keyclo
 |------|---------|
 | `RegisterOwnerUseCase` | Create Keycloak user + assign attributes + assign ROLE_SALON_OWNER |
 | `RegisterEmployeeUseCase` | Create Keycloak user for employee + assign ROLE_EMPLOYEE |
-| `DisableTenantUseCase` | Disable all Keycloak users for a tenant |
+| `ManageTenantStatusUseCase` | Disable/enable all Keycloak users for a tenant |
 | `UpdateTenantAttributeUseCase` | Update subscription_plan or salon_name in Keycloak |
+| `ListTenantUsersUseCase` | List users for a tenant from local DB |
 
 ### Output Ports
 
 | Port | Purpose |
 |------|---------|
-| `KeycloakAdminPort` | Interface to Keycloak Admin API |
-| `OnboardingEventRepository` | Persist audit events |
-| `TenantUserMappingRepository` | Persist tenant-user mappings |
+| `KeycloakAdminPort` | Interface to Keycloak Admin REST API (7 methods) |
+| `OnboardingEventPort` | Persist audit events |
+| `TenantUserMappingPort` | Persist/query tenant-user mappings |
 
 ---
 
@@ -102,7 +110,19 @@ Core class: `KeycloakAdminService` (or adapter in hexagonal terms) using `Keyclo
 
 ## Dependencies
 
-- **Keycloak** (Admin API via `keycloak-admin-client`)
+- **Keycloak** (Admin REST API via Spring RestClient)
 - **rivoo-common** (security, tenant, observability)
 - Called by: salon-service, billing-service, admin-service, staff-service
 - Calls: only Keycloak Admin API (external)
+
+---
+
+## Keycloak Realm Setup (for auth-service to work)
+
+Keycloak realm `rivoo` requires:
+1. Custom User Profile: `tenant_id`, `subscription_plan`, `salon_name` attributes (applied via `PUT /admin/realms/rivoo/users/profile`)
+2. Client scope `tenant-info` with 3 protocol mappers assigned as default to all clients
+3. Service account `service-account-salon-admin-cli` with `realm-management` roles: `manage-users`, `view-users`, `query-users`, `view-realm`
+
+**Setup files**: `infrastructure/keycloak/rivoo-realm.json` + `infrastructure/keycloak/rivoo-user-profile.json`
+**Setup strategy**: Empty realm creation → partialImport → REST API for scopes/profile (see `tasks/lessons.md`)
