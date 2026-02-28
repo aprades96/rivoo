@@ -1,0 +1,142 @@
+{
+  "realm": "rivoo",
+  "enabled": true,
+  "displayName": "Rivoo Platform",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "offlineSessionIdleTimeout": 2592000,
+  "accessTokenLifespanForImplicitFlow": 900,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "roles": {
+    "realm": [
+      {
+        "name": "ROLE_PLATFORM_ADMIN",
+        "description": "Platform administrator with cross-tenant access"
+      },
+      {
+        "name": "ROLE_SALON_OWNER",
+        "description": "Salon owner with full CRUD within own tenant"
+      },
+      {
+        "name": "ROLE_EMPLOYEE",
+        "description": "Employee with limited access to own appointments and clients"
+      }
+    ]
+  },
+  "clientScopes": [
+    {
+      "name": "tenant-info",
+      "description": "Adds tenant_id, subscription_plan, and salon_name claims to tokens",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "tenant_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "tenant_id",
+            "claim.name": "tenant_id",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "subscription_plan",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "subscription_plan",
+            "claim.name": "subscription_plan",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "salon_name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "salon_name",
+            "claim.name": "salon_name",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    }
+  ],
+  "defaultDefaultClientScopes": [
+    "tenant-info"
+  ],
+  "clients": [
+    {
+      "clientId": "salon-frontend",
+      "name": "Rivoo Frontend (SPA)",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "http://localhost:5173/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "http://localhost:5173"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:3000/*##http://localhost:5173/*"
+      },
+      "defaultClientScopes": [
+        "tenant-info"
+      ]
+    },
+    {
+      "clientId": "salon-backend",
+      "name": "Rivoo Backend Services",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "secret": "rivoo-backend-secret-dev",
+      "defaultClientScopes": [
+        "tenant-info"
+      ]
+    },
+    {
+      "clientId": "salon-admin-cli",
+      "name": "Rivoo Admin CLI",
+      "enabled": true,
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "secret": "rivoo-admin-cli-secret-dev",
+      "defaultClientScopes": [
+        "tenant-info"
+      ]
+    }
+  ]
+}

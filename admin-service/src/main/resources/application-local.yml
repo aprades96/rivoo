@@ -1,0 +1,10 @@
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:9080/realms/rivoo/protocol/openid-connect/certs
+
+rivoo:
+  security:
+    internal-service-key: rivoo-dev-internal-key-2026

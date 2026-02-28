@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: api-gateway
+  main:
+    web-application-type: reactive
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

@@ -1,0 +1,5 @@
+com.rivoo.common.observability.ObservabilityAutoConfiguration
+com.rivoo.common.tenant.TenantAutoConfiguration
+com.rivoo.common.security.SecurityAutoConfiguration
+com.rivoo.common.web.WebAutoConfiguration
+com.rivoo.common.client.InterServiceRestClientConfig
