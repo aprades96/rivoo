@@ -2,8 +2,7 @@ package com.rivoo.auth.infrastructure.adapter.in.web;
 
 import com.rivoo.auth.domain.exception.KeycloakOperationException;
 import com.rivoo.auth.domain.exception.UserAlreadyExistsException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
@@ -14,11 +13,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.net.URI;
 import java.time.Instant;
 
+@Slf4j
 @RestControllerAdvice
 @Order(0)
 public class AuthExceptionHandler {
-
-    private static final Logger log = LoggerFactory.getLogger(AuthExceptionHandler.class);
 
     @ExceptionHandler(UserAlreadyExistsException.class)
     public ProblemDetail handleUserAlreadyExists(UserAlreadyExistsException ex) {

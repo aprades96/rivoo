@@ -4,16 +4,14 @@ import com.rivoo.auth.domain.model.OnboardingEvent;
 import com.rivoo.auth.domain.port.out.OnboardingEventPort;
 import com.rivoo.auth.infrastructure.adapter.out.persistence.entity.OnboardingEventJpaEntity;
 import com.rivoo.auth.infrastructure.adapter.out.persistence.repository.OnboardingEventJpaRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+@RequiredArgsConstructor
 @Component
 public class OnboardingEventPersistenceAdapter implements OnboardingEventPort {
 
     private final OnboardingEventJpaRepository repository;
-
-    public OnboardingEventPersistenceAdapter(OnboardingEventJpaRepository repository) {
-        this.repository = repository;
-    }
 
     @Override
     public OnboardingEvent save(OnboardingEvent event) {

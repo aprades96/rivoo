@@ -3,8 +3,8 @@ package com.rivoo.auth.infrastructure.adapter.in.web;
 import com.rivoo.auth.application.dto.*;
 import com.rivoo.auth.domain.port.in.*;
 import jakarta.validation.Valid;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -12,28 +12,16 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
+@RequiredArgsConstructor
 @RestController
 public class AuthController {
-
-    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
     private final RegisterOwnerUseCase registerOwnerUseCase;
     private final RegisterEmployeeUseCase registerEmployeeUseCase;
     private final ManageTenantStatusUseCase manageTenantStatusUseCase;
     private final UpdateTenantAttributeUseCase updateTenantAttributeUseCase;
     private final ListTenantUsersUseCase listTenantUsersUseCase;
-
-    public AuthController(RegisterOwnerUseCase registerOwnerUseCase,
-                          RegisterEmployeeUseCase registerEmployeeUseCase,
-                          ManageTenantStatusUseCase manageTenantStatusUseCase,
-                          UpdateTenantAttributeUseCase updateTenantAttributeUseCase,
-                          ListTenantUsersUseCase listTenantUsersUseCase) {
-        this.registerOwnerUseCase = registerOwnerUseCase;
-        this.registerEmployeeUseCase = registerEmployeeUseCase;
-        this.manageTenantStatusUseCase = manageTenantStatusUseCase;
-        this.updateTenantAttributeUseCase = updateTenantAttributeUseCase;
-        this.listTenantUsersUseCase = listTenantUsersUseCase;
-    }
 
     @PostMapping("/api/internal/auth/register-owner")
     public ResponseEntity<RegisterOwnerResponse> registerOwner(

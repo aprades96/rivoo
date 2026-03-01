@@ -1,7 +1,6 @@
 package com.rivoo.auth.application;
 
 import com.rivoo.auth.application.dto.*;
-import com.rivoo.auth.domain.exception.KeycloakOperationException;
 import com.rivoo.auth.domain.model.EventType;
 import com.rivoo.auth.domain.model.OnboardingEvent;
 import com.rivoo.auth.domain.model.TenantUserMapping;
@@ -10,31 +9,23 @@ import com.rivoo.auth.domain.port.in.*;
 import com.rivoo.auth.domain.port.out.KeycloakAdminPort;
 import com.rivoo.auth.domain.port.out.OnboardingEventPort;
 import com.rivoo.auth.domain.port.out.TenantUserMappingPort;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
+@RequiredArgsConstructor
 @Service
 public class AuthService implements RegisterOwnerUseCase, RegisterEmployeeUseCase,
         ManageTenantStatusUseCase, UpdateTenantAttributeUseCase, ListTenantUsersUseCase {
 
-    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
-
     private final KeycloakAdminPort keycloakAdminPort;
     private final OnboardingEventPort onboardingEventPort;
     private final TenantUserMappingPort tenantUserMappingPort;
-
-    public AuthService(KeycloakAdminPort keycloakAdminPort,
-                       OnboardingEventPort onboardingEventPort,
-                       TenantUserMappingPort tenantUserMappingPort) {
-        this.keycloakAdminPort = keycloakAdminPort;
-        this.onboardingEventPort = onboardingEventPort;
-        this.tenantUserMappingPort = tenantUserMappingPort;
-    }
 
     @Override
     @Transactional

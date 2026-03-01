@@ -5,24 +5,21 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
+@Slf4j
+@RequiredArgsConstructor
 public class InternalEndpointFilter extends OncePerRequestFilter {
 
-    private static final Logger log = LoggerFactory.getLogger(InternalEndpointFilter.class);
     private static final String INTERNAL_PATH_PREFIX = "/api/internal/";
     private static final String SERVICE_KEY_HEADER = RivooHeaders.INTERNAL_SERVICE_KEY;
 
     private final String expectedServiceKey;
-
-    public InternalEndpointFilter(String expectedServiceKey) {
-        this.expectedServiceKey = expectedServiceKey;
-    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,

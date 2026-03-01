@@ -5,8 +5,7 @@ import com.rivoo.auth.domain.exception.UserAlreadyExistsException;
 import com.rivoo.auth.domain.port.out.KeycloakAdminPort;
 import com.rivoo.auth.infrastructure.adapter.out.keycloak.dto.KeycloakRoleRepresentation;
 import com.rivoo.auth.infrastructure.adapter.out.keycloak.dto.KeycloakUserRepresentation;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
@@ -21,10 +20,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @Component
 public class KeycloakAdminAdapter implements KeycloakAdminPort {
-
-    private static final Logger log = LoggerFactory.getLogger(KeycloakAdminAdapter.class);
 
     private final RestClient restClient;
     private final KeycloakTokenManager tokenManager;

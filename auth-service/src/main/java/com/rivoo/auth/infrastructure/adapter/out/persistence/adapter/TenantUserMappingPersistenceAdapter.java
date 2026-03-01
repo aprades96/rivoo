@@ -4,18 +4,16 @@ import com.rivoo.auth.domain.model.TenantUserMapping;
 import com.rivoo.auth.domain.port.out.TenantUserMappingPort;
 import com.rivoo.auth.infrastructure.adapter.out.persistence.entity.TenantUserMappingJpaEntity;
 import com.rivoo.auth.infrastructure.adapter.out.persistence.repository.TenantUserMappingJpaRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
+@RequiredArgsConstructor
 @Component
 public class TenantUserMappingPersistenceAdapter implements TenantUserMappingPort {
 
     private final TenantUserMappingJpaRepository repository;
-
-    public TenantUserMappingPersistenceAdapter(TenantUserMappingJpaRepository repository) {
-        this.repository = repository;
-    }
 
     @Override
     public TenantUserMapping save(TenantUserMapping mapping) {
