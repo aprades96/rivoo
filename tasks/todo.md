@@ -455,6 +455,56 @@
 
 ---
 
+## Fase 13: Frontend — React + Next.js (Post-backend)
+
+> Repositorio separado: `rivoo-frontend`. NO es un módulo Maven.
+
+### 13A — Setup + Auth
+- [ ] **13A.1** Crear proyecto Next.js (App Router, TypeScript, Tailwind CSS, Shadcn/UI)
+- [ ] **13A.2** Integración Keycloak OIDC (PKCE flow con client `salon-frontend`)
+- [ ] **13A.3** Auth context: login, logout, refresh token, protección de rutas
+- [ ] **13A.4** Layout base: sidebar, header con usuario, tenant context
+
+### 13B — Dashboard del salón
+- [ ] **13B.1** Página "Mi Salón" (GET/PUT /api/v1/salons/me)
+- [ ] **13B.2** Horarios del salón (GET/PUT business hours)
+- [ ] **13B.3** Página pública del salón (SSR/SSG con slug)
+
+### 13C — Staff + Servicios
+- [ ] **13C.1** CRUD empleados (tabla + formularios)
+- [ ] **13C.2** Horarios de empleados
+- [ ] **13C.3** CRUD catálogo de servicios
+- [ ] **13C.4** Asignación servicios ↔ empleados
+
+### 13D — Clientes
+- [ ] **13D.1** CRUD clientes (tabla paginada + búsqueda)
+- [ ] **13D.2** Detalle cliente (historial de visitas, notas)
+- [ ] **13D.3** Acciones GDPR (anonimizar, exportar datos)
+
+### 13E — Citas (core UI)
+- [ ] **13E.1** Vista calendario (día/semana) con FullCalendar
+- [ ] **13E.2** Crear cita (seleccionar empleado → servicio → slot → cliente)
+- [ ] **13E.3** Gestión de estados (confirmar, completar, cancelar, no-show)
+- [ ] **13E.4** Vista de disponibilidad
+
+### 13F — Booking público
+- [ ] **13F.1** Página pública de reserva (`/salon/{slug}/book`)
+- [ ] **13F.2** Flujo: elegir servicio → empleado → fecha/hora → datos personales → confirmar
+- [ ] **13F.3** Sin autenticación, rate limiting, honeypot
+
+### 13G — Billing + Admin
+- [ ] **13G.1** Página de suscripción actual + upgrade (Stripe Checkout redirect)
+- [ ] **13G.2** Panel admin (solo PLATFORM_ADMIN): listado salones, stats, suspend/activate
+
+### ✅ Verificación Fase 13
+- [ ] Login/logout Keycloak funcional (PKCE)
+- [ ] CRUD completo de salon/staff/clients/services via UI
+- [ ] Calendario de citas funcional
+- [ ] Booking público E2E sin autenticación
+- [ ] Responsive (mobile-first para el dueño del salón)
+
+---
+
 ## Resumen de Fases
 
 | Fase | Foco | Semana |
@@ -472,3 +522,4 @@
 | 10 | Seguridad + hardening | 11 |
 | 11 | Testing final | 12 |
 | 12 | Preparación deploy + documentación | 13 |
+| **13** | **Frontend — React + Next.js (repo separado)** | **Post-backend** |
