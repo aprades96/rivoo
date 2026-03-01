@@ -1,4 +1,4 @@
-package com.rivoo.salon.domain.model;
+package com.rivoo.staff.domain.model;
 
 import com.rivoo.common.exception.BusinessValidationException;
 
@@ -15,10 +15,10 @@ import lombok.Setter;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class SalonBusinessHours {
+public class EmployeeWorkingHours {
 
     private Long id;
-    private Long salonId;
+    private Long employeeId;
     private int dayOfWeek; // 1=Mon...7=Sun (ISO 8601)
     private boolean open;
     private LocalTime openTime;

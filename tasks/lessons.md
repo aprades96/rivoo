@@ -1,5 +1,45 @@
 # Rivoo — Lessons Learned
 
+## Fase 4 (staff-service + client-service)
+
+### CRITICAL: @ConditionalOnBean(EntityManager.class) no funciona en auto-configuration
+- `@ConditionalOnBean(EntityManager.class)` en `TenantAutoConfiguration` NUNCA se evalúa como `true`.
+- **Root cause**: `EntityManager` no es un bean estándar de Spring — se proporciona via `SharedEntityManagerCreator` y `@PersistenceContext`. El `@ConditionalOnBean` evalúa el `BeanDefinitionRegistry` donde `EntityManager` no aparece como bean registrado.
+- **Consecuencia**: `TenantFilterAspect` nunca se creaba → Hibernate `@Filter` nunca se activaba → **data leak cross-tenant** (queries sin filtro `tenant_id`).
+- **Agravante**: salon-service no expuso el bug porque usa `findByTenantId()` (filtro explícito en queries), pero staff-service y client-service usan `findByActiveTrue()`, `findAll()`, `findByExternalId()` que dependen del `@Filter`.
+- **Fix**: Cambiar a `@ConditionalOnClass(name = "jakarta.persistence.EntityManagerFactory")` (verifica que JPA está en classpath) + `@AutoConfiguration(after = HibernateJpaAutoConfiguration.class)` (garantiza ordering).
+- **Lección general**: Siempre verificar que los beans conditional se crean realmente. Usar logging en el constructor del bean para diagnóstico rápido.
+
+### Keycloak credentials bug persiste: usar PUT reset-password
+- Al crear usuarios via `POST /users` con el body que incluye credentials, la contraseña no se persiste correctamente en Keycloak 26.x.
+- **Workaround**: Después de crear el usuario, hacer `PUT /admin/realms/rivoo/users/{id}/reset-password` con `{"type":"password","value":"...","temporary":false}` usando un JSON file (evitar shell quoting).
+- Esto aplica a todos los flujos de onboarding de salon-service.
+
+### Composite PK con @IdClass: equals/hashCode obligatorios
+- `EmployeeServiceJpaEntity` usa composite PK `(employee_id, service_id)` con `@IdClass(EmployeeServiceId.class)`.
+- `EmployeeServiceId` DEBE implementar `Serializable`, tener constructor vacío, y `equals()`/`hashCode()` basados en los campos PK.
+- Sin esto, Hibernate no puede comparar identidades correctamente.
+
+### EmployeeServiceAssignment: enriquecer en persistence adapter, no en domain
+- La tabla `employee_services` solo tiene FKs (employee_id, service_id) + custom overrides.
+- Pero el domain model necesita el nombre del servicio, duración y precio por defecto para calcular `getEffectiveDuration/Price`.
+- **Solución**: El `EmployeeServicePersistenceAdapter` carga los servicios asociados (batch fetch via findAllById) y construye el domain model completo.
+- Esto es aceptable: el adapter traduce entre la representación JPA y el domain model enriquecido.
+
+### Domain exceptions con jerarquía RivooException: zero boilerplate
+- Crear `EmployeeNotFoundException extends ResourceNotFoundException` → solo 1 constructor con `super("employee", identifier)`.
+- El `GlobalExceptionHandler` de rivoo-common ya cubre todas las excepciones RivooException → 0 handlers adicionales necesarios.
+- Solo se añade handler extra para excepciones no-RivooException como `AuthServiceException` (→ 502) y `DataIntegrityViolationException` (→ 409 safety net).
+
+### BillingServiceStubAdapter: -1 = unlimited
+- Cuando un servicio externo no existe aún, implementar un `StubAdapter` que retorna valores permisivos.
+- `-1` significa "unlimited" — el check `if (maxEmployees >= 0)` solo aplica el límite cuando hay valor real.
+- El port interface está lista para reemplazo directo cuando billing-service exista.
+
+### Flyway V2 (no V1) en servicios ya arrancados
+- Los skeleton services de Fase 1 ya tienen `V1__placeholder.sql`. La primera migración real es V2.
+- NUNCA editar una migración ya aplicada — siempre crear V{n+1}.
+
 ## Fase 3.5 (Refactoring pre-Fase 4)
 
 ### RivooException jerarquía: un handler para gobernarlos a todos

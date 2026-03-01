@@ -183,35 +183,51 @@
 ## Fase 4: staff-service + client-service (Semana 4)
 
 ### 4.0 — Fixes pendientes de Fase 3.5
-- [ ] **4.0.1** `BusinessHours.validate()` lanza `IllegalArgumentException` → 500. Cambiar a `BusinessValidationException` → 422.
+- [x] **4.0.1** `BusinessHours.validate()` lanza `IllegalArgumentException` → 500. Cambiar a `BusinessValidationException` → 422. ✅
 
 ### 4A — staff-service
-- [ ] **4A.1** Migración Flyway V1: `employees`, `employee_working_hours`, `services`, `employee_services`
-- [ ] **4A.2** Entidades JPA (extends TenantAwareEntity): `Employee`, `EmployeeWorkingHours`, `Service`, `EmployeeService`
-- [ ] **4A.3** Generación de external_id: prefijos `emp_`, `svc_`
-- [ ] **4A.4** CRUD completo: employees, services, employee_working_hours, employee_services
-- [ ] **4A.5** Endpoints internos:
-  - `GET /api/internal/staff/{tenantId}/employees/{employeeId}`
-  - `GET /api/internal/staff/{tenantId}/services/{serviceId}`
-- [ ] **4A.6** Validación de límites contra billing-service (mock con valores permisivos por ahora)
+- [x] **4A.1** Migración Flyway V2: `employees`, `employee_working_hours`, `services`, `employee_services` (4 tablas) ✅
+- [x] **4A.2** Domain models puros: Employee, EmployeeRole (enum), EmployeeWorkingHours (con validate()), ServiceOffering, EmployeeServiceAssignment (con getEffectiveDuration/Price) ✅
+- [x] **4A.3** Generación de external_id: prefijos `emp_`, `svc_` ✅
+- [x] **4A.4** Input ports (7): CreateEmployee, GetEmployee, UpdateEmployee, DeactivateEmployee, ManageEmployeeWorkingHours, ManageServiceOffering, ManageEmployeeServices ✅
+- [x] **4A.5** Output ports (6): EmployeePersistence, WorkingHoursPersistence, ServiceOfferingPersistence, EmployeeServicePersistence, AuthService, BillingService ✅
+- [x] **4A.6** Domain exceptions (5): EmployeeNotFound, ServiceOfferingNotFound, EmployeeLimitExceeded, DuplicateServiceName, AuthServiceException ✅
+- [x] **4A.7** DTOs (12 records): CreateEmployee, UpdateEmployee, EmployeeResponse, EmployeeInternalResponse, WorkingHoursRequest/Response, CreateServiceOffering, UpdateServiceOffering, ServiceOfferingResponse/Internal, AssignServicesRequest, EmployeeServiceResponse ✅
+- [x] **4A.8** Application services (2): EmployeeService (6 use cases), ServiceOfferingService (5 use cases) ✅
+- [x] **4A.9** JPA entities (5): EmployeeJpaEntity (TenantAwareEntity), EmployeeWorkingHoursJpaEntity, ServiceOfferingJpaEntity (TenantAwareEntity), EmployeeServiceJpaEntity (@IdClass), EmployeeServiceId ✅
+- [x] **4A.10** Repositories (4), Persistence adapters (4, con flush() en working hours y employee_services) ✅
+- [x] **4A.11** REST adapters: AuthServiceAdapter (RestClient), BillingServiceStubAdapter (returns -1 unlimited) ✅
+- [x] **4A.12** Controllers (4): EmployeeController (9 endpoints), ServiceOfferingController (4), StaffInternalController (2), StaffExceptionHandler ✅
+- [x] **4A.13** MapStruct mappers (4): EmployeePersistence, EmployeeDto, ServiceOfferingPersistence, ServiceOfferingDto ✅
+- [x] **4A.14** Config: application-local.yml + auth-service URL ✅
 
 ### 4B — client-service
-- [ ] **4B.1** Migración Flyway V1: `clients` (con campos GDPR)
-- [ ] **4B.2** Entidad JPA: `Client` (extends TenantAwareEntity)
-- [ ] **4B.3** Generación de external_id con prefijo `cli_`
-- [ ] **4B.4** CRUD completo de clients
-- [ ] **4B.5** Endpoint de anonimización GDPR: `DELETE /api/v1/clients/{id}/gdpr`
-  - Anonimiza datos personales (no DELETE físico)
-  - Cancela citas futuras del cliente (cuando appointment-service esté listo)
-- [ ] **4B.6** UNIQUE constraint: `(tenant_id, email)`
-- [ ] **4B.7** Endpoints internos:
-  - `GET /api/internal/clients/{clientId}?tenantId={tenantId}`
-- [ ] **4B.8** Validación de límites contra billing-service (mock)
+- [x] **4B.1** Migración Flyway V2: `clients` (con campos GDPR, UNIQUE tenant_id+email) ✅
+- [x] **4B.2** Domain models (3): Client (con anonymize() e isAnonymized()), Gender (enum), ClientSource (enum) ✅
+- [x] **4B.3** Generación de external_id con prefijo `cli_` ✅
+- [x] **4B.4** Input ports (6): CreateClient, GetClient, UpdateClient, AnonymizeClient, ExportClientData, InternalClient ✅
+- [x] **4B.5** Output port (1): ClientPersistencePort ✅
+- [x] **4B.6** Domain exceptions (3): ClientNotFound, ClientAlreadyAnonymized, DuplicateClientEmail ✅
+- [x] **4B.7** DTOs (6 records): CreateClient, UpdateClient, ClientResponse, ClientExportResponse, ClientInternalResponse, FindOrCreateClientRequest ✅
+- [x] **4B.8** Application service (1): ClientService (6 use cases, incl. find-or-create for public booking) ✅
+- [x] **4B.9** JPA entity (1): ClientJpaEntity (TenantAwareEntity, @Enumerated Gender/ClientSource) ✅
+- [x] **4B.10** Repository (1), Persistence adapter (1) ✅
+- [x] **4B.11** MapStruct mappers (2): ClientPersistence, ClientDto ✅
+- [x] **4B.12** Controllers (3): ClientController (6 endpoints), ClientInternalController (2), ClientExceptionHandler (DataIntegrityViolation safety net) ✅
 
 ### ✅ Verificación Fase 4
-- [ ] CRUD de employees, services, clients funcional
-- [ ] Anonimización GDPR de un cliente funciona
-- [ ] Aislamiento multi-tenant verificado en ambos servicios
+- [x] `mvn clean package -DskipTests` → BUILD SUCCESS (11/11, ~23s) ✅
+- [x] staff-service: 62 Java files, 15 endpoints, 4 tablas ✅
+- [x] client-service: 28 Java files, 8 endpoints, 1 tabla ✅
+- [x] Fix 4.0.1: BusinessHours.validate() → BusinessValidationException → 422 ✅
+- [x] E2E validation: 40/40 tests PASS ✅
+  - Employee CRUD (create, list, get, update, deactivate, working hours, service assignments)
+  - Service catalog CRUD + duplicate name → 422
+  - Client CRUD + GDPR (anonymize, export) + duplicate email → 409
+  - Multi-tenant isolation: T2 sees 0 of T1's data, GET by externalId → 404 cross-tenant
+  - Internal endpoints: PSK validation (200 with key, 403 without)
+  - Find-or-create: existing by phone → returns existing, new → creates
+  - **Bug fix**: `@ConditionalOnBean(EntityManager.class)` → `@ConditionalOnClass` en TenantAutoConfiguration (TenantFilterAspect never created → cross-tenant data leak)
 
 ---
 
