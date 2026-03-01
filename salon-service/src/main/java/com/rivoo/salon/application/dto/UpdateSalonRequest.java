@@ -1,15 +1,17 @@
 package com.rivoo.salon.application.dto;
 
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 public record UpdateSalonRequest(
-        String name,
+        @Size(max = 200) String name,
         @Email String email,
-        String phone,
-        String description,
-        String addressStreet,
-        String addressCity,
-        String addressPostalCode,
+        @Pattern(regexp = "^\\+?[0-9\\s\\-()]{7,20}$") String phone,
+        @Size(max = 2000) String description,
+        @Size(max = 300) String addressStreet,
+        @Size(max = 100) String addressCity,
+        @Size(max = 10) String addressPostalCode,
         String timezone,
         String currency
 ) {

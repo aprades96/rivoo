@@ -141,7 +141,49 @@
 
 ---
 
+## Fase 3.5: Refactoring pre-Fase 4 (20 puntos)
+
+### P0 — Seguridad / Correctness
+- [x] **R1** TenantFilterAspect: try-catch de seguridad (abortar query si no se activa filtro) ✅
+- [x] **R2** Validación email único en registro de salón (existsByEmail + 409) ✅
+- [x] **R3** AuthServiceAdapter: wrapper de excepciones de dominio (AuthServiceException + 502) ✅
+
+### P1 — Consistencia / DRY
+- [x] **R4** Clase RivooHeaders con constantes (eliminados magic strings en 4 ficheros) ✅
+- [x] **R5** @PrePersist/@PreUpdate en JPA entities de auth-service ✅
+- [x] **R6** DRY KeycloakAdminAdapter: executeKeycloakOperation() helper + Location header defensivo ✅
+- [x] **R7** Eliminado hibernate dialect explícito en 5 skeleton services (Hibernate 7 auto-detect) ✅
+- [x] **R8** MapStruct dependency en 4 POMs de skeleton services (staff, client, appointment, billing) ✅
+
+### P2 — Calidad de diseño
+- [x] **R9** Jerarquía de excepciones: RivooException base → GlobalExceptionHandler simplificado a 1 handler ✅
+- [x] **R10** Domain model validation en auth-service (Objects.requireNonNull en constructores) ✅
+- [x] **R11** Extraer OnboardingSagaService de SalonService (SRP) ✅
+- [x] **R12** Documentar flush() en BusinessHoursPersistenceAdapter ✅
+- [x] **R13** Validaciones @Size y @Pattern en DTOs de salon-service ✅
+- [x] **R14** Location header parsing defensivo en KeycloakAdminAdapter (incluido en R6) ✅
+
+### P3 — Nice to have
+- [x] **R15** Externalizar timeouts a properties (`rivoo.client.connect-timeout-seconds`) ✅
+- [x] **R16** @ConfigurationProperties para rivoo.security (RivooSecurityProperties record) ✅
+- [x] **R17** Auto-configuration ordering explícito (Observability → Tenant → Security → Web/Client) ✅
+- [x] **R18** UserRole.fromKeycloakRole() inverso ✅
+- [x] **R19** Constantes para horarios por defecto en OnboardingSagaService ✅
+- [x] **R20** BusinessHours.validate() con invocación en updateBusinessHours() ✅
+
+### ✅ Verificación Fase 3.5
+- [x] `mvn clean package -DskipTests` → BUILD SUCCESS (11/11, ~20s) ✅
+- [x] Actualizar `tasks/lessons.md` con lecciones de Fase 3.5 (9 lecciones documentadas) ✅
+- [x] E2E: 13/13 flujos PASS ✅
+  - Bug encontrado y corregido: `KeycloakUserRepresentation.credentials` usaba `Map<String,String>` → `"temporary":"false"` (string). Keycloak no persiste el password. Fix: `CredentialRepresentation` record con `Boolean temporary`.
+  - Minor: `BusinessHours.validate()` lanza `IllegalArgumentException` → 500 (debería ser 400/422). Mejora para Fase 4.
+
+---
+
 ## Fase 4: staff-service + client-service (Semana 4)
+
+### 4.0 — Fixes pendientes de Fase 3.5
+- [ ] **4.0.1** `BusinessHours.validate()` lanza `IllegalArgumentException` → 500. Cambiar a `BusinessValidationException` → 422.
 
 ### 4A — staff-service
 - [ ] **4A.1** Migración Flyway V1: `employees`, `employee_working_hours`, `services`, `employee_services`

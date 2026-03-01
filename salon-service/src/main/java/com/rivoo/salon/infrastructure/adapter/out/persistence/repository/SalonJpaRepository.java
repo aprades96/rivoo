@@ -21,6 +21,8 @@ public interface SalonJpaRepository extends JpaRepository<SalonJpaEntity, Long> 
 
     boolean existsBySlug(String slug);
 
+    boolean existsByEmail(String email);
+
     Page<SalonJpaEntity> findAll(Pageable pageable);
 
     @Query("SELECT s FROM SalonJpaEntity s WHERE s.status = :status AND s.createdAt < :before")

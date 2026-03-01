@@ -35,6 +35,17 @@ public class TenantUserMappingJpaEntity {
     public TenantUserMappingJpaEntity() {
     }
 
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = Instant.now();
+        this.updatedAt = Instant.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = Instant.now();
+    }
+
     public Long getId() {
         return id;
     }

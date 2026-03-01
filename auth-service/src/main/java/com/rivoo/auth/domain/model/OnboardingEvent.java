@@ -1,6 +1,7 @@
 package com.rivoo.auth.domain.model;
 
 import java.time.Instant;
+import java.util.Objects;
 
 public class OnboardingEvent {
 
@@ -17,6 +18,9 @@ public class OnboardingEvent {
 
     public OnboardingEvent(String tenantId, String keycloakUserId, String email,
                            EventType eventType, String details) {
+        Objects.requireNonNull(tenantId, "tenantId must not be null");
+        Objects.requireNonNull(keycloakUserId, "keycloakUserId must not be null");
+        Objects.requireNonNull(eventType, "eventType must not be null");
         this.tenantId = tenantId;
         this.keycloakUserId = keycloakUserId;
         this.email = email;

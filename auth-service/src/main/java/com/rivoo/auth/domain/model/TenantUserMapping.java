@@ -1,6 +1,7 @@
 package com.rivoo.auth.domain.model;
 
 import java.time.Instant;
+import java.util.Objects;
 
 public class TenantUserMapping {
 
@@ -16,6 +17,9 @@ public class TenantUserMapping {
     }
 
     public TenantUserMapping(String tenantId, String keycloakUserId, UserRole role) {
+        Objects.requireNonNull(tenantId, "tenantId must not be null");
+        Objects.requireNonNull(keycloakUserId, "keycloakUserId must not be null");
+        Objects.requireNonNull(role, "role must not be null");
         this.tenantId = tenantId;
         this.keycloakUserId = keycloakUserId;
         this.role = role;

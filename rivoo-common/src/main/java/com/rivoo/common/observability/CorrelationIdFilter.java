@@ -1,5 +1,6 @@
 package com.rivoo.common.observability;
 
+import com.rivoo.common.web.RivooHeaders;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,7 +16,7 @@ import java.util.UUID;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class CorrelationIdFilter extends OncePerRequestFilter {
 
-    public static final String CORRELATION_ID_HEADER = "X-Correlation-Id";
+    public static final String CORRELATION_ID_HEADER = RivooHeaders.CORRELATION_ID;
     public static final String CORRELATION_ID_MDC_KEY = "correlationId";
 
     @Override

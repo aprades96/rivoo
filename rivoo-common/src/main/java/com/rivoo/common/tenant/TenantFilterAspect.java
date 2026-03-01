@@ -22,9 +22,14 @@ public class TenantFilterAspect {
     public void activateTenantFilter() {
         String tenantId = TenantContext.getCurrentTenantId();
         if (tenantId != null) {
-            Session session = entityManager.unwrap(Session.class);
-            session.enableFilter("tenantFilter").setParameter("tenantId", tenantId);
-            log.trace("Tenant filter activated for tenant: {}", tenantId);
+            try {
+                Session session = entityManager.unwrap(Session.class);
+                session.enableFilter("tenantFilter").setParameter("tenantId", tenantId);
+                log.trace("Tenant filter activated for tenant: {}", tenantId);
+            } catch (Exception e) {
+                throw new IllegalStateException(
+                        "Failed to activate tenant filter for tenant: " + tenantId, e);
+            }
         }
         // tenantId == null → PLATFORM_ADMIN → no filter (cross-tenant access)
     }

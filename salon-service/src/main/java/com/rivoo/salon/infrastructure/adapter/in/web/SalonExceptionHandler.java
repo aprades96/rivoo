@@ -1,5 +1,7 @@
 package com.rivoo.salon.infrastructure.adapter.in.web;
 
+import com.rivoo.salon.domain.exception.AuthServiceException;
+import com.rivoo.salon.domain.exception.EmailAlreadyInUseException;
 import com.rivoo.salon.domain.exception.SalonNotFoundException;
 import com.rivoo.salon.domain.exception.SlugAlreadyExistsException;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +24,26 @@ public class SalonExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
         problem.setType(URI.create("https://rivoo.com/errors/salon-not-found"));
         problem.setTitle("Salon Not Found");
+        enrichProblemDetail(problem);
+        return problem;
+    }
+
+    @ExceptionHandler(EmailAlreadyInUseException.class)
+    public ProblemDetail handleEmailAlreadyInUse(EmailAlreadyInUseException ex) {
+        log.warn("Email conflict: {}", ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setType(URI.create("https://rivoo.com/errors/email-already-in-use"));
+        problem.setTitle("Email Already In Use");
+        enrichProblemDetail(problem);
+        return problem;
+    }
+
+    @ExceptionHandler(AuthServiceException.class)
+    public ProblemDetail handleAuthServiceError(AuthServiceException ex) {
+        log.error("Auth service error: {}", ex.getMessage(), ex);
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY, ex.getMessage());
+        problem.setType(URI.create("https://rivoo.com/errors/auth-service-error"));
+        problem.setTitle("Auth Service Error");
         enrichProblemDetail(problem);
         return problem;
     }

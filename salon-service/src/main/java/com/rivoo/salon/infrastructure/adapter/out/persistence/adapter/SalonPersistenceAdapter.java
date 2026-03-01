@@ -45,6 +45,11 @@ public class SalonPersistenceAdapter implements SalonPersistencePort {
     }
 
     @Override
+    public boolean existsByEmail(String email) {
+        return salonJpaRepository.existsByEmail(email);
+    }
+
+    @Override
     public void deleteById(Long id) {
         salonJpaRepository.deleteById(id);
     }

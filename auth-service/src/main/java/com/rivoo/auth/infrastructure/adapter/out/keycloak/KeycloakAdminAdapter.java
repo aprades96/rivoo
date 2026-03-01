@@ -60,9 +60,14 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
                 throw new KeycloakOperationException("Keycloak did not return Location header after user creation");
             }
 
-            // Location header format: .../users/{userId}
             String path = location.getPath();
+            if (path == null || !path.contains("/users/")) {
+                throw new KeycloakOperationException("Unexpected Location header format: " + location);
+            }
             String userId = path.substring(path.lastIndexOf('/') + 1);
+            if (userId.isBlank()) {
+                throw new KeycloakOperationException("Empty userId in Location header: " + location);
+            }
 
             log.info("Keycloak user created: email={}, userId={}", email, userId);
             return userId;
@@ -83,7 +88,7 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
     public void setUserAttributes(String keycloakUserId, Map<String, List<String>> attributes) {
         log.debug("Setting attributes for Keycloak user {}: {}", keycloakUserId, attributes.keySet());
 
-        try {
+        executeKeycloakOperation("set user attributes", () -> {
             KeycloakUserRepresentation current = getUser(keycloakUserId);
 
             Map<String, List<String>> merged = new HashMap<>();
@@ -92,7 +97,6 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
             }
             merged.putAll(attributes);
 
-            // Use Map for PUT to avoid serializing null fields (credentials)
             Map<String, Object> updateBody = buildUserUpdateBody(current);
             updateBody.put("attributes", merged);
 
@@ -103,20 +107,15 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
                     .body(updateBody)
                     .retrieve()
                     .toBodilessEntity();
-
-        } catch (KeycloakOperationException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new KeycloakOperationException("Failed to set user attributes", e);
-        }
+            return null;
+        });
     }
 
     @Override
     public void assignRealmRole(String keycloakUserId, String roleName) {
         log.debug("Assigning role {} to Keycloak user {}", roleName, keycloakUserId);
 
-        try {
-            // First, get the role representation
+        executeKeycloakOperation("assign role " + roleName, () -> {
             KeycloakRoleRepresentation role = restClient.get()
                     .uri(baseUrl + "/roles/" + roleName)
                     .headers(h -> h.setBearerAuth(tokenManager.getAccessToken()))
@@ -127,7 +126,6 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
                 throw new KeycloakOperationException("Role not found in Keycloak: " + roleName);
             }
 
-            // Then assign the role
             restClient.post()
                     .uri(baseUrl + "/users/" + keycloakUserId + "/role-mappings/realm")
                     .headers(h -> h.setBearerAuth(tokenManager.getAccessToken()))
@@ -137,19 +135,15 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
                     .toBodilessEntity();
 
             log.info("Role {} assigned to user {}", roleName, keycloakUserId);
-
-        } catch (KeycloakOperationException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new KeycloakOperationException("Failed to assign role " + roleName, e);
-        }
+            return null;
+        });
     }
 
     @Override
     public List<String> searchUserIdsByAttribute(String attributeName, String attributeValue) {
         log.debug("Searching Keycloak users by {}={}", attributeName, attributeValue);
 
-        try {
+        return executeKeycloakOperation("search users by attribute", () -> {
             List<KeycloakUserRepresentation> users = restClient.get()
                     .uri(baseUrl + "/users?q={attr}:{value}&max=100",
                             attributeName, attributeValue)
@@ -166,17 +160,14 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
                 ids.add(user.id());
             }
             return ids;
-
-        } catch (Exception e) {
-            throw new KeycloakOperationException("Failed to search users by attribute", e);
-        }
+        });
     }
 
     @Override
     public void setUserEnabled(String keycloakUserId, boolean enabled) {
         log.debug("Setting Keycloak user {} enabled={}", keycloakUserId, enabled);
 
-        try {
+        executeKeycloakOperation("set user enabled status", () -> {
             KeycloakUserRepresentation current = getUser(keycloakUserId);
 
             Map<String, Object> updateBody = buildUserUpdateBody(current);
@@ -189,12 +180,8 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
                     .body(updateBody)
                     .retrieve()
                     .toBodilessEntity();
-
-        } catch (KeycloakOperationException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new KeycloakOperationException("Failed to set user enabled status", e);
-        }
+            return null;
+        });
     }
 
     @Override
@@ -206,7 +193,7 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
     public void deleteUser(String keycloakUserId) {
         log.warn("Deleting Keycloak user {} (compensation)", keycloakUserId);
 
-        try {
+        executeKeycloakOperation("delete user from Keycloak", () -> {
             restClient.delete()
                     .uri(baseUrl + "/users/" + keycloakUserId)
                     .headers(h -> h.setBearerAuth(tokenManager.getAccessToken()))
@@ -214,16 +201,32 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
                     .toBodilessEntity();
 
             log.info("Keycloak user {} deleted", keycloakUserId);
+            return null;
+        });
+    }
 
+    // ── Private helpers ─────────────────────────────────────────────────
+
+    @FunctionalInterface
+    private interface KeycloakOperation<T> {
+        T execute();
+    }
+
+    private <T> T executeKeycloakOperation(String operationName, KeycloakOperation<T> operation) {
+        try {
+            return operation.execute();
+        } catch (KeycloakOperationException | UserAlreadyExistsException e) {
+            throw e;
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.CONFLICT) {
+                throw new UserAlreadyExistsException("User already exists");
+            }
+            throw new KeycloakOperationException("Failed to " + operationName + ": " + e.getMessage(), e);
         } catch (Exception e) {
-            throw new KeycloakOperationException("Failed to delete user from Keycloak", e);
+            throw new KeycloakOperationException("Failed to " + operationName, e);
         }
     }
 
-    /**
-     * Builds a Map for user update operations, deliberately excluding credentials
-     * to prevent Keycloak from clearing them during attribute/status updates.
-     */
     private Map<String, Object> buildUserUpdateBody(KeycloakUserRepresentation current) {
         Map<String, Object> body = new HashMap<>();
         body.put("id", current.id());
@@ -240,7 +243,7 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
     }
 
     private KeycloakUserRepresentation getUser(String keycloakUserId) {
-        try {
+        return executeKeycloakOperation("get user from Keycloak: " + keycloakUserId, () -> {
             KeycloakUserRepresentation user = restClient.get()
                     .uri(baseUrl + "/users/" + keycloakUserId)
                     .headers(h -> h.setBearerAuth(tokenManager.getAccessToken()))
@@ -251,11 +254,6 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
                 throw new KeycloakOperationException("User not found in Keycloak: " + keycloakUserId);
             }
             return user;
-
-        } catch (KeycloakOperationException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new KeycloakOperationException("Failed to get user from Keycloak: " + keycloakUserId, e);
-        }
+        });
     }
 }

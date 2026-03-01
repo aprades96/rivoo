@@ -1,5 +1,6 @@
 package com.rivoo.common.tenant;
 
+import com.rivoo.common.web.RivooHeaders;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.MDC;
@@ -7,7 +8,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 
 public class TenantInterceptor implements HandlerInterceptor {
 
-    public static final String TENANT_HEADER = "X-Tenant-Id";
+    public static final String TENANT_HEADER = RivooHeaders.TENANT_ID;
     private static final String TENANT_MDC_KEY = "tenantId";
 
     @Override

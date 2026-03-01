@@ -23,4 +23,21 @@ public class SalonBusinessHours {
     private LocalTime closeTime;
     private LocalTime breakStartTime;
     private LocalTime breakEndTime;
+
+    public void validate() {
+        if (dayOfWeek < 1 || dayOfWeek > 7) {
+            throw new IllegalArgumentException("dayOfWeek must be 1-7, got: " + dayOfWeek);
+        }
+        if (open) {
+            if (openTime == null || closeTime == null) {
+                throw new IllegalArgumentException("Open days must have openTime and closeTime");
+            }
+            if (!closeTime.isAfter(openTime)) {
+                throw new IllegalArgumentException("closeTime must be after openTime");
+            }
+            if (breakStartTime != null && breakEndTime != null && !breakEndTime.isAfter(breakStartTime)) {
+                throw new IllegalArgumentException("breakEndTime must be after breakStartTime");
+            }
+        }
+    }
 }

@@ -1,5 +1,51 @@
 # Rivoo — Lessons Learned
 
+## Fase 3.5 (Refactoring pre-Fase 4)
+
+### RivooException jerarquía: un handler para gobernarlos a todos
+- Tener N handlers individuales en `GlobalExceptionHandler` (uno por excepción) es repetitivo y frágil.
+- **Solución**: Crear `RivooException` abstracta con `errorType`, `errorTitle`, `httpStatus`. Cada excepción de dominio extiende esta base. Un único `@ExceptionHandler(RivooException.class)` genera el `ProblemDetail` correcto para todas.
+- Beneficio: añadir nuevas excepciones solo requiere crear la clase — el handler ya las cubre.
+
+### @ConfigurationProperties con records en vez de @Value
+- `@Value("${rivoo.security.internal-service-key}")` repetido en varios sitios es frágil y propenso a typos.
+- **Solución**: `@ConfigurationProperties(prefix = "rivoo.security")` con un `record RivooSecurityProperties(String internalServiceKey)` — type-safe, un solo punto de configuración, validación en compact constructor.
+- Requiere `@EnableConfigurationProperties(RivooSecurityProperties.class)` en la auto-configuration.
+
+### Extraer saga a su propia clase
+- `SalonService` tenía demasiada responsabilidad: CRUD + onboarding saga + slug generation + default hours.
+- **Solución**: Extraer `OnboardingSagaService` que implementa `RegisterSalonUseCase`. SalonService queda limpio con solo CRUD + business hours.
+- Patrón: cuando un método en un service tiene > 50 líneas con try/catch de compensaciones, merece su propia clase.
+
+### TenantFilterAspect: NUNCA ejecutar sin filtro
+- Si `entityManager.unwrap(Session.class)` falla silenciosamente, la query se ejecuta SIN filtro de tenant → data leak cross-tenant.
+- **Solución**: Envolver en try-catch y lanzar `IllegalStateException` para abortar la operación. Es preferible un error 500 a un data leak.
+
+### KeycloakAdminAdapter: DRY con functional interface
+- El patrón try-catch con traducción de excepciones se repetía en 7 métodos.
+- **Solución**: Extraer `executeKeycloakOperation(String operationName, KeycloakOperation<T> op)` con una `@FunctionalInterface` privada. Reduce boilerplate y garantiza manejo consistente de errores.
+
+### Validaciones @Size/@Pattern en DTOs: defensa en profundidad
+- Los DTOs de registro solo tenían `@NotBlank` y `@Email`. Sin `@Size`, un campo de 10MB pasa validación.
+- **Solución**: Añadir `@Size(max=N)` a todos los campos string y `@Pattern` para formatos específicos (teléfono). Primera línea de defensa antes de llegar al dominio.
+
+### Auto-configuration ordering explícito
+- El orden de auto-configurations en Spring Boot depende de classpath scanning y puede variar.
+- **Solución**: Usar `@AutoConfiguration(after = X.class)` para garantizar: Observability → Tenant → Security → Web/Client. Importante cuando Security depende de beans de Tenant.
+
+### Keycloak credentials: Map<String,String> serializa boolean como string
+- Al crear un usuario en Keycloak via POST /users con credentials `[{"type":"password","value":"...","temporary":"false"}]`, el `"temporary":"false"` es un string, NO un boolean.
+- Keycloak 26.x no coerce el string a boolean → silenciosamente NO persiste el password. El usuario se crea (201) pero sin credentials funcionales.
+- Login falla con `invalid_grant`. Solo `PUT /users/{id}/reset-password` funciona (endpoint dedicado).
+- **Root cause**: `List<Map<String, String>>` en `KeycloakUserRepresentation` fuerza todos los valores a String.
+- **Fix**: Reemplazar con `record CredentialRepresentation(String type, String value, Boolean temporary)`. El `Boolean false` serializa correctamente como JSON `false`.
+- **Lección general**: en APIs externas, los tipos de datos importan. Un Map<String,String> pierde información de tipo.
+
+### Constantes centralizadas para headers HTTP
+- Magic strings como `"X-Tenant-Id"` esparcidos en 4+ clases es un bug waiting to happen.
+- **Solución**: Clase `RivooHeaders` con constantes `public static final String`. Las clases existentes referencian las constantes.
+- **Nota**: Gateway (WebFlux) no comparte rivoo-common, así que sus constantes quedan locales — aceptable.
+
 ## Fase 3
 
 ### Spring Cloud Gateway 5.0.x — New config prefix

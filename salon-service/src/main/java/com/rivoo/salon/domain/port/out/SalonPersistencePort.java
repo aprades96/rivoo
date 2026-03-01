@@ -19,6 +19,8 @@ public interface SalonPersistencePort {
 
     boolean existsBySlug(String slug);
 
+    boolean existsByEmail(String email);
+
     void deleteById(Long id);
 
     Page<Salon> findAll(Pageable pageable);

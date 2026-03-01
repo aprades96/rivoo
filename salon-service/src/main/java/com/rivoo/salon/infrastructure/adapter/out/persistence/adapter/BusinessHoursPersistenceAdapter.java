@@ -35,6 +35,8 @@ public class BusinessHoursPersistenceAdapter implements BusinessHoursPersistence
     @Override
     public void deleteBySalonId(Long salonId) {
         repository.deleteBySalonId(salonId);
+        // Flush required: within the same transaction, delete must be visible
+        // before saveAll to avoid unique constraint violation on (salon_id, day_of_week)
         entityManager.flush();
     }
 }

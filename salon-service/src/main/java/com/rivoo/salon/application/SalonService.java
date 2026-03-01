@@ -1,26 +1,19 @@
 package com.rivoo.salon.application;
 
-import com.rivoo.common.util.ExternalIdGenerator;
 import com.rivoo.salon.application.dto.BusinessHoursRequest;
 import com.rivoo.salon.application.dto.BusinessHoursResponse;
-import com.rivoo.salon.application.dto.RegisterSalonRequest;
-import com.rivoo.salon.application.dto.RegisterSalonResponse;
 import com.rivoo.salon.application.dto.SalonPublicResponse;
 import com.rivoo.salon.application.dto.SalonResponse;
 import com.rivoo.salon.application.dto.UpdateSalonRequest;
 import com.rivoo.salon.domain.exception.SalonNotFoundException;
-import com.rivoo.salon.domain.exception.SlugAlreadyExistsException;
 import com.rivoo.salon.domain.model.Salon;
 import com.rivoo.salon.domain.model.SalonBusinessHours;
 import com.rivoo.salon.domain.model.SalonStatus;
-import com.rivoo.salon.domain.model.SubscriptionPlan;
 import com.rivoo.salon.domain.port.in.GetSalonUseCase;
 import com.rivoo.salon.domain.port.in.ListSalonsUseCase;
 import com.rivoo.salon.domain.port.in.ManageBusinessHoursUseCase;
 import com.rivoo.salon.domain.port.in.ManageSalonStatusUseCase;
-import com.rivoo.salon.domain.port.in.RegisterSalonUseCase;
 import com.rivoo.salon.domain.port.in.UpdateSalonUseCase;
-import com.rivoo.salon.domain.port.out.AuthServicePort;
 import com.rivoo.salon.domain.port.out.BusinessHoursPersistencePort;
 import com.rivoo.salon.domain.port.out.SalonPersistencePort;
 import com.rivoo.salon.infrastructure.mapper.SalonDtoMapper;
@@ -31,104 +24,17 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalTime;
-import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class SalonService implements RegisterSalonUseCase, GetSalonUseCase, UpdateSalonUseCase,
+public class SalonService implements GetSalonUseCase, UpdateSalonUseCase,
         ManageBusinessHoursUseCase, ManageSalonStatusUseCase, ListSalonsUseCase {
 
     private final SalonPersistencePort salonPersistencePort;
     private final BusinessHoursPersistencePort businessHoursPersistencePort;
-    private final AuthServicePort authServicePort;
     private final SalonDtoMapper salonDtoMapper;
-
-    // ── Registration (Onboarding Saga) ──────────────────────────────────
-
-    @Override
-    @Transactional
-    public RegisterSalonResponse register(RegisterSalonRequest request) {
-        log.info("Starting salon registration for '{}'", request.name());
-
-        // Step 1: Generate IDs and slug
-        String externalId = ExternalIdGenerator.generate("sal");
-        String slug = generateUniqueSlug(request.name());
-
-        // Step 2: Create salon entity (status=ONBOARDING, tenantId=externalId)
-        Salon salon = Salon.builder()
-                .externalId(externalId)
-                .tenantId(externalId) // salon IS the tenant
-                .name(request.name())
-                .slug(slug)
-                .email(request.email())
-                .phone(request.phone())
-                .description(request.description())
-                .addressStreet(request.addressStreet())
-                .addressCity(request.addressCity() != null ? request.addressCity() : "Barcelona")
-                .addressPostalCode(request.addressPostalCode())
-                .timezone("Europe/Madrid")
-                .currency("EUR")
-                .subscriptionPlan(SubscriptionPlan.FREE_TRIAL)
-                .status(SalonStatus.ONBOARDING)
-                .build();
-
-        // Step 3: Persist salon
-        Salon savedSalon = salonPersistencePort.save(salon);
-        log.info("Salon persisted with externalId={}, slug={}", externalId, slug);
-
-        // Step 4: Create default business hours
-        createDefaultBusinessHours(savedSalon.getId());
-
-        // Step 5: Register owner in Keycloak via auth-service
-        String keycloakUserId;
-        try {
-            keycloakUserId = authServicePort.registerOwner(
-                    externalId,
-                    request.email(),
-                    request.ownerPassword(),
-                    request.ownerFirstName(),
-                    request.ownerLastName(),
-                    request.name(),
-                    SubscriptionPlan.FREE_TRIAL.name());
-            log.info("Owner registered in Keycloak: userId={}", keycloakUserId);
-        } catch (Exception e) {
-            log.error("Failed to register owner in Keycloak, compensating: deleting salon {}", externalId, e);
-            salonPersistencePort.deleteById(savedSalon.getId());
-            throw e;
-        }
-
-        // Step 6: Update salon with owner user ID
-        try {
-            savedSalon.setOwnerUserId(keycloakUserId);
-            savedSalon.setStatus(SalonStatus.ACTIVE);
-            savedSalon = salonPersistencePort.save(savedSalon);
-            log.info("Salon activated: externalId={}, ownerUserId={}", externalId, keycloakUserId);
-        } catch (Exception e) {
-            log.error("Failed to activate salon, compensating: deleting Keycloak user {} and salon {}",
-                    keycloakUserId, externalId, e);
-            try {
-                authServicePort.deleteUser(keycloakUserId);
-            } catch (Exception compEx) {
-                log.error("Compensation failed: could not delete Keycloak user {}", keycloakUserId, compEx);
-            }
-            salonPersistencePort.deleteById(savedSalon.getId());
-            throw e;
-        }
-
-        // Step 7 (SKIP): billing-service — Fase 7
-        log.info("Skipping billing-service integration (not implemented yet)");
-
-        // Step 8 (SKIP): notification-service — Fase 8
-        log.info("Skipping notification-service integration (not implemented yet)");
-
-        return new RegisterSalonResponse(
-                savedSalon.getExternalId(),
-                savedSalon.getSlug(),
-                savedSalon.getStatus().name());
-    }
 
     // ── Get Salon ───────────────────────────────────────────────────────
 
@@ -199,15 +105,19 @@ public class SalonService implements RegisterSalonUseCase, GetSalonUseCase, Upda
         businessHoursPersistencePort.deleteBySalonId(salon.getId());
 
         List<SalonBusinessHours> hours = request.stream()
-                .map(r -> SalonBusinessHours.builder()
-                        .salonId(salon.getId())
-                        .dayOfWeek(r.dayOfWeek())
-                        .open(r.open())
-                        .openTime(r.openTime())
-                        .closeTime(r.closeTime())
-                        .breakStartTime(r.breakStartTime())
-                        .breakEndTime(r.breakEndTime())
-                        .build())
+                .map(r -> {
+                    SalonBusinessHours bh = SalonBusinessHours.builder()
+                            .salonId(salon.getId())
+                            .dayOfWeek(r.dayOfWeek())
+                            .open(r.open())
+                            .openTime(r.openTime())
+                            .closeTime(r.closeTime())
+                            .breakStartTime(r.breakStartTime())
+                            .breakEndTime(r.breakEndTime())
+                            .build();
+                    bh.validate();
+                    return bh;
+                })
                 .toList();
 
         List<SalonBusinessHours> saved = businessHoursPersistencePort.saveAll(hours);
@@ -233,61 +143,5 @@ public class SalonService implements RegisterSalonUseCase, GetSalonUseCase, Upda
     @Transactional(readOnly = true)
     public Page<SalonResponse> listAll(Pageable pageable) {
         return salonPersistencePort.findAll(pageable).map(salonDtoMapper::toResponse);
-    }
-
-    // ── Private Helpers ─────────────────────────────────────────────────
-
-    private String generateUniqueSlug(String name) {
-        String baseSlug = name.toLowerCase()
-                .replaceAll("[^a-z0-9áéíóúñü]+", "-")
-                .replaceAll("^-|-$", "");
-
-        if (!salonPersistencePort.existsBySlug(baseSlug)) {
-            return baseSlug;
-        }
-
-        // Append numeric suffix to deduplicate
-        for (int i = 2; i <= 100; i++) {
-            String candidate = baseSlug + "-" + i;
-            if (!salonPersistencePort.existsBySlug(candidate)) {
-                return candidate;
-            }
-        }
-
-        throw new SlugAlreadyExistsException(baseSlug);
-    }
-
-    private void createDefaultBusinessHours(Long salonId) {
-        List<SalonBusinessHours> defaults = new ArrayList<>();
-
-        // Mon-Fri: 09:00-20:00
-        for (int day = 1; day <= 5; day++) {
-            defaults.add(SalonBusinessHours.builder()
-                    .salonId(salonId)
-                    .dayOfWeek(day)
-                    .open(true)
-                    .openTime(LocalTime.of(9, 0))
-                    .closeTime(LocalTime.of(20, 0))
-                    .build());
-        }
-
-        // Sat: 09:00-14:00
-        defaults.add(SalonBusinessHours.builder()
-                .salonId(salonId)
-                .dayOfWeek(6)
-                .open(true)
-                .openTime(LocalTime.of(9, 0))
-                .closeTime(LocalTime.of(14, 0))
-                .build());
-
-        // Sun: closed
-        defaults.add(SalonBusinessHours.builder()
-                .salonId(salonId)
-                .dayOfWeek(7)
-                .open(false)
-                .build());
-
-        businessHoursPersistencePort.saveAll(defaults);
-        log.info("Default business hours created for salonId={}", salonId);
     }
 }

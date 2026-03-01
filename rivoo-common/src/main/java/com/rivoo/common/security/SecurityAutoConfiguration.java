@@ -1,12 +1,14 @@
 package com.rivoo.common.security;
 
-import org.springframework.beans.factory.annotation.Value;
+import com.rivoo.common.tenant.TenantAutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 
-@AutoConfiguration
+@AutoConfiguration(after = TenantAutoConfiguration.class)
 @Import(SecurityConfig.class)
+@EnableConfigurationProperties(RivooSecurityProperties.class)
 public class SecurityAutoConfiguration {
 
     @Bean
@@ -15,8 +17,7 @@ public class SecurityAutoConfiguration {
     }
 
     @Bean
-    public InternalEndpointFilter internalEndpointFilter(
-            @Value("${rivoo.security.internal-service-key:}") String internalServiceKey) {
-        return new InternalEndpointFilter(internalServiceKey);
+    public InternalEndpointFilter internalEndpointFilter(RivooSecurityProperties properties) {
+        return new InternalEndpointFilter(properties.internalServiceKey());
     }
 }

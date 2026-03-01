@@ -1,5 +1,6 @@
 package com.rivoo.common.security;
 
+import com.rivoo.common.web.RivooHeaders;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -15,7 +16,7 @@ public class InternalEndpointFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(InternalEndpointFilter.class);
     private static final String INTERNAL_PATH_PREFIX = "/api/internal/";
-    private static final String SERVICE_KEY_HEADER = "X-Internal-Service-Key";
+    private static final String SERVICE_KEY_HEADER = RivooHeaders.INTERNAL_SERVICE_KEY;
 
     private final String expectedServiceKey;
 

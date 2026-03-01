@@ -35,6 +35,11 @@ public class OnboardingEventJpaEntity {
     public OnboardingEventJpaEntity() {
     }
 
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = Instant.now();
+    }
+
     public Long getId() {
         return id;
     }
