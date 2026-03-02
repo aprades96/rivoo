@@ -66,7 +66,7 @@ public class ClientService implements CreateClientUseCase, GetClientUseCase,
                 .build();
 
         Client saved = clientPersistencePort.save(client);
-        log.info("Client created: externalId={}, tenantId={}", saved.getExternalId(), tenantId);
+        log.atInfo().addKeyValue("externalId", saved.getExternalId()).log("Client created");
         return mapper.toResponse(saved);
     }
 
@@ -107,7 +107,7 @@ public class ClientService implements CreateClientUseCase, GetClientUseCase,
         if (request.notes() != null) client.setNotes(request.notes());
 
         Client updated = clientPersistencePort.save(client);
-        log.info("Client updated: externalId={}", externalId);
+        log.atInfo().addKeyValue("externalId", externalId).log("Client updated");
         return mapper.toResponse(updated);
     }
 
@@ -125,7 +125,7 @@ public class ClientService implements CreateClientUseCase, GetClientUseCase,
 
         client.anonymize();
         clientPersistencePort.save(client);
-        log.info("Client anonymized (GDPR): externalId={}", externalId);
+        log.atInfo().addKeyValue("externalId", externalId).log("Client anonymized (GDPR)");
     }
 
     // ── Export (GDPR) ───────────────────────────────────────────────────
@@ -155,7 +155,7 @@ public class ClientService implements CreateClientUseCase, GetClientUseCase,
         if (request.email() != null) {
             Optional<Client> byEmail = clientPersistencePort.findByTenantIdAndEmail(tenantId, request.email());
             if (byEmail.isPresent()) {
-                log.debug("Client found by email: {}", request.email());
+                log.atDebug().addKeyValue("email", request.email()).log("Client found by email");
                 return mapper.toInternalResponse(byEmail.get());
             }
         }
@@ -164,7 +164,7 @@ public class ClientService implements CreateClientUseCase, GetClientUseCase,
         if (request.phone() != null) {
             Optional<Client> byPhone = clientPersistencePort.findByTenantIdAndPhone(tenantId, request.phone());
             if (byPhone.isPresent()) {
-                log.debug("Client found by phone: {}", request.phone());
+                log.atDebug().addKeyValue("phone", request.phone()).log("Client found by phone");
                 return mapper.toInternalResponse(byPhone.get());
             }
         }
@@ -184,7 +184,7 @@ public class ClientService implements CreateClientUseCase, GetClientUseCase,
                 .build();
 
         Client saved = clientPersistencePort.save(client);
-        log.info("Client created via find-or-create: externalId={}, tenantId={}", saved.getExternalId(), tenantId);
+        log.atInfo().addKeyValue("externalId", saved.getExternalId()).log("Client created via find-or-create");
         return mapper.toInternalResponse(saved);
     }
 }

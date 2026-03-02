@@ -20,7 +20,7 @@ public class AuthExceptionHandler {
 
     @ExceptionHandler(UserAlreadyExistsException.class)
     public ProblemDetail handleUserAlreadyExists(UserAlreadyExistsException ex) {
-        log.warn("User already exists: {}", ex.getMessage());
+        log.atWarn().addKeyValue("detail", ex.getMessage()).log("User already exists");
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problem.setType(URI.create("https://rivoo.com/errors/user-already-exists"));
         problem.setTitle("User Already Exists");
@@ -30,7 +30,7 @@ public class AuthExceptionHandler {
 
     @ExceptionHandler(KeycloakOperationException.class)
     public ProblemDetail handleKeycloakOperation(KeycloakOperationException ex) {
-        log.error("Keycloak operation failed: {}", ex.getMessage(), ex);
+        log.atError().setCause(ex).log("Keycloak operation failed");
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY, ex.getMessage());
         problem.setType(URI.create("https://rivoo.com/errors/keycloak-operation-failed"));
         problem.setTitle("Keycloak Operation Failed");

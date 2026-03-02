@@ -26,7 +26,7 @@ public class AuthServiceAdapter implements AuthServicePort {
     @Override
     public String registerEmployee(String tenantId, String email, String password,
                                    String firstName, String lastName, String salonName) {
-        log.info("Calling auth-service to register employee for tenant {}", tenantId);
+        log.atInfo().log("Calling auth-service to register employee");
 
         RegisterEmployeeRestRequest request = new RegisterEmployeeRestRequest(
                 tenantId, email, password, firstName, lastName, salonName);
@@ -39,7 +39,7 @@ public class AuthServiceAdapter implements AuthServicePort {
                     .retrieve()
                     .body(RegisterEmployeeRestResponse.class);
 
-            log.info("Employee registered in Keycloak: keycloakUserId={}", response.keycloakUserId());
+            log.atInfo().addKeyValue("keycloakUserId", response.keycloakUserId()).log("Employee registered in Keycloak");
             return response.keycloakUserId();
         } catch (AuthServiceException e) {
             throw e;
@@ -50,7 +50,7 @@ public class AuthServiceAdapter implements AuthServicePort {
 
     @Override
     public void deleteUser(String keycloakUserId) {
-        log.info("Calling auth-service to delete user {}", keycloakUserId);
+        log.atInfo().addKeyValue("keycloakUserId", keycloakUserId).log("Calling auth-service to delete user");
 
         try {
             restClient.delete()
@@ -58,7 +58,7 @@ public class AuthServiceAdapter implements AuthServicePort {
                     .retrieve()
                     .toBodilessEntity();
 
-            log.info("User deleted from Keycloak: {}", keycloakUserId);
+            log.atInfo().addKeyValue("keycloakUserId", keycloakUserId).log("User deleted from Keycloak");
         } catch (Exception e) {
             throw new AuthServiceException("Failed to delete user in auth-service: " + keycloakUserId, e);
         }

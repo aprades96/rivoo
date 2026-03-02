@@ -25,7 +25,7 @@ public class StaffInternalController {
     public ResponseEntity<EmployeeInternalResponse> getEmployee(
             @PathVariable String tenantId,
             @PathVariable String employeeId) {
-        log.info("GET /api/internal/staff/{}/employees/{}", tenantId, employeeId);
+        log.atInfo().addKeyValue("employeeId", employeeId).log("GET /api/internal/staff/employees");
         EmployeeInternalResponse response = getEmployeeUseCase.getInternal(tenantId, employeeId);
         return ResponseEntity.ok(response);
     }
@@ -34,7 +34,7 @@ public class StaffInternalController {
     public ResponseEntity<ServiceOfferingInternalResponse> getService(
             @PathVariable String tenantId,
             @PathVariable String serviceId) {
-        log.info("GET /api/internal/staff/{}/services/{}", tenantId, serviceId);
+        log.atInfo().addKeyValue("serviceId", serviceId).log("GET /api/internal/staff/services");
         ServiceOfferingInternalResponse response = manageServiceOfferingUseCase.getInternal(tenantId, serviceId);
         return ResponseEntity.ok(response);
     }

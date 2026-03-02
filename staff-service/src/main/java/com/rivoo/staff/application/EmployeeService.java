@@ -93,7 +93,7 @@ public class EmployeeService implements CreateEmployeeUseCase, GetEmployeeUseCas
         // Create default working hours (Mon-Fri open, Sat-Sun closed)
         createDefaultWorkingHours(saved.getId());
 
-        log.info("Employee created: externalId={}, tenantId={}", saved.getExternalId(), tenantId);
+        log.atInfo().addKeyValue("externalId", saved.getExternalId()).log("Employee created");
         return mapper.toResponse(saved);
     }
 
@@ -136,7 +136,7 @@ public class EmployeeService implements CreateEmployeeUseCase, GetEmployeeUseCas
         if (request.role() != null) employee.setRole(EmployeeRole.valueOf(request.role()));
 
         Employee updated = employeePersistencePort.save(employee);
-        log.info("Employee updated: externalId={}, tenantId={}", externalId, tenantId);
+        log.atInfo().addKeyValue("externalId", externalId).log("Employee updated");
         return mapper.toResponse(updated);
     }
 
@@ -150,7 +150,7 @@ public class EmployeeService implements CreateEmployeeUseCase, GetEmployeeUseCas
 
         employee.setActive(false);
         employeePersistencePort.save(employee);
-        log.info("Employee deactivated: externalId={}, tenantId={}", externalId, tenantId);
+        log.atInfo().addKeyValue("externalId", externalId).log("Employee deactivated");
     }
 
     // ── Working Hours ───────────────────────────────────────────────────
@@ -191,7 +191,7 @@ public class EmployeeService implements CreateEmployeeUseCase, GetEmployeeUseCas
                 .toList();
 
         List<EmployeeWorkingHours> saved = workingHoursPersistencePort.saveAll(hours);
-        log.info("Working hours updated for employee: externalId={}, tenantId={}", employeeExternalId, tenantId);
+        log.atInfo().addKeyValue("externalId", employeeExternalId).log("Working hours updated for employee");
         return saved.stream().map(mapper::toWorkingHoursResponse).toList();
     }
 
@@ -226,8 +226,7 @@ public class EmployeeService implements CreateEmployeeUseCase, GetEmployeeUseCas
 
         employeeServicePersistencePort.saveAll(assignments);
 
-        log.info("Services assigned to employee: externalId={}, count={}, tenantId={}",
-                employeeExternalId, assignments.size(), tenantId);
+        log.atInfo().addKeyValue("externalId", employeeExternalId).addKeyValue("count", assignments.size()).log("Services assigned to employee");
 
         // Return the freshly loaded assignments (with service data)
         return getAssignedServices(employeeExternalId);

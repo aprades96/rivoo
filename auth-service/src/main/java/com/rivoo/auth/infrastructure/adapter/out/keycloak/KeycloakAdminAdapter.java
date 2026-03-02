@@ -38,7 +38,7 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
 
     @Override
     public String createUser(String email, String password, String firstName, String lastName) {
-        log.debug("Creating Keycloak user: {}", email);
+        log.atDebug().addKeyValue("email", email).log("Creating Keycloak user");
 
         KeycloakUserRepresentation user = KeycloakUserRepresentation.forCreation(
                 email, password, firstName, lastName);
@@ -67,7 +67,7 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
                 throw new KeycloakOperationException("Empty userId in Location header: " + location);
             }
 
-            log.info("Keycloak user created: email={}, userId={}", email, userId);
+            log.atInfo().addKeyValue("email", email).addKeyValue("keycloakUserId", userId).log("Keycloak user created");
             return userId;
 
         } catch (HttpClientErrorException e) {
@@ -84,7 +84,7 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
 
     @Override
     public void setUserAttributes(String keycloakUserId, Map<String, List<String>> attributes) {
-        log.debug("Setting attributes for Keycloak user {}: {}", keycloakUserId, attributes.keySet());
+        log.atDebug().addKeyValue("keycloakUserId", keycloakUserId).addKeyValue("attributeKeys", attributes.keySet()).log("Setting Keycloak user attributes");
 
         executeKeycloakOperation("set user attributes", () -> {
             KeycloakUserRepresentation current = getUser(keycloakUserId);
@@ -111,7 +111,7 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
 
     @Override
     public void assignRealmRole(String keycloakUserId, String roleName) {
-        log.debug("Assigning role {} to Keycloak user {}", roleName, keycloakUserId);
+        log.atDebug().addKeyValue("roleName", roleName).addKeyValue("keycloakUserId", keycloakUserId).log("Assigning realm role to Keycloak user");
 
         executeKeycloakOperation("assign role " + roleName, () -> {
             KeycloakRoleRepresentation role = restClient.get()
@@ -132,14 +132,14 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
                     .retrieve()
                     .toBodilessEntity();
 
-            log.info("Role {} assigned to user {}", roleName, keycloakUserId);
+            log.atInfo().addKeyValue("roleName", roleName).addKeyValue("keycloakUserId", keycloakUserId).log("Realm role assigned to user");
             return null;
         });
     }
 
     @Override
     public List<String> searchUserIdsByAttribute(String attributeName, String attributeValue) {
-        log.debug("Searching Keycloak users by {}={}", attributeName, attributeValue);
+        log.atDebug().addKeyValue("attributeName", attributeName).addKeyValue("attributeValue", attributeValue).log("Searching Keycloak users by attribute");
 
         return executeKeycloakOperation("search users by attribute", () -> {
             List<KeycloakUserRepresentation> users = restClient.get()
@@ -163,7 +163,7 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
 
     @Override
     public void setUserEnabled(String keycloakUserId, boolean enabled) {
-        log.debug("Setting Keycloak user {} enabled={}", keycloakUserId, enabled);
+        log.atDebug().addKeyValue("keycloakUserId", keycloakUserId).addKeyValue("enabled", enabled).log("Setting Keycloak user enabled status");
 
         executeKeycloakOperation("set user enabled status", () -> {
             KeycloakUserRepresentation current = getUser(keycloakUserId);
@@ -189,7 +189,7 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
 
     @Override
     public void deleteUser(String keycloakUserId) {
-        log.warn("Deleting Keycloak user {} (compensation)", keycloakUserId);
+        log.atWarn().addKeyValue("keycloakUserId", keycloakUserId).log("Deleting Keycloak user (compensation)");
 
         executeKeycloakOperation("delete user from Keycloak", () -> {
             restClient.delete()
@@ -198,7 +198,7 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
                     .retrieve()
                     .toBodilessEntity();
 
-            log.info("Keycloak user {} deleted", keycloakUserId);
+            log.atInfo().addKeyValue("keycloakUserId", keycloakUserId).log("Keycloak user deleted");
             return null;
         });
     }

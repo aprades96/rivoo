@@ -16,13 +16,12 @@ public class LoggingInterceptor implements ClientHttpRequestInterceptor {
                                         byte[] body,
                                         ClientHttpRequestExecution execution) throws IOException {
         long start = System.currentTimeMillis();
-        log.debug("Inter-service call: {} {}", request.getMethod(), request.getURI());
+        log.atDebug().addKeyValue("method", request.getMethod()).addKeyValue("uri", request.getURI()).log("Inter-service call");
 
         ClientHttpResponse response = execution.execute(request, body);
 
         long duration = System.currentTimeMillis() - start;
-        log.debug("Inter-service response: {} {} → {} ({}ms)",
-                request.getMethod(), request.getURI(), response.getStatusCode(), duration);
+        log.atDebug().addKeyValue("method", request.getMethod()).addKeyValue("uri", request.getURI()).addKeyValue("status", response.getStatusCode()).addKeyValue("durationMs", duration).log("Inter-service response");
 
         return response;
     }

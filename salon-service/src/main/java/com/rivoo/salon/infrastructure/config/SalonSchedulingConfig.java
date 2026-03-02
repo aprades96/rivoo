@@ -31,11 +31,11 @@ public class SalonSchedulingConfig {
             return;
         }
 
-        log.info("Found {} stale ONBOARDING salons, marking as FAILED", staleSalons.size());
+        log.atInfo().addKeyValue("count", staleSalons.size()).log("Found stale ONBOARDING salons, marking as FAILED");
         for (Salon salon : staleSalons) {
             salon.setStatus(SalonStatus.FAILED);
             salonPersistencePort.save(salon);
-            log.warn("Marked salon {} as FAILED (stale onboarding)", salon.getExternalId());
+            log.atWarn().addKeyValue("externalId", salon.getExternalId()).log("Marked salon as FAILED (stale onboarding)");
         }
     }
 }

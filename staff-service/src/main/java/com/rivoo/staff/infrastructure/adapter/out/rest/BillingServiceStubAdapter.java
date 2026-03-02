@@ -10,7 +10,7 @@ public class BillingServiceStubAdapter implements BillingServicePort {
 
     @Override
     public int getMaxEmployees(String tenantId) {
-        log.debug("BillingServiceStub: returning unlimited (-1) for tenant {}", tenantId);
+        log.atDebug().log("BillingServiceStub: returning unlimited (-1)");
         return -1;
     }
 }

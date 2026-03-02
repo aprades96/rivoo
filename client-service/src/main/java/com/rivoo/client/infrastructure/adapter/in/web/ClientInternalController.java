@@ -27,7 +27,7 @@ public class ClientInternalController {
     public ResponseEntity<ClientInternalResponse> getClient(
             @PathVariable String clientId,
             @RequestParam String tenantId) {
-        log.info("GET /api/internal/clients/{} - tenantId={}", clientId, tenantId);
+        log.atInfo().addKeyValue("clientId", clientId).log("GET /api/internal/clients");
         ClientInternalResponse response = internalClientUseCase.getByExternalIdAndTenant(clientId, tenantId);
         return ResponseEntity.ok(response);
     }
@@ -36,7 +36,7 @@ public class ClientInternalController {
     public ResponseEntity<ClientInternalResponse> findOrCreate(
             @RequestParam String tenantId,
             @Valid @RequestBody FindOrCreateClientRequest request) {
-        log.info("POST /api/internal/clients/find-or-create - tenantId={}", tenantId);
+        log.atInfo().log("POST /api/internal/clients/find-or-create");
         ClientInternalResponse response = internalClientUseCase.findOrCreate(tenantId, request);
         return ResponseEntity.ok(response);
     }

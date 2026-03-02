@@ -26,7 +26,7 @@ public class AuthController {
     @PostMapping("/api/internal/auth/register-owner")
     public ResponseEntity<RegisterOwnerResponse> registerOwner(
             @Valid @RequestBody RegisterOwnerRequest request) {
-        log.info("POST /api/internal/auth/register-owner for tenant {}", request.tenantId());
+        log.atInfo().log("POST /api/internal/auth/register-owner");
         RegisterOwnerResponse response = registerOwnerUseCase.registerOwner(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -34,14 +34,14 @@ public class AuthController {
     @PostMapping("/api/internal/auth/register-employee")
     public ResponseEntity<RegisterEmployeeResponse> registerEmployee(
             @Valid @RequestBody RegisterEmployeeRequest request) {
-        log.info("POST /api/internal/auth/register-employee for tenant {}", request.tenantId());
+        log.atInfo().log("POST /api/internal/auth/register-employee");
         RegisterEmployeeResponse response = registerEmployeeUseCase.registerEmployee(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PutMapping("/api/internal/auth/tenants/{tenantId}/disable")
     public ResponseEntity<Void> disableTenant(@PathVariable String tenantId) {
-        log.info("PUT /api/internal/auth/tenants/{}/disable", tenantId);
+        log.atInfo().log("PUT /api/internal/auth/tenants/disable");
         manageTenantStatusUseCase.disableTenant(tenantId);
         return ResponseEntity.noContent().build();
     }
@@ -50,14 +50,14 @@ public class AuthController {
     public ResponseEntity<Void> updateTenantAttributes(
             @PathVariable String tenantId,
             @Valid @RequestBody UpdateAttributeRequest request) {
-        log.info("PUT /api/internal/auth/tenants/{}/attributes", tenantId);
+        log.atInfo().log("PUT /api/internal/auth/tenants/attributes");
         updateTenantAttributeUseCase.updateTenantAttributes(tenantId, request);
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/api/internal/auth/tenants/{tenantId}/users")
     public ResponseEntity<List<TenantUserResponse>> listTenantUsers(@PathVariable String tenantId) {
-        log.debug("GET /api/internal/auth/tenants/{}/users", tenantId);
+        log.atDebug().log("GET /api/internal/auth/tenants/users");
         List<TenantUserResponse> users = listTenantUsersUseCase.listTenantUsers(tenantId);
         return ResponseEntity.ok(users);
     }
@@ -67,7 +67,7 @@ public class AuthController {
             @PathVariable String tenantId,
             @RequestBody Map<String, Boolean> body) {
         boolean enabled = body.getOrDefault("enabled", false);
-        log.info("PUT /api/internal/admin/tenants/{}/status enabled={}", tenantId, enabled);
+        log.atInfo().addKeyValue("enabled", enabled).log("PUT /api/internal/admin/tenants/status");
         manageTenantStatusUseCase.setTenantStatus(tenantId, enabled);
         return ResponseEntity.noContent().build();
     }

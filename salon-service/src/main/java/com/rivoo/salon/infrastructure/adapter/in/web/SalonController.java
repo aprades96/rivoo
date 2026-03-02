@@ -49,14 +49,14 @@ public class SalonController {
 
     @PostMapping("/api/v1/salons")
     public ResponseEntity<RegisterSalonResponse> register(@Valid @RequestBody RegisterSalonRequest request) {
-        log.info("POST /api/v1/salons - Registering salon '{}'", request.name());
+        log.atInfo().addKeyValue("salonName", request.name()).log("POST /api/v1/salons - Registering salon");
         RegisterSalonResponse response = registerSalonUseCase.register(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping("/api/v1/salons/public/{slug}")
     public ResponseEntity<SalonPublicResponse> getPublicBySlug(@PathVariable String slug) {
-        log.info("GET /api/v1/salons/public/{}", slug);
+        log.atInfo().addKeyValue("slug", slug).log("GET /api/v1/salons/public/{slug}");
         SalonPublicResponse response = getSalonUseCase.getPublicBySlug(slug);
         return ResponseEntity.ok(response);
     }
@@ -67,7 +67,7 @@ public class SalonController {
     @PreAuthorize("hasAnyRole('SALON_OWNER', 'EMPLOYEE')")
     public ResponseEntity<SalonResponse> getMe() {
         String tenantId = TenantContext.getCurrentTenantId();
-        log.info("GET /api/v1/salons/me - tenantId={}", tenantId);
+        log.atInfo().log("GET /api/v1/salons/me");
         SalonResponse response = getSalonUseCase.getByTenantId(tenantId);
         return ResponseEntity.ok(response);
     }
@@ -76,7 +76,7 @@ public class SalonController {
     @PreAuthorize("hasRole('SALON_OWNER')")
     public ResponseEntity<SalonResponse> updateMe(@Valid @RequestBody UpdateSalonRequest request) {
         String tenantId = TenantContext.getCurrentTenantId();
-        log.info("PUT /api/v1/salons/me - tenantId={}", tenantId);
+        log.atInfo().log("PUT /api/v1/salons/me");
         SalonResponse response = updateSalonUseCase.update(tenantId, request);
         return ResponseEntity.ok(response);
     }
@@ -85,7 +85,7 @@ public class SalonController {
     @PreAuthorize("hasAnyRole('SALON_OWNER', 'EMPLOYEE')")
     public ResponseEntity<List<BusinessHoursResponse>> getBusinessHours() {
         String tenantId = TenantContext.getCurrentTenantId();
-        log.info("GET /api/v1/salons/me/business-hours - tenantId={}", tenantId);
+        log.atInfo().log("GET /api/v1/salons/me/business-hours");
         List<BusinessHoursResponse> response = manageBusinessHoursUseCase.getBusinessHours(tenantId);
         return ResponseEntity.ok(response);
     }
@@ -95,7 +95,7 @@ public class SalonController {
     public ResponseEntity<List<BusinessHoursResponse>> updateBusinessHours(
             @Valid @RequestBody List<BusinessHoursRequest> request) {
         String tenantId = TenantContext.getCurrentTenantId();
-        log.info("PUT /api/v1/salons/me/business-hours - tenantId={}", tenantId);
+        log.atInfo().log("PUT /api/v1/salons/me/business-hours");
         List<BusinessHoursResponse> response = manageBusinessHoursUseCase.updateBusinessHours(tenantId, request);
         return ResponseEntity.ok(response);
     }
@@ -105,7 +105,7 @@ public class SalonController {
     @PutMapping("/api/internal/salons/{tenantId}/status")
     public ResponseEntity<Void> updateStatus(@PathVariable String tenantId,
                                              @Valid @RequestBody UpdateStatusRequest request) {
-        log.info("PUT /api/internal/salons/{}/status - status={}", tenantId, request.status());
+        log.atInfo().addKeyValue("status", request.status()).log("PUT /api/internal/salons/status");
         SalonStatus status = SalonStatus.valueOf(request.status());
         manageSalonStatusUseCase.updateStatus(tenantId, status);
         return ResponseEntity.ok().build();
@@ -113,14 +113,14 @@ public class SalonController {
 
     @GetMapping("/api/internal/salons/by-slug/{slug}")
     public ResponseEntity<SalonResponse> getBySlug(@PathVariable String slug) {
-        log.info("GET /api/internal/salons/by-slug/{}", slug);
+        log.atInfo().addKeyValue("slug", slug).log("GET /api/internal/salons/by-slug");
         SalonResponse response = getSalonUseCase.getBySlug(slug);
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/api/internal/admin/salons")
     public ResponseEntity<Page<SalonResponse>> listAll(Pageable pageable) {
-        log.info("GET /api/internal/admin/salons");
+        log.atInfo().log("GET /api/internal/admin/salons");
         Page<SalonResponse> response = listSalonsUseCase.listAll(pageable);
         return ResponseEntity.ok(response);
     }

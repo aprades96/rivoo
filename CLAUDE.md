@@ -290,9 +290,20 @@ public interface StaffServiceClient {
 
 ### Structured Logging
 
-- **Production** (profile `prod`): JSON format via `logstash-logback-encoder`
-- **Local** (profile `local`): human-readable text format
-- Configuration: `logback-spring.xml` with `<springProfile>` switching
+- **All profiles**: JSON structured logging via Spring Boot 4 built-in `StructuredLogEncoder`
+- Configuration: `logback-spring.xml` (single appender, no profile switching)
+- **Fluent API obligatoria** (SLF4J 2.0): todas las llamadas a log DEBEN usar la fluent API para que los valores sean campos JSON independientes y filtrables
+
+```java
+// CORRECTO — valores como campos JSON separados
+log.atInfo().addKeyValue("email", email).addKeyValue("keycloakUserId", userId).log("Owner registered");
+
+// INCORRECTO — valores interpolados en el string message, no filtrables
+log.info("Owner registered: email={}, userId={}", email, userId);
+```
+
+- **NO duplicar claves MDC**: `tenantId` y `correlationId` ya aparecen automáticamente como campos JSON (inyectados por `TenantInterceptor` y `CorrelationIdFilter`). No añadirlos con `.addKeyValue()`
+- Para excepciones: usar `.setCause(ex)` en vez de pasar la excepción como último parámetro
 
 ### Correlation ID
 

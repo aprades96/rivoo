@@ -17,7 +17,7 @@ public class ClientExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ProblemDetail handleDataIntegrityViolation(DataIntegrityViolationException ex) {
-        log.warn("Data integrity violation (likely duplicate email race condition): {}", ex.getMessage());
+        log.atWarn().addKeyValue("detail", ex.getMessage()).log("Data integrity violation (likely duplicate email race condition)");
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.CONFLICT, "A client with that email already exists in this salon");
         problem.setType(URI.create("https://rivoo.com/errors/duplicate-client"));

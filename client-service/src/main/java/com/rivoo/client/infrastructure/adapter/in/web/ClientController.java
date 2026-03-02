@@ -42,7 +42,7 @@ public class ClientController {
     @GetMapping
     @PreAuthorize("hasAnyRole('SALON_OWNER', 'EMPLOYEE')")
     public ResponseEntity<Page<ClientResponse>> list(Pageable pageable) {
-        log.info("GET /api/v1/clients");
+        log.atInfo().log("GET /api/v1/clients");
         Page<ClientResponse> response = getClientUseCase.list(pageable);
         return ResponseEntity.ok(response);
     }
@@ -51,7 +51,7 @@ public class ClientController {
     @PreAuthorize("hasRole('SALON_OWNER')")
     public ResponseEntity<ClientResponse> create(@Valid @RequestBody CreateClientRequest request) {
         String tenantId = TenantContext.getCurrentTenantId();
-        log.info("POST /api/v1/clients - tenantId={}", tenantId);
+        log.atInfo().log("POST /api/v1/clients");
         ClientResponse response = createClientUseCase.create(tenantId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -59,7 +59,7 @@ public class ClientController {
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('SALON_OWNER', 'EMPLOYEE')")
     public ResponseEntity<ClientResponse> getById(@PathVariable String id) {
-        log.info("GET /api/v1/clients/{}", id);
+        log.atInfo().addKeyValue("clientId", id).log("GET /api/v1/clients");
         ClientResponse response = getClientUseCase.getByExternalId(id);
         return ResponseEntity.ok(response);
     }
@@ -68,7 +68,7 @@ public class ClientController {
     @PreAuthorize("hasRole('SALON_OWNER')")
     public ResponseEntity<ClientResponse> update(@PathVariable String id,
                                                   @Valid @RequestBody UpdateClientRequest request) {
-        log.info("PUT /api/v1/clients/{}", id);
+        log.atInfo().addKeyValue("clientId", id).log("PUT /api/v1/clients");
         ClientResponse response = updateClientUseCase.update(id, request);
         return ResponseEntity.ok(response);
     }
@@ -76,7 +76,7 @@ public class ClientController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('SALON_OWNER')")
     public ResponseEntity<Void> anonymize(@PathVariable String id) {
-        log.info("DELETE /api/v1/clients/{} (GDPR anonymize)", id);
+        log.atInfo().addKeyValue("clientId", id).log("DELETE /api/v1/clients (GDPR anonymize)");
         anonymizeClientUseCase.anonymize(id);
         return ResponseEntity.noContent().build();
     }
@@ -84,7 +84,7 @@ public class ClientController {
     @GetMapping("/{id}/export")
     @PreAuthorize("hasRole('SALON_OWNER')")
     public ResponseEntity<ClientExportResponse> export(@PathVariable String id) {
-        log.info("GET /api/v1/clients/{}/export", id);
+        log.atInfo().addKeyValue("clientId", id).log("GET /api/v1/clients/export");
         ClientExportResponse response = exportClientDataUseCase.export(id);
         return ResponseEntity.ok(response);
     }

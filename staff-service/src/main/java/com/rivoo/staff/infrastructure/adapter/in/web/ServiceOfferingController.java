@@ -33,7 +33,7 @@ public class ServiceOfferingController {
     @GetMapping
     @PreAuthorize("hasAnyRole('SALON_OWNER', 'EMPLOYEE')")
     public ResponseEntity<Page<ServiceOfferingResponse>> list(Pageable pageable) {
-        log.info("GET /api/v1/services");
+        log.atInfo().log("GET /api/v1/services");
         Page<ServiceOfferingResponse> response = manageServiceOfferingUseCase.list(pageable);
         return ResponseEntity.ok(response);
     }
@@ -42,7 +42,7 @@ public class ServiceOfferingController {
     @PreAuthorize("hasRole('SALON_OWNER')")
     public ResponseEntity<ServiceOfferingResponse> create(@Valid @RequestBody CreateServiceOfferingRequest request) {
         String tenantId = TenantContext.getCurrentTenantId();
-        log.info("POST /api/v1/services - tenantId={}", tenantId);
+        log.atInfo().log("POST /api/v1/services");
         ServiceOfferingResponse response = manageServiceOfferingUseCase.create(tenantId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -52,7 +52,7 @@ public class ServiceOfferingController {
     public ResponseEntity<ServiceOfferingResponse> update(@PathVariable String id,
                                                            @Valid @RequestBody UpdateServiceOfferingRequest request) {
         String tenantId = TenantContext.getCurrentTenantId();
-        log.info("PUT /api/v1/services/{} - tenantId={}", id, tenantId);
+        log.atInfo().addKeyValue("serviceId", id).log("PUT /api/v1/services");
         ServiceOfferingResponse response = manageServiceOfferingUseCase.update(tenantId, id, request);
         return ResponseEntity.ok(response);
     }
@@ -61,7 +61,7 @@ public class ServiceOfferingController {
     @PreAuthorize("hasRole('SALON_OWNER')")
     public ResponseEntity<Void> deactivate(@PathVariable String id) {
         String tenantId = TenantContext.getCurrentTenantId();
-        log.info("DELETE /api/v1/services/{} - tenantId={}", id, tenantId);
+        log.atInfo().addKeyValue("serviceId", id).log("DELETE /api/v1/services");
         manageServiceOfferingUseCase.deactivate(tenantId, id);
         return ResponseEntity.noContent().build();
     }

@@ -46,7 +46,7 @@ public class KeycloakTokenManager {
     }
 
     private String refreshToken() {
-        log.debug("Requesting new Keycloak admin token");
+        log.atDebug().log("Requesting new Keycloak admin token");
 
         String body = "grant_type=client_credentials&client_id=%s&client_secret=%s"
                 .formatted(clientId, clientSecret);
@@ -66,7 +66,7 @@ public class KeycloakTokenManager {
             Instant expiresAt = Instant.now().plusSeconds(response.expiresIn() - REFRESH_BUFFER_SECONDS);
             cachedToken.set(new CachedToken(response.accessToken(), expiresAt));
 
-            log.debug("Keycloak admin token acquired, expires in {}s", response.expiresIn());
+            log.atDebug().addKeyValue("expiresIn", response.expiresIn()).log("Keycloak admin token acquired");
             return response.accessToken();
 
         } catch (KeycloakOperationException e) {

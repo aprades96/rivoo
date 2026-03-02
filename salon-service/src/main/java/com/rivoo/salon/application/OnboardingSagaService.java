@@ -39,7 +39,7 @@ public class OnboardingSagaService implements RegisterSalonUseCase {
     @Override
     @Transactional
     public RegisterSalonResponse register(RegisterSalonRequest request) {
-        log.info("Starting salon registration for '{}'", request.name());
+        log.atInfo().addKeyValue("salonName", request.name()).log("Starting salon registration");
 
         // Step 0: Validate email uniqueness
         if (salonPersistencePort.existsByEmail(request.email())) {
@@ -70,7 +70,7 @@ public class OnboardingSagaService implements RegisterSalonUseCase {
 
         // Step 3: Persist salon
         Salon savedSalon = salonPersistencePort.save(salon);
-        log.info("Salon persisted with externalId={}, slug={}", externalId, slug);
+        log.atInfo().addKeyValue("externalId", externalId).addKeyValue("slug", slug).log("Salon persisted");
 
         // Step 4: Create default business hours
         createDefaultBusinessHours(savedSalon.getId());
@@ -86,9 +86,9 @@ public class OnboardingSagaService implements RegisterSalonUseCase {
                     request.ownerLastName(),
                     request.name(),
                     SubscriptionPlan.FREE_TRIAL.name());
-            log.info("Owner registered in Keycloak: userId={}", keycloakUserId);
+            log.atInfo().addKeyValue("keycloakUserId", keycloakUserId).log("Owner registered in Keycloak");
         } catch (Exception e) {
-            log.error("Failed to register owner in Keycloak, compensating: deleting salon {}", externalId, e);
+            log.atError().setCause(e).addKeyValue("externalId", externalId).log("Failed to register owner in Keycloak, compensating");
             salonPersistencePort.deleteById(savedSalon.getId());
             throw e;
         }
@@ -98,24 +98,23 @@ public class OnboardingSagaService implements RegisterSalonUseCase {
             savedSalon.setOwnerUserId(keycloakUserId);
             savedSalon.setStatus(SalonStatus.ACTIVE);
             savedSalon = salonPersistencePort.save(savedSalon);
-            log.info("Salon activated: externalId={}, ownerUserId={}", externalId, keycloakUserId);
+            log.atInfo().addKeyValue("externalId", externalId).addKeyValue("ownerUserId", keycloakUserId).log("Salon activated");
         } catch (Exception e) {
-            log.error("Failed to activate salon, compensating: deleting Keycloak user {} and salon {}",
-                    keycloakUserId, externalId, e);
+            log.atError().setCause(e).addKeyValue("keycloakUserId", keycloakUserId).addKeyValue("externalId", externalId).log("Failed to activate salon, compensating");
             try {
                 authServicePort.deleteUser(keycloakUserId);
             } catch (Exception compEx) {
-                log.error("Compensation failed: could not delete Keycloak user {}", keycloakUserId, compEx);
+                log.atError().setCause(compEx).addKeyValue("keycloakUserId", keycloakUserId).log("Compensation failed: could not delete Keycloak user");
             }
             salonPersistencePort.deleteById(savedSalon.getId());
             throw e;
         }
 
         // Step 7 (SKIP): billing-service — Fase 7
-        log.info("Skipping billing-service integration (not implemented yet)");
+        log.atInfo().log("Skipping billing-service integration (not implemented yet)");
 
         // Step 8 (SKIP): notification-service — Fase 8
-        log.info("Skipping notification-service integration (not implemented yet)");
+        log.atInfo().log("Skipping notification-service integration (not implemented yet)");
 
         return new RegisterSalonResponse(
                 savedSalon.getExternalId(),
@@ -175,6 +174,6 @@ public class OnboardingSagaService implements RegisterSalonUseCase {
                 .build());
 
         businessHoursPersistencePort.saveAll(defaults);
-        log.info("Default business hours created for salonId={}", salonId);
+        log.atInfo().addKeyValue("salonId", salonId).log("Default business hours created");
     }
 }

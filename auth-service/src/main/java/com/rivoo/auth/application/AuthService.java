@@ -30,7 +30,7 @@ public class AuthService implements RegisterOwnerUseCase, RegisterEmployeeUseCas
     @Override
     @Transactional
     public RegisterOwnerResponse registerOwner(RegisterOwnerRequest request) {
-        log.info("Registering owner for tenant {} with email {}", request.tenantId(), request.email());
+        log.atInfo().addKeyValue("email", request.email()).log("Registering owner");
 
         String keycloakUserId = keycloakAdminPort.createUser(
                 request.email(), request.password(), request.firstName(), request.lastName());
@@ -52,14 +52,12 @@ public class AuthService implements RegisterOwnerUseCase, RegisterEmployeeUseCas
                     request.tenantId(), keycloakUserId, request.email(),
                     EventType.OWNER_CREATED, null));
 
-            log.info("Owner registered successfully: keycloakUserId={}, tenant={}",
-                    keycloakUserId, request.tenantId());
+            log.atInfo().addKeyValue("keycloakUserId", keycloakUserId).log("Owner registered successfully");
 
             return new RegisterOwnerResponse(keycloakUserId, request.email(), UserRole.SALON_OWNER.name());
 
         } catch (Exception e) {
-            log.error("Owner registration failed after user creation, compensating: keycloakUserId={}",
-                    keycloakUserId, e);
+            log.atError().setCause(e).addKeyValue("keycloakUserId", keycloakUserId).log("Owner registration failed, compensating");
             compensateUserCreation(keycloakUserId);
             throw e;
         }
@@ -68,7 +66,7 @@ public class AuthService implements RegisterOwnerUseCase, RegisterEmployeeUseCas
     @Override
     @Transactional
     public RegisterEmployeeResponse registerEmployee(RegisterEmployeeRequest request) {
-        log.info("Registering employee for tenant {} with email {}", request.tenantId(), request.email());
+        log.atInfo().addKeyValue("email", request.email()).log("Registering employee");
 
         String keycloakUserId = keycloakAdminPort.createUser(
                 request.email(), request.password(), request.firstName(), request.lastName());
@@ -87,14 +85,12 @@ public class AuthService implements RegisterOwnerUseCase, RegisterEmployeeUseCas
                     request.tenantId(), keycloakUserId, request.email(),
                     EventType.EMPLOYEE_CREATED, null));
 
-            log.info("Employee registered successfully: keycloakUserId={}, tenant={}",
-                    keycloakUserId, request.tenantId());
+            log.atInfo().addKeyValue("keycloakUserId", keycloakUserId).log("Employee registered successfully");
 
             return new RegisterEmployeeResponse(keycloakUserId, request.email(), UserRole.EMPLOYEE.name());
 
         } catch (Exception e) {
-            log.error("Employee registration failed after user creation, compensating: keycloakUserId={}",
-                    keycloakUserId, e);
+            log.atError().setCause(e).addKeyValue("keycloakUserId", keycloakUserId).log("Employee registration failed, compensating");
             compensateUserCreation(keycloakUserId);
             throw e;
         }
@@ -103,14 +99,14 @@ public class AuthService implements RegisterOwnerUseCase, RegisterEmployeeUseCas
     @Override
     @Transactional
     public void disableTenant(String tenantId) {
-        log.info("Disabling all users for tenant {}", tenantId);
+        log.atInfo().log("Disabling all users for tenant");
         setTenantStatus(tenantId, false);
     }
 
     @Override
     @Transactional
     public void setTenantStatus(String tenantId, boolean enabled) {
-        log.info("Setting tenant {} status to enabled={}", tenantId, enabled);
+        log.atInfo().addKeyValue("enabled", enabled).log("Setting tenant status");
 
         List<String> userIds = keycloakAdminPort.searchUserIdsByAttribute("tenant_id", tenantId);
 
@@ -127,12 +123,12 @@ public class AuthService implements RegisterOwnerUseCase, RegisterEmployeeUseCas
                     eventType, "{\"usersAffected\":%d}".formatted(userIds.size())));
         }
 
-        log.info("Tenant {} status set to enabled={}, {} users affected", tenantId, enabled, userIds.size());
+        log.atInfo().addKeyValue("enabled", enabled).addKeyValue("usersAffected", userIds.size()).log("Tenant status updated");
     }
 
     @Override
     public void updateTenantAttributes(String tenantId, UpdateAttributeRequest request) {
-        log.info("Updating attributes for tenant {}: {}", tenantId, request.attributes().keySet());
+        log.atInfo().addKeyValue("attributeKeys", request.attributes().keySet()).log("Updating tenant attributes");
 
         List<String> userIds = keycloakAdminPort.searchUserIdsByAttribute("tenant_id", tenantId);
 
@@ -142,12 +138,12 @@ public class AuthService implements RegisterOwnerUseCase, RegisterEmployeeUseCas
             }
         }
 
-        log.info("Updated attributes for {} users in tenant {}", userIds.size(), tenantId);
+        log.atInfo().addKeyValue("usersAffected", userIds.size()).log("Tenant attributes updated");
     }
 
     @Override
     public List<TenantUserResponse> listTenantUsers(String tenantId) {
-        log.debug("Listing users for tenant {}", tenantId);
+        log.atDebug().log("Listing users for tenant");
 
         return tenantUserMappingPort.findByTenantId(tenantId).stream()
                 .map(mapping -> new TenantUserResponse(
@@ -161,10 +157,9 @@ public class AuthService implements RegisterOwnerUseCase, RegisterEmployeeUseCas
     private void compensateUserCreation(String keycloakUserId) {
         try {
             keycloakAdminPort.deleteUser(keycloakUserId);
-            log.info("Compensation: deleted Keycloak user {}", keycloakUserId);
+            log.atInfo().addKeyValue("keycloakUserId", keycloakUserId).log("Compensation: deleted Keycloak user");
         } catch (Exception compensationError) {
-            log.error("Compensation FAILED: could not delete Keycloak user {}. Manual cleanup required.",
-                    keycloakUserId, compensationError);
+            log.atError().setCause(compensationError).addKeyValue("keycloakUserId", keycloakUserId).log("Compensation FAILED: could not delete Keycloak user, manual cleanup required");
         }
     }
 }

@@ -50,7 +50,7 @@ public class EmployeeController {
     @PreAuthorize("hasRole('SALON_OWNER')")
     public ResponseEntity<EmployeeResponse> create(@Valid @RequestBody CreateEmployeeRequest request) {
         String tenantId = TenantContext.getCurrentTenantId();
-        log.info("POST /api/v1/staff/employees - tenantId={}", tenantId);
+        log.atInfo().log("POST /api/v1/staff/employees");
         EmployeeResponse response = createEmployeeUseCase.create(tenantId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -58,7 +58,7 @@ public class EmployeeController {
     @GetMapping
     @PreAuthorize("hasAnyRole('SALON_OWNER', 'EMPLOYEE')")
     public ResponseEntity<Page<EmployeeResponse>> list(Pageable pageable) {
-        log.info("GET /api/v1/staff/employees");
+        log.atInfo().log("GET /api/v1/staff/employees");
         Page<EmployeeResponse> response = getEmployeeUseCase.list(pageable);
         return ResponseEntity.ok(response);
     }
@@ -66,7 +66,7 @@ public class EmployeeController {
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('SALON_OWNER', 'EMPLOYEE')")
     public ResponseEntity<EmployeeResponse> getById(@PathVariable String id) {
-        log.info("GET /api/v1/staff/employees/{}", id);
+        log.atInfo().addKeyValue("employeeId", id).log("GET /api/v1/staff/employees");
         EmployeeResponse response = getEmployeeUseCase.getByExternalId(id);
         return ResponseEntity.ok(response);
     }
@@ -76,7 +76,7 @@ public class EmployeeController {
     public ResponseEntity<EmployeeResponse> update(@PathVariable String id,
                                                     @Valid @RequestBody UpdateEmployeeRequest request) {
         String tenantId = TenantContext.getCurrentTenantId();
-        log.info("PUT /api/v1/staff/employees/{} - tenantId={}", id, tenantId);
+        log.atInfo().addKeyValue("employeeId", id).log("PUT /api/v1/staff/employees");
         EmployeeResponse response = updateEmployeeUseCase.update(tenantId, id, request);
         return ResponseEntity.ok(response);
     }
@@ -85,7 +85,7 @@ public class EmployeeController {
     @PreAuthorize("hasRole('SALON_OWNER')")
     public ResponseEntity<Void> deactivate(@PathVariable String id) {
         String tenantId = TenantContext.getCurrentTenantId();
-        log.info("DELETE /api/v1/staff/employees/{} - tenantId={}", id, tenantId);
+        log.atInfo().addKeyValue("employeeId", id).log("DELETE /api/v1/staff/employees");
         deactivateEmployeeUseCase.deactivate(tenantId, id);
         return ResponseEntity.noContent().build();
     }
@@ -93,7 +93,7 @@ public class EmployeeController {
     @GetMapping("/{id}/working-hours")
     @PreAuthorize("hasAnyRole('SALON_OWNER', 'EMPLOYEE')")
     public ResponseEntity<List<WorkingHoursResponse>> getWorkingHours(@PathVariable String id) {
-        log.info("GET /api/v1/staff/employees/{}/working-hours", id);
+        log.atInfo().addKeyValue("employeeId", id).log("GET /api/v1/staff/employees/working-hours");
         List<WorkingHoursResponse> response = manageWorkingHoursUseCase.getWorkingHours(id);
         return ResponseEntity.ok(response);
     }
@@ -104,7 +104,7 @@ public class EmployeeController {
             @PathVariable String id,
             @Valid @RequestBody List<WorkingHoursRequest> request) {
         String tenantId = TenantContext.getCurrentTenantId();
-        log.info("PUT /api/v1/staff/employees/{}/working-hours - tenantId={}", id, tenantId);
+        log.atInfo().addKeyValue("employeeId", id).log("PUT /api/v1/staff/employees/working-hours");
         List<WorkingHoursResponse> response = manageWorkingHoursUseCase.updateWorkingHours(tenantId, id, request);
         return ResponseEntity.ok(response);
     }
@@ -115,7 +115,7 @@ public class EmployeeController {
             @PathVariable String id,
             @Valid @RequestBody AssignServicesRequest request) {
         String tenantId = TenantContext.getCurrentTenantId();
-        log.info("POST /api/v1/staff/employees/{}/services - tenantId={}", id, tenantId);
+        log.atInfo().addKeyValue("employeeId", id).log("POST /api/v1/staff/employees/services");
         List<EmployeeServiceResponse> response = manageEmployeeServicesUseCase.assignServices(tenantId, id, request);
         return ResponseEntity.ok(response);
     }
@@ -123,7 +123,7 @@ public class EmployeeController {
     @GetMapping("/{id}/services")
     @PreAuthorize("hasAnyRole('SALON_OWNER', 'EMPLOYEE')")
     public ResponseEntity<List<EmployeeServiceResponse>> getAssignedServices(@PathVariable String id) {
-        log.info("GET /api/v1/staff/employees/{}/services", id);
+        log.atInfo().addKeyValue("employeeId", id).log("GET /api/v1/staff/employees/services");
         List<EmployeeServiceResponse> response = manageEmployeeServicesUseCase.getAssignedServices(id);
         return ResponseEntity.ok(response);
     }

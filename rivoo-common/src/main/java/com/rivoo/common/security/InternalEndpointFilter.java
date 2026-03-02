@@ -30,7 +30,7 @@ public class InternalEndpointFilter extends OncePerRequestFilter {
         if (path.startsWith(INTERNAL_PATH_PREFIX)) {
             String providedKey = request.getHeader(SERVICE_KEY_HEADER);
             if (expectedServiceKey == null || expectedServiceKey.isEmpty() || !expectedServiceKey.equals(providedKey)) {
-                log.warn("Unauthorized internal endpoint access attempt: {} {}", request.getMethod(), path);
+                log.atWarn().addKeyValue("method", request.getMethod()).addKeyValue("path", path).log("Unauthorized internal endpoint access attempt");
                 response.setStatus(HttpStatus.FORBIDDEN.value());
                 return;
             }

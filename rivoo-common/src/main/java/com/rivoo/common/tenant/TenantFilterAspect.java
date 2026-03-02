@@ -21,7 +21,7 @@ public class TenantFilterAspect {
             try {
                 Session session = entityManager.unwrap(Session.class);
                 session.enableFilter("tenantFilter").setParameter("tenantId", tenantId);
-                log.trace("Tenant filter activated for tenant: {}", tenantId);
+                log.atTrace().log("Tenant filter activated");
             } catch (Exception e) {
                 throw new IllegalStateException(
                         "Failed to activate tenant filter for tenant: " + tenantId, e);

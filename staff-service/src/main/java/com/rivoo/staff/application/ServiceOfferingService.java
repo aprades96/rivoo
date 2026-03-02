@@ -45,7 +45,7 @@ public class ServiceOfferingService implements ManageServiceOfferingUseCase {
                 .build();
 
         ServiceOffering saved = serviceOfferingPersistencePort.save(service);
-        log.info("Service offering created: externalId={}, tenantId={}", saved.getExternalId(), tenantId);
+        log.atInfo().addKeyValue("externalId", saved.getExternalId()).log("Service offering created");
         return mapper.toResponse(saved);
     }
 
@@ -68,7 +68,7 @@ public class ServiceOfferingService implements ManageServiceOfferingUseCase {
         if (request.currency() != null) service.setCurrency(request.currency());
 
         ServiceOffering updated = serviceOfferingPersistencePort.save(service);
-        log.info("Service offering updated: externalId={}, tenantId={}", externalId, tenantId);
+        log.atInfo().addKeyValue("externalId", externalId).log("Service offering updated");
         return mapper.toResponse(updated);
     }
 
@@ -80,7 +80,7 @@ public class ServiceOfferingService implements ManageServiceOfferingUseCase {
 
         service.setActive(false);
         serviceOfferingPersistencePort.save(service);
-        log.info("Service offering deactivated: externalId={}, tenantId={}", externalId, tenantId);
+        log.atInfo().addKeyValue("externalId", externalId).log("Service offering deactivated");
     }
 
     @Override

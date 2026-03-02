@@ -20,7 +20,7 @@ public class SalonExceptionHandler {
 
     @ExceptionHandler(SalonNotFoundException.class)
     public ProblemDetail handleSalonNotFound(SalonNotFoundException ex) {
-        log.warn("Salon not found: {}", ex.getMessage());
+        log.atWarn().addKeyValue("detail", ex.getMessage()).log("Salon not found");
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
         problem.setType(URI.create("https://rivoo.com/errors/salon-not-found"));
         problem.setTitle("Salon Not Found");
@@ -30,7 +30,7 @@ public class SalonExceptionHandler {
 
     @ExceptionHandler(EmailAlreadyInUseException.class)
     public ProblemDetail handleEmailAlreadyInUse(EmailAlreadyInUseException ex) {
-        log.warn("Email conflict: {}", ex.getMessage());
+        log.atWarn().addKeyValue("detail", ex.getMessage()).log("Email conflict");
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problem.setType(URI.create("https://rivoo.com/errors/email-already-in-use"));
         problem.setTitle("Email Already In Use");
@@ -40,7 +40,7 @@ public class SalonExceptionHandler {
 
     @ExceptionHandler(AuthServiceException.class)
     public ProblemDetail handleAuthServiceError(AuthServiceException ex) {
-        log.error("Auth service error: {}", ex.getMessage(), ex);
+        log.atError().setCause(ex).log("Auth service error");
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY, ex.getMessage());
         problem.setType(URI.create("https://rivoo.com/errors/auth-service-error"));
         problem.setTitle("Auth Service Error");
@@ -50,7 +50,7 @@ public class SalonExceptionHandler {
 
     @ExceptionHandler(SlugAlreadyExistsException.class)
     public ProblemDetail handleSlugAlreadyExists(SlugAlreadyExistsException ex) {
-        log.warn("Slug conflict: {}", ex.getMessage());
+        log.atWarn().addKeyValue("detail", ex.getMessage()).log("Slug conflict");
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problem.setType(URI.create("https://rivoo.com/errors/slug-already-exists"));
         problem.setTitle("Slug Already Exists");

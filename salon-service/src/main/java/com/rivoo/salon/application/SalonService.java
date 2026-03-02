@@ -81,7 +81,7 @@ public class SalonService implements GetSalonUseCase, UpdateSalonUseCase,
         if (request.currency() != null) salon.setCurrency(request.currency());
 
         Salon updated = salonPersistencePort.save(salon);
-        log.info("Salon updated: tenantId={}", tenantId);
+        log.atInfo().log("Salon updated");
         return salonDtoMapper.toResponse(updated);
     }
 
@@ -121,7 +121,7 @@ public class SalonService implements GetSalonUseCase, UpdateSalonUseCase,
                 .toList();
 
         List<SalonBusinessHours> saved = businessHoursPersistencePort.saveAll(hours);
-        log.info("Business hours updated for tenantId={}", tenantId);
+        log.atInfo().log("Business hours updated");
         return saved.stream().map(salonDtoMapper::toBusinessHoursResponse).toList();
     }
 
@@ -134,7 +134,7 @@ public class SalonService implements GetSalonUseCase, UpdateSalonUseCase,
                 .orElseThrow(() -> new SalonNotFoundException(tenantId));
         salon.setStatus(status);
         salonPersistencePort.save(salon);
-        log.info("Salon status updated: tenantId={}, status={}", tenantId, status);
+        log.atInfo().addKeyValue("status", status).log("Salon status updated");
     }
 
     // ── List All (admin) ────────────────────────────────────────────────

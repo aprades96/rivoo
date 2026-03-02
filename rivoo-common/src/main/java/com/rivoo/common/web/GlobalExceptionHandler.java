@@ -18,7 +18,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(RivooException.class)
     public ProblemDetail handleRivooException(RivooException ex) {
-        log.warn("{}: {}", ex.getErrorTitle(), ex.getMessage());
+        log.atWarn().addKeyValue("errorTitle", ex.getErrorTitle()).addKeyValue("detail", ex.getMessage()).log("Rivoo exception");
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(ex.getHttpStatus(), ex.getMessage());
         problem.setType(URI.create("https://rivoo.com/errors/" + ex.getErrorType()));
         problem.setTitle(ex.getErrorTitle());
@@ -28,7 +28,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleGenericException(Exception ex) {
-        log.error("Unexpected error", ex);
+        log.atError().setCause(ex).log("Unexpected error");
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR,
                 "An unexpected error occurred");
         problem.setType(URI.create("https://rivoo.com/errors/internal-error"));

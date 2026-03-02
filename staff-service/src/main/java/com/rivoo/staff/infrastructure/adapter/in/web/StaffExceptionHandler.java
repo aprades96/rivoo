@@ -17,7 +17,7 @@ public class StaffExceptionHandler {
 
     @ExceptionHandler(AuthServiceException.class)
     public ProblemDetail handleAuthServiceError(AuthServiceException ex) {
-        log.error("Auth service error: {}", ex.getMessage(), ex);
+        log.atError().setCause(ex).log("Auth service error");
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY, ex.getMessage());
         problem.setType(URI.create("https://rivoo.com/errors/auth-service-error"));
         problem.setTitle("Auth Service Error");
