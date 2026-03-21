@@ -233,39 +233,52 @@
 
 ## Fase 5: appointment-service — Core del Producto (Semana 5)
 
-- [ ] **5.1** Migración Flyway V1: `appointments` con índices críticos
-- [ ] **5.2** Entidad JPA: `Appointment` (extends TenantAwareEntity) con campos denormalizados (snapshots)
-- [ ] **5.3** Generación de external_id con prefijo `apt_`
-- [ ] **5.4** Lógica de disponibilidad:
-  - Obtener horarios del empleado (staff-service)
-  - Obtener citas existentes del empleado en el rango
-  - Calcular slots libres
-  - Conversión UTC ↔ timezone del salón
-- [ ] **5.5** Detección de conflictos con `SELECT ... FOR UPDATE` (evitar race conditions)
-- [ ] **5.6** Flujo de creación de cita:
-  1. Validar límites plan (billing-service, bypass cache)
-  2. Validar employee + service (staff-service)
-  3. Validar cliente (client-service)
-  4. Verificar disponibilidad (local)
-  5. INSERT cita
-  6. Programar notificación (notification-service, fire-and-forget)
-- [ ] **5.7** Flujo de estados: PENDING → CONFIRMED → IN_PROGRESS → COMPLETED / CANCELLED / NO_SHOW
-- [ ] **5.8** Endpoint de cancelación (con cancelación de recordatorios)
-- [ ] **5.9** Endpoints públicos:
-  - `POST /api/v1/appointments`
-  - `GET /api/v1/appointments` (listado por tenant, filtros por fecha/empleado/estado)
+- [x] **5.1** Migración Flyway V2: `appointments` con 4 índices críticos (tenant_start, employee_start, overlap_check, reminder) ✅
+- [x] **5.2** Entidad JPA: `AppointmentJpaEntity` (extends TenantAwareEntity) con campos denormalizados (snapshots) ✅
+- [x] **5.3** Generación de external_id con prefijo `apt_` (ExternalIdGenerator.generate("apt")) ✅
+- [x] **5.4** Lógica de disponibilidad (AvailabilityService): ✅
+  - Obtener horarios del empleado (staff-service via REST + nuevo endpoint working-hours)
+  - Obtener citas existentes del empleado en el rango (excluye CANCELLED/NO_SHOW)
+  - Calcular slots libres (work intervals - busy intervals, con breaks)
+  - Conversión UTC ↔ timezone del salón (Europe/Madrid)
+  - Granularidad de 15 minutos, filtrado por duración del servicio
+- [x] **5.5** Detección de conflictos con `@Lock(PESSIMISTIC_WRITE)` + JPQL overlap query ✅
+- [x] **5.6** Flujo de creación de cita (AppointmentService.create()): ✅
+  1. Validar límites plan (billing-service stub, returns unlimited)
+  2. Validar employee + service (staff-service via REST, check active)
+  3. Validar cliente (client-service via REST, snapshot data)
+  4. Verificar disponibilidad con FOR UPDATE (AppointmentPersistencePort.findOverlappingForUpdate)
+  5. INSERT cita con snapshot denormalizado
+  6. Programar notificación (notification-service stub, fire-and-forget con try-catch)
+- [x] **5.7** Flujo de estados: AppointmentStatus enum con canTransitionTo() y isTerminal() ✅
+  - PENDING → CONFIRMED, CANCELLED
+  - CONFIRMED → IN_PROGRESS, CANCELLED, NO_SHOW
+  - IN_PROGRESS → COMPLETED
+  - COMPLETED, CANCELLED, NO_SHOW → terminal
+- [x] **5.8** Endpoint de cancelación PUT /api/v1/appointments/{id}/cancel (con cancelación de recordatorios stub) ✅
+- [x] **5.9** Endpoints autenticados (6): ✅
+  - `POST /api/v1/appointments` (SALON_OWNER, EMPLOYEE)
+  - `GET /api/v1/appointments` (filtros: employeeId, startDate, endDate, status + Pageable)
   - `GET /api/v1/appointments/{id}`
   - `PUT /api/v1/appointments/{id}/status`
-  - `DELETE /api/v1/appointments/{id}` (cancelar)
-  - `GET /api/v1/appointments/availability` (slots disponibles)
-- [ ] **5.10** Endpoints internos:
-  - `GET /api/internal/admin/appointments/stats` (para admin-service)
+  - `PUT /api/v1/appointments/{id}/cancel`
+  - `GET /api/v1/appointments/availability` (employeeId, date, serviceId opcional)
+- [x] **5.10** Endpoints internos (PSK): ✅
+  - `GET /api/internal/admin/appointments/stats?tenantId=xxx` (para admin-service)
+- [x] **5.11** Staff-service: nuevo endpoint interno `GET /api/internal/staff/{tenantId}/employees/{employeeId}/working-hours` ✅
+- [x] **5.12** 47 Java files + 1 SQL migration, `mvn clean package -DskipTests` → BUILD SUCCESS (11/11) ✅
 
 ### ✅ Verificación Fase 5
-- [ ] Crear cita validando employee, service, client, disponibilidad
-- [ ] Race conditions prevenidas con FOR UPDATE
-- [ ] Timestamps en UTC, conversión correcta a Europe/Madrid
-- [ ] Flujo de estados completo
+- [x] Crear cita validando employee, service, client, disponibilidad → 201 con snapshot data ✅
+- [x] Race conditions prevenidas con FOR UPDATE → 422 "Employee already has appointment" ✅
+- [x] Timestamps en UTC, conversión correcta a Europe/Madrid (local 10:00 → UTC 09:00 CET) ✅
+- [x] Flujo de estados completo: PENDING→CONFIRMED→IN_PROGRESS→COMPLETED, terminal states block transitions ✅
+- [x] Cancelación con razón y cancelledBy → 200, re-cancel → 422 ✅
+- [x] Disponibilidad en día laborable → slots cada 15min de 9:00-18:00 (excluye citas existentes) ✅
+- [x] Internal stats endpoint con PSK → 200, sin PSK → 403 ✅
+- [x] Listado paginado con filtros → 200 ✅
+- [x] **Bug fix**: logback-spring.xml en TODOS los servicios requería `<format>ecs</format>` (SB4 StructuredLogEncoder) ✅
+- [x] E2E: 19/19 tests PASS ✅
 
 ---
 

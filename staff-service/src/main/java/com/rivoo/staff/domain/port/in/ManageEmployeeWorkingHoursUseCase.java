@@ -9,5 +9,7 @@ public interface ManageEmployeeWorkingHoursUseCase {
 
     List<WorkingHoursResponse> getWorkingHours(String employeeExternalId);
 
+    List<WorkingHoursResponse> getWorkingHoursInternal(String tenantId, String employeeExternalId);
+
     List<WorkingHoursResponse> updateWorkingHours(String tenantId, String employeeExternalId, List<WorkingHoursRequest> request);
 }

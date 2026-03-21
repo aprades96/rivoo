@@ -166,6 +166,20 @@ public class EmployeeService implements CreateEmployeeUseCase, GetEmployeeUseCas
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<WorkingHoursResponse> getWorkingHoursInternal(String tenantId, String employeeExternalId) {
+        Employee employee = employeePersistencePort.findByExternalId(employeeExternalId)
+                .orElseThrow(() -> new EmployeeNotFoundException(employeeExternalId));
+
+        if (!tenantId.equals(employee.getTenantId())) {
+            throw new EmployeeNotFoundException(employeeExternalId);
+        }
+
+        List<EmployeeWorkingHours> hours = workingHoursPersistencePort.findByEmployeeId(employee.getId());
+        return hours.stream().map(mapper::toWorkingHoursResponse).toList();
+    }
+
+    @Override
     @Transactional
     public List<WorkingHoursResponse> updateWorkingHours(String tenantId, String employeeExternalId,
                                                           List<WorkingHoursRequest> request) {

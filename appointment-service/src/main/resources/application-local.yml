@@ -20,3 +20,8 @@ spring:
 rivoo:
   security:
     internal-service-key: rivoo-dev-internal-key-2026
+  services:
+    staff-service:
+      url: http://localhost:8083
+    client-service:
+      url: http://localhost:8084
