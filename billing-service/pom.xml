@@ -38,6 +38,12 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Cache (Caffeine for plan limits) -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+
         <!-- Actuator -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

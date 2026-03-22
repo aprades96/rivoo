@@ -25,3 +25,5 @@ rivoo:
       url: http://localhost:8083
     client-service:
       url: http://localhost:8084
+    billing-service:
+      url: http://localhost:8087

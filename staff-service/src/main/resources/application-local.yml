@@ -23,3 +23,5 @@ rivoo:
   services:
     auth-service:
       url: http://localhost:8081
+    billing-service:
+      url: http://localhost:8087

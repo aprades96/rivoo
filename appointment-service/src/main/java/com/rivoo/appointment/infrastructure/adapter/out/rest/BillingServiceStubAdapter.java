@@ -1,20 +1,51 @@
 package com.rivoo.appointment.infrastructure.adapter.out.rest;
 
 import com.rivoo.appointment.domain.port.out.BillingServicePort;
+import com.rivoo.appointment.infrastructure.adapter.out.rest.dto.PlanLimitsDto;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
 
-/**
- * Stub adapter until billing-service is implemented (Fase 7).
- * Returns -1 (unlimited) for all plan limits.
- */
 @Slf4j
 @Component
 public class BillingServiceStubAdapter implements BillingServicePort {
 
+    private final RestClient restClient;
+
+    public BillingServiceStubAdapter(RestClient.Builder interServiceRestClientBuilder,
+                                     @Value("${rivoo.services.billing-service.url}") String billingServiceUrl) {
+        this.restClient = interServiceRestClientBuilder
+                .baseUrl(billingServiceUrl)
+                .build();
+    }
+
     @Override
     public int getMaxAppointmentsPerMonth(String tenantId) {
-        log.atInfo().addKeyValue("tenantId", tenantId).log("Billing stub: returning unlimited appointments");
-        return -1;
+        log.atInfo().addKeyValue("tenantId", tenantId).log("Calling billing-service for plan limits (write operation)");
+
+        try {
+            PlanLimitsDto limits = restClient.get()
+                    .uri("/api/internal/billing/tenants/{tenantId}/plan-limits?forWriteOperation=true", tenantId)
+                    .retrieve()
+                    .body(PlanLimitsDto.class);
+
+            if (limits == null) {
+                log.atWarn().addKeyValue("tenantId", tenantId).log("Billing-service returned null plan limits, falling back to unlimited");
+                return -1;
+            }
+
+            log.atInfo()
+                    .addKeyValue("tenantId", tenantId)
+                    .addKeyValue("planName", limits.planName())
+                    .addKeyValue("maxAppointmentsPerMonth", limits.maxAppointmentsPerMonth())
+                    .log("Plan limits retrieved from billing-service");
+
+            return limits.maxAppointmentsPerMonth();
+        } catch (Exception e) {
+            log.atWarn().setCause(e).addKeyValue("tenantId", tenantId)
+                    .log("Failed to fetch plan limits from billing-service, falling back to unlimited");
+            return -1;
+        }
     }
 }

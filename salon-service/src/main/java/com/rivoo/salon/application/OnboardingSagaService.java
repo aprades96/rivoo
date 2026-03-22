@@ -11,6 +11,7 @@ import com.rivoo.salon.domain.model.SalonStatus;
 import com.rivoo.salon.domain.model.SubscriptionPlan;
 import com.rivoo.salon.domain.port.in.RegisterSalonUseCase;
 import com.rivoo.salon.domain.port.out.AuthServicePort;
+import com.rivoo.salon.domain.port.out.BillingServicePort;
 import com.rivoo.salon.domain.port.out.BusinessHoursPersistencePort;
 import com.rivoo.salon.domain.port.out.SalonPersistencePort;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,7 @@ public class OnboardingSagaService implements RegisterSalonUseCase {
     private final SalonPersistencePort salonPersistencePort;
     private final BusinessHoursPersistencePort businessHoursPersistencePort;
     private final AuthServicePort authServicePort;
+    private final BillingServicePort billingServicePort;
 
     @Override
     @Transactional
@@ -110,8 +112,20 @@ public class OnboardingSagaService implements RegisterSalonUseCase {
             throw e;
         }
 
-        // Step 7 (SKIP): billing-service — Fase 7
-        log.atInfo().log("Skipping billing-service integration (not implemented yet)");
+        // Step 7: Create FREE_TRIAL subscription in billing-service
+        try {
+            billingServicePort.createSubscription(externalId, request.email(), request.name());
+            log.atInfo().addKeyValue("externalId", externalId).log("Subscription created in billing-service");
+        } catch (Exception e) {
+            log.atError().setCause(e).addKeyValue("externalId", externalId).log("Failed to create subscription, compensating");
+            try {
+                authServicePort.deleteUser(keycloakUserId);
+            } catch (Exception compEx) {
+                log.atError().setCause(compEx).addKeyValue("keycloakUserId", keycloakUserId).log("Compensation failed: could not delete Keycloak user");
+            }
+            salonPersistencePort.deleteById(savedSalon.getId());
+            throw e;
+        }
 
         // Step 8 (SKIP): notification-service — Fase 8
         log.atInfo().log("Skipping notification-service integration (not implemented yet)");
