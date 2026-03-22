@@ -1,0 +1,19 @@
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI}
+
+rivoo:
+  security:
+    internal-service-key: ${RIVOO_SECURITY_INTERNAL_SERVICE_KEY}
+  services:
+    salon-service:
+      url: ${RIVOO_SERVICES_SALON_SERVICE_URL}
+    auth-service:
+      url: ${RIVOO_SERVICES_AUTH_SERVICE_URL}
+    appointment-service:
+      url: ${RIVOO_SERVICES_APPOINTMENT_SERVICE_URL}
+    billing-service:
+      url: ${RIVOO_SERVICES_BILLING_SERVICE_URL}

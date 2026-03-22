@@ -1,0 +1,66 @@
+# =============================================================================
+# Dockerfile generico para microservicios Rivoo (Spring Boot 4, Java 25)
+#
+# USO: docker build -f Dockerfile.service --build-arg SERVICE=salon-service .
+#
+# Multi-stage:
+#   1. Builder: compila todo el monorepo Maven (cache de dependencias)
+#   2. Runtime: solo el JAR del servicio, imagen minima
+# =============================================================================
+
+# --- Stage 1: Build ---
+FROM eclipse-temurin:25-jdk AS builder
+
+WORKDIR /build
+
+# 1. Copiar solo los POMs primero (cache de dependencias Maven)
+COPY pom.xml .
+COPY rivoo-common/pom.xml rivoo-common/pom.xml
+COPY api-gateway/pom.xml api-gateway/pom.xml
+COPY auth-service/pom.xml auth-service/pom.xml
+COPY salon-service/pom.xml salon-service/pom.xml
+COPY staff-service/pom.xml staff-service/pom.xml
+COPY client-service/pom.xml client-service/pom.xml
+COPY appointment-service/pom.xml appointment-service/pom.xml
+COPY notification-service/pom.xml notification-service/pom.xml
+COPY billing-service/pom.xml billing-service/pom.xml
+COPY admin-service/pom.xml admin-service/pom.xml
+
+# 2. Descargar dependencias (esta capa se cachea si los POMs no cambian)
+RUN apt-get update && apt-get install -y maven && \
+    mvn dependency:go-offline -B -q || true
+
+# 3. Copiar codigo fuente
+COPY . .
+
+# 4. Compilar todo (skip tests para velocidad en build de imagen)
+ARG SERVICE
+RUN mvn clean package -DskipTests -pl rivoo-common,${SERVICE} -am -B -q
+
+# --- Stage 2: Runtime ---
+FROM eclipse-temurin:25-jre
+
+# Metadata
+ARG SERVICE
+ENV SERVICE_NAME=${SERVICE}
+
+WORKDIR /app
+
+# Copiar solo el JAR resultante
+COPY --from=builder /build/${SERVICE}/target/*.jar app.jar
+
+# Puerto por defecto (se sobreescribe por servicio)
+EXPOSE 8080
+
+# Health check basico
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD curl -sf http://localhost:${SERVER_PORT:-8080}/actuator/health || exit 1
+
+# JVM optimizada para contenedores
+# -XX:MaxRAMPercentage=75 = usa hasta 75% de la RAM asignada al contenedor
+# -XX:+UseZGC = garbage collector optimizado para baja latencia
+ENTRYPOINT ["java", \
+    "-XX:MaxRAMPercentage=75", \
+    "-XX:+UseZGC", \
+    "-Djava.security.egd=file:/dev/./urandom", \
+    "-jar", "app.jar"]

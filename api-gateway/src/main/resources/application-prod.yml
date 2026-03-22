@@ -1,0 +1,47 @@
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI}
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: auth-service
+              uri: ${RIVOO_SERVICES_AUTH_SERVICE_URL}
+              predicates:
+                - Path=/api/v1/auth/**
+            - id: salon-service
+              uri: ${RIVOO_SERVICES_SALON_SERVICE_URL}
+              predicates:
+                - Path=/api/v1/salons,/api/v1/salons/**
+            - id: staff-service
+              uri: ${RIVOO_SERVICES_STAFF_SERVICE_URL}
+              predicates:
+                - Path=/api/v1/staff/**,/api/v1/services/**
+            - id: client-service
+              uri: ${RIVOO_SERVICES_CLIENT_SERVICE_URL}
+              predicates:
+                - Path=/api/v1/clients/**
+            - id: appointment-service
+              uri: ${RIVOO_SERVICES_APPOINTMENT_SERVICE_URL}
+              predicates:
+                - Path=/api/v1/appointments/**
+            - id: notification-service
+              uri: ${RIVOO_SERVICES_NOTIFICATION_SERVICE_URL}
+              predicates:
+                - Path=/api/v1/notifications/**
+            - id: billing-service
+              uri: ${RIVOO_SERVICES_BILLING_SERVICE_URL}
+              predicates:
+                - Path=/api/v1/billing/**,/api/webhooks/stripe
+            - id: admin-service
+              uri: ${RIVOO_SERVICES_ADMIN_SERVICE_URL}
+              predicates:
+                - Path=/api/v1/admin/**
+            - id: keycloak
+              uri: ${RIVOO_SERVICES_KEYCLOAK_URL}
+              predicates:
+                - Path=/realms/**

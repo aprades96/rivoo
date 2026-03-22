@@ -1,0 +1,29 @@
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Build output (se regenera en Docker)
+**/target/
+
+# Git
+.git/
+.gitignore
+
+# Docs
+docs/
+*.md
+!README.md
+
+# Infrastructure scripts (no van en la imagen)
+infrastructure/scripts/
+infrastructure/mysql/
+
+# Tests
+**/src/test/
+
+# Local config
+.env
+.env.local
+.claude/
+tasks/

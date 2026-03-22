@@ -1,0 +1,33 @@
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      connection-timeout: 20000
+      maximum-pool-size: 10
+      minimum-idle: 5
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI}
+
+rivoo:
+  security:
+    internal-service-key: ${RIVOO_SECURITY_INTERNAL_SERVICE_KEY}
+  services:
+    auth-service:
+      url: ${RIVOO_SERVICES_AUTH_SERVICE_URL}
+    billing-service:
+      url: ${RIVOO_SERVICES_BILLING_SERVICE_URL}
+    notification-service:
+      url: ${RIVOO_SERVICES_NOTIFICATION_SERVICE_URL}
