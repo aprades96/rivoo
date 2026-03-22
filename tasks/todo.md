@@ -285,27 +285,35 @@
 ## Fase 6: Gateway completo + Integración E2E (Semanas 6-7)
 
 ### 6A — Gateway completo (Semana 6)
-- [ ] **6A.1** Rutas a TODOS los servicios
-- [ ] **6A.2** Rate limiting general: 100 req/min por IP
-- [ ] **6A.3** Rate limiting específico para booking público: 10 req/min por IP
-- [ ] **6A.4** Ruta pública para Keycloak endpoints
-- [ ] **6A.5** Ruta pública para `/api/v1/salons/public/{slug}`
-- [ ] **6A.6** Ruta pública para `/api/v1/appointments/book`
-- [ ] **6A.7** Ruta pública para `/api/webhooks/stripe`
-- [ ] **6A.8** Primer test E2E completo:
-  Login Keycloak → crear staff → crear client → crear cita (todo vía gateway)
+- [x] **6A.1** Rutas a TODOS los servicios (9 rutas: 8 servicios + Keycloak proxy) ✅
+- [x] **6A.2** Rate limiting general: 100 req/min por IP (RateLimitingFilter, in-memory sliding window) ✅
+- [x] **6A.3** Rate limiting específico para booking público: 10 req/min por IP ✅
+- [x] **6A.4** Ruta pública para Keycloak endpoints (`/realms/**` → localhost:9080) ✅
+- [x] **6A.5** Ruta pública para `/api/v1/salons/public/{slug}` (ya existía desde Fase 3) ✅
+- [x] **6A.6** Ruta pública para `/api/v1/appointments/book` (ya existía desde Fase 3) ✅
+- [x] **6A.7** Ruta pública para `/api/webhooks/stripe` (ya existía desde Fase 3) ✅
+- [x] **6A.8** E2E completo: Register → Login → Employee → Service → Client → Appointment → Confirm → InProgress → Complete ✅
+- [x] **6A.9** CorrelationIdFilter: genera UUID si no existe, propaga si existe, añade a response ✅
+- [x] **6A.10** CorsConfig: localhost:3000/5173 allowed, evil.com blocked, credentials true ✅
+- [x] **6A.11** RequestLoggingFilter: structured JSON logs (method, path, status, latencyMs, clientIp, correlationId) ✅
 
 ### 6B — Buffer de integración (Semana 7)
-- [ ] **6B.1** Resolver bugs descubiertos en Semana 6
-- [ ] **6B.2** Tests de aislamiento cross-tenant E2E (2 salones completos vía gateway)
-- [ ] **6B.3** Verificar propagación de X-Correlation-Id en toda la cadena
-- [ ] **6B.4** Documentar colección Postman/Bruno con todos los flujos
+- [x] **6B.1** Sin bugs descubiertos ✅
+- [x] **6B.2** Cross-tenant E2E: 2 salones (Barberia Norte + Barberia Sur), T2 ve solo sus datos ✅
+  - T2 employees: 1 (solo suyo), T2 clients: 0, T2 appointments: 1, T2 GET T1 apt: 404
+- [x] **6B.3** Correlation ID propagado en toda la cadena (gateway → downstream, visible en logs JSON) ✅
+- [ ] **6B.4** Documentar colección Postman/Bruno (diferido)
 
 ### ✅ Verificación Fase 6
-- [ ] Flujo E2E completo: login → CRUD staff/client → crear cita (vía gateway)
-- [ ] Rate limiting funcional
-- [ ] Cross-tenant aislado E2E
-- [ ] Correlation IDs propagados correctamente
+- [x] Flujo E2E completo T1: register → staff → client → appointment → complete ✅
+- [x] Flujo E2E completo T2: register → staff → appointment ✅
+- [x] Rate limiting funcional: 429 a partir de ~100 req/min ✅
+- [x] Cross-tenant aislado E2E: T2 no ve datos de T1 (employees 1, clients 0, appointments 1, GET 404) ✅
+- [x] Correlation IDs propagados correctamente (auto-generados y custom) ✅
+- [x] CORS funcional (allowed origins, blocked origins) ✅
+- [x] Gateway structured logging (ECS JSON con method, path, status, latency, correlationId) ✅
+- [x] `mvn clean package -DskipTests` → BUILD SUCCESS (11/11) ✅
+- [x] Nuevos ficheros: 4 Java (CorrelationIdFilter, RateLimitingFilter, CorsConfig, RequestLoggingFilter) ✅
 
 ---
 
