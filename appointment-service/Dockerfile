@@ -27,8 +27,6 @@ FROM eclipse-temurin:25-jre
 WORKDIR /app
 COPY --from=builder /build/appointment-service/target/*.jar app.jar
 EXPOSE 8085
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD curl -sf http://localhost:8085/actuator/health || exit 1
+    
 
 ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-XX:+UseZGC", "-Djava.security.egd=file:/dev/./urandom", "-jar", "app.jar"]

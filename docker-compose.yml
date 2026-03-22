@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   mysql:
     image: mysql:8.0
@@ -32,13 +30,22 @@ services:
         condition: service_healthy
 
   auth-service:
-    build: ./auth-service
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
     ports:
       - "8081:8081"
     environment:
       SPRING_PROFILES_ACTIVE: local
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/auth_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:9080/realms/rivoo/protocol/openid-connect/certs
+      RIVOO_SECURITY_INTERNAL_SERVICE_KEY: rivoo-dev-internal-key-2026
+      RIVOO_KEYCLOAK_SERVER_URL: http://keycloak:9080
+      RIVOO_KEYCLOAK_REALM: rivoo
+      RIVOO_KEYCLOAK_CLIENT_ID: salon-admin-cli
+      RIVOO_KEYCLOAK_CLIENT_SECRET: salon-admin-cli-secret
     depends_on:
       mysql:
         condition: service_healthy
@@ -46,13 +53,18 @@ services:
         condition: service_started
 
   salon-service:
-    build: ./salon-service
+    build:
+      context: .
+      dockerfile: salon-service/Dockerfile
     ports:
       - "8082:8082"
     environment:
       SPRING_PROFILES_ACTIVE: local
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/salon_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:9080/realms/rivoo/protocol/openid-connect/certs
+      RIVOO_SECURITY_INTERNAL_SERVICE_KEY: rivoo-dev-internal-key-2026
       RIVOO_SERVICES_AUTH_SERVICE_URL: http://auth-service:8081
       RIVOO_SERVICES_BILLING_SERVICE_URL: http://billing-service:8087
       RIVOO_SERVICES_NOTIFICATION_SERVICE_URL: http://notification-service:8086
@@ -61,39 +73,54 @@ services:
       - billing-service
 
   staff-service:
-    build: ./staff-service
+    build:
+      context: .
+      dockerfile: staff-service/Dockerfile
     ports:
       - "8083:8083"
     environment:
       SPRING_PROFILES_ACTIVE: local
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/staff_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:9080/realms/rivoo/protocol/openid-connect/certs
+      RIVOO_SECURITY_INTERNAL_SERVICE_KEY: rivoo-dev-internal-key-2026
       RIVOO_SERVICES_AUTH_SERVICE_URL: http://auth-service:8081
       RIVOO_SERVICES_BILLING_SERVICE_URL: http://billing-service:8087
     depends_on:
       - auth-service
 
   client-service:
-    build: ./client-service
+    build:
+      context: .
+      dockerfile: client-service/Dockerfile
     ports:
       - "8084:8084"
     environment:
       SPRING_PROFILES_ACTIVE: local
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/client_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:9080/realms/rivoo/protocol/openid-connect/certs
+      RIVOO_SECURITY_INTERNAL_SERVICE_KEY: rivoo-dev-internal-key-2026
       RIVOO_SERVICES_APPOINTMENT_SERVICE_URL: http://appointment-service:8085
     depends_on:
       mysql:
         condition: service_healthy
 
   appointment-service:
-    build: ./appointment-service
+    build:
+      context: .
+      dockerfile: appointment-service/Dockerfile
     ports:
       - "8085:8085"
     environment:
       SPRING_PROFILES_ACTIVE: local
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/appointment_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:9080/realms/rivoo/protocol/openid-connect/certs
+      RIVOO_SECURITY_INTERNAL_SERVICE_KEY: rivoo-dev-internal-key-2026
       RIVOO_SERVICES_STAFF_SERVICE_URL: http://staff-service:8083
       RIVOO_SERVICES_CLIENT_SERVICE_URL: http://client-service:8084
       RIVOO_SERVICES_BILLING_SERVICE_URL: http://billing-service:8087
@@ -104,25 +131,35 @@ services:
       - client-service
 
   notification-service:
-    build: ./notification-service
+    build:
+      context: .
+      dockerfile: notification-service/Dockerfile
     ports:
       - "8086:8086"
     environment:
       SPRING_PROFILES_ACTIVE: local
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/notification_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:9080/realms/rivoo/protocol/openid-connect/certs
+      RIVOO_SECURITY_INTERNAL_SERVICE_KEY: rivoo-dev-internal-key-2026
     depends_on:
       mysql:
         condition: service_healthy
 
   billing-service:
-    build: ./billing-service
+    build:
+      context: .
+      dockerfile: billing-service/Dockerfile
     ports:
       - "8087:8087"
     environment:
       SPRING_PROFILES_ACTIVE: local
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/billing_db?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:9080/realms/rivoo/protocol/openid-connect/certs
+      RIVOO_SECURITY_INTERNAL_SERVICE_KEY: rivoo-dev-internal-key-2026
       RIVOO_SERVICES_AUTH_SERVICE_URL: http://auth-service:8081
       RIVOO_SERVICES_SALON_SERVICE_URL: http://salon-service:8082
     depends_on:
@@ -130,12 +167,15 @@ services:
         condition: service_healthy
 
   admin-service:
-    build: ./admin-service
+    build:
+      context: .
+      dockerfile: admin-service/Dockerfile
     ports:
       - "8088:8088"
     environment:
       SPRING_PROFILES_ACTIVE: local
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:9080/realms/rivoo/protocol/openid-connect/certs
+      RIVOO_SECURITY_INTERNAL_SERVICE_KEY: rivoo-dev-internal-key-2026
       RIVOO_SERVICES_SALON_SERVICE_URL: http://salon-service:8082
       RIVOO_SERVICES_AUTH_SERVICE_URL: http://auth-service:8081
       RIVOO_SERVICES_APPOINTMENT_SERVICE_URL: http://appointment-service:8085
@@ -144,12 +184,15 @@ services:
       - salon-service
 
   api-gateway:
-    build: ./api-gateway
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
     ports:
       - "8080:8080"
     environment:
       SPRING_PROFILES_ACTIVE: local
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:9080/realms/rivoo/protocol/openid-connect/certs
+      RIVOO_SECURITY_INTERNAL_SERVICE_KEY: rivoo-dev-internal-key-2026
     depends_on:
       - auth-service
       - salon-service
