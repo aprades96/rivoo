@@ -450,7 +450,11 @@
   - staff-service (7 tests): EmployeeServiceTest (plan limits, create)
   - client-service (8 tests): ClientServiceTest (CRUD, anonymize, duplicate email)
   - notification-service (14 tests): NotificationServiceTest (send, schedule, cancel, templates)
-- [ ] **11.2** Tests de integración (diferido a CI/CD): Testcontainers + WireMock
+- [x] **11.2** Tests de integración con Testcontainers (MySQL real): ✅
+  - appointment-service: AppointmentRepositoryIntegrationTest (save, findByFilters, overlap detection, countByMonth, findByClient)
+  - billing-service: BillingRepositoryIntegrationTest (seed data verification, plan limits, subscription CRUD, unique tenant constraint)
+  - Testcontainers 1.21.4 + spring-boot-testcontainers + @ServiceConnection
+  - `@Tag("integration")` — excluidos por defecto en surefire, ejecutar con `-DincludedGroups=integration`
 - [ ] **11.3** Test de carga (diferido)
 - [ ] **11.4** Stripe E2E (diferido — requiere claves test)
 - [x] **11.5** spring-boot-starter-test añadido al parent pom como dependencia global ✅
