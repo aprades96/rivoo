@@ -146,6 +146,71 @@
           "view-realm"
         ]
       }
+    },
+    {
+      "username": "owner@test.com",
+      "email": "owner@test.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Carlos",
+      "lastName": "Garcia",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test1234",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "ROLE_SALON_OWNER"
+      ],
+      "attributes": {
+        "tenant_id": ["test-tenant-001"],
+        "subscription_plan": ["FREE_TRIAL"],
+        "salon_name": ["Barberia Test"]
+      }
+    },
+    {
+      "username": "employee@test.com",
+      "email": "employee@test.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Maria",
+      "lastName": "Lopez",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "test1234",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "ROLE_EMPLOYEE"
+      ],
+      "attributes": {
+        "tenant_id": ["test-tenant-001"],
+        "subscription_plan": ["FREE_TRIAL"],
+        "salon_name": ["Barberia Test"]
+      }
+    },
+    {
+      "username": "admin@rivoo.com",
+      "email": "admin@rivoo.com",
+      "emailVerified": true,
+      "enabled": true,
+      "firstName": "Admin",
+      "lastName": "Rivoo",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin1234",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "ROLE_PLATFORM_ADMIN"
+      ],
+      "attributes": {}
     }
   ]
 }
