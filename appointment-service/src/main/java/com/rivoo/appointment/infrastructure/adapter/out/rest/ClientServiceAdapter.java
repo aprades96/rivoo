@@ -4,6 +4,7 @@ import com.rivoo.appointment.domain.port.out.ClientServicePort;
 import com.rivoo.appointment.infrastructure.adapter.out.rest.dto.ClientInternalDto;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -35,6 +36,29 @@ public class ClientServiceAdapter implements ClientServicePort {
         } catch (Exception e) {
             log.atError().setCause(e).addKeyValue("clientId", clientExternalId).log("Failed to fetch client");
             throw new RuntimeException("Failed to fetch client from client-service: " + clientExternalId, e);
+        }
+    }
+
+    @Override
+    public ClientInfo findOrCreateClient(String tenantId, String firstName, String lastName,
+                                         String email, String phone) {
+        log.atInfo().addKeyValue("email", email).log("Find-or-create client in client-service");
+        try {
+            record FindOrCreateClientRestRequest(String firstName, String lastName, String email, String phone) {}
+
+            ClientInternalDto dto = restClient.post()
+                    .uri("/api/internal/clients/find-or-create?tenantId={tenantId}", tenantId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(new FindOrCreateClientRestRequest(firstName, lastName, email, phone))
+                    .retrieve()
+                    .body(ClientInternalDto.class);
+            if (dto == null) {
+                throw new RuntimeException("Null response from find-or-create client");
+            }
+            return new ClientInfo(dto.id(), dto.firstName(), dto.lastName(), dto.email(), dto.phone(), dto.active());
+        } catch (Exception e) {
+            log.atError().setCause(e).addKeyValue("email", email).log("Failed to find-or-create client");
+            throw new RuntimeException("Failed to find-or-create client in client-service", e);
         }
     }
 }

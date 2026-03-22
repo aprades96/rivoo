@@ -4,11 +4,14 @@ import com.rivoo.appointment.application.dto.AppointmentResponse;
 import com.rivoo.appointment.application.dto.AvailabilityResponse;
 import com.rivoo.appointment.application.dto.CancelAppointmentRequest;
 import com.rivoo.appointment.application.dto.CreateAppointmentRequest;
+import com.rivoo.appointment.application.dto.PublicBookingRequest;
+import com.rivoo.appointment.application.dto.PublicBookingResponse;
 import com.rivoo.appointment.application.dto.UpdateStatusRequest;
 import com.rivoo.appointment.domain.port.in.CancelAppointmentUseCase;
 import com.rivoo.appointment.domain.port.in.CheckAvailabilityUseCase;
 import com.rivoo.appointment.domain.port.in.CreateAppointmentUseCase;
 import com.rivoo.appointment.domain.port.in.GetAppointmentUseCase;
+import com.rivoo.appointment.domain.port.in.PublicBookingUseCase;
 import com.rivoo.appointment.domain.port.in.UpdateAppointmentStatusUseCase;
 import com.rivoo.common.tenant.TenantContext;
 import jakarta.validation.Valid;
@@ -43,6 +46,14 @@ public class AppointmentController {
     private final UpdateAppointmentStatusUseCase updateAppointmentStatusUseCase;
     private final CancelAppointmentUseCase cancelAppointmentUseCase;
     private final CheckAvailabilityUseCase checkAvailabilityUseCase;
+    private final PublicBookingUseCase publicBookingUseCase;
+
+    @PostMapping("/book")
+    public ResponseEntity<PublicBookingResponse> publicBook(@Valid @RequestBody PublicBookingRequest request) {
+        log.atInfo().addKeyValue("salonSlug", request.salonSlug()).log("POST /api/v1/appointments/book");
+        PublicBookingResponse response = publicBookingUseCase.book(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
 
     @PostMapping
     @PreAuthorize("hasAnyRole('SALON_OWNER', 'EMPLOYEE')")

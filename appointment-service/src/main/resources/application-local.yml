@@ -21,6 +21,8 @@ rivoo:
   security:
     internal-service-key: rivoo-dev-internal-key-2026
   services:
+    salon-service:
+      url: http://localhost:8082
     staff-service:
       url: http://localhost:8083
     client-service:

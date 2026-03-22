@@ -5,6 +5,8 @@ import com.rivoo.appointment.application.dto.AppointmentResponse;
 import com.rivoo.appointment.application.dto.AppointmentStatsResponse;
 import com.rivoo.appointment.application.dto.CancelAppointmentRequest;
 import com.rivoo.appointment.application.dto.CreateAppointmentRequest;
+import com.rivoo.appointment.application.dto.PublicBookingRequest;
+import com.rivoo.appointment.application.dto.PublicBookingResponse;
 import com.rivoo.appointment.domain.exception.AppointmentConflictException;
 import com.rivoo.appointment.domain.exception.AppointmentLimitExceededException;
 import com.rivoo.appointment.domain.exception.AppointmentNotFoundException;
@@ -17,13 +19,16 @@ import com.rivoo.appointment.domain.port.in.AppointmentStatsUseCase;
 import com.rivoo.appointment.domain.port.in.CancelAppointmentUseCase;
 import com.rivoo.appointment.domain.port.in.CreateAppointmentUseCase;
 import com.rivoo.appointment.domain.port.in.GetAppointmentUseCase;
+import com.rivoo.appointment.domain.port.in.PublicBookingUseCase;
 import com.rivoo.appointment.domain.port.in.UpdateAppointmentStatusUseCase;
 import com.rivoo.appointment.domain.port.out.AppointmentPersistencePort;
 import com.rivoo.appointment.domain.port.out.BillingServicePort;
 import com.rivoo.appointment.domain.port.out.ClientServicePort;
 import com.rivoo.appointment.domain.port.out.NotificationServicePort;
+import com.rivoo.appointment.domain.port.out.SalonServicePort;
 import com.rivoo.appointment.domain.port.out.StaffServicePort;
 import com.rivoo.appointment.infrastructure.mapper.AppointmentDtoMapper;
+import com.rivoo.common.exception.BusinessValidationException;
 import com.rivoo.common.util.ExternalIdGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,7 +50,7 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class AppointmentService implements CreateAppointmentUseCase, GetAppointmentUseCase,
-        UpdateAppointmentStatusUseCase, CancelAppointmentUseCase, AppointmentStatsUseCase {
+        UpdateAppointmentStatusUseCase, CancelAppointmentUseCase, AppointmentStatsUseCase, PublicBookingUseCase {
 
     private static final ZoneId SALON_TIMEZONE = ZoneId.of("Europe/Madrid");
 
@@ -54,6 +59,7 @@ public class AppointmentService implements CreateAppointmentUseCase, GetAppointm
     private final ClientServicePort clientServicePort;
     private final BillingServicePort billingServicePort;
     private final NotificationServicePort notificationServicePort;
+    private final SalonServicePort salonServicePort;
     private final AppointmentDtoMapper mapper;
 
     @Override
@@ -252,6 +258,115 @@ public class AppointmentService implements CreateAppointmentUseCase, GetAppointm
         }
 
         return new AppointmentStatsResponse(total, byStatus, bySource);
+    }
+
+    @Override
+    @Transactional
+    public PublicBookingResponse book(PublicBookingRequest request) {
+        // 1. Honeypot check — silently return fake success to fool bots
+        if (request.honeypot() != null && !request.honeypot().isBlank()) {
+            log.atInfo().log("Honeypot triggered — returning fake success");
+            return new PublicBookingResponse("apt_fake", "Salon", "Employee", "Service",
+                    Instant.now(), Instant.now().plusSeconds(1800), "PENDING");
+        }
+
+        // 2. Booking window: 1 hour to 60 days from now
+        LocalDateTime now = LocalDateTime.now(SALON_TIMEZONE);
+        if (request.requestedTime().isBefore(now.plusHours(1))) {
+            throw new BusinessValidationException("Booking must be at least 1 hour in the future");
+        }
+        if (request.requestedTime().isAfter(now.plusDays(60))) {
+            throw new BusinessValidationException("Booking cannot be more than 60 days in the future");
+        }
+
+        // 3. Validate salon slug → get tenantId
+        SalonServicePort.SalonInfo salon = salonServicePort.getSalonBySlug(request.salonSlug());
+        if (!"ACTIVE".equals(salon.status())) {
+            throw new BusinessValidationException("Salon is not active");
+        }
+        String tenantId = salon.tenantId();
+
+        // 4. Validate employee + service
+        StaffServicePort.StaffEmployeeInfo employee = staffServicePort.getEmployee(tenantId, request.employeeExternalId());
+        if (!employee.active()) {
+            throw new BusinessValidationException("Employee is not active");
+        }
+        StaffServicePort.StaffServiceInfo service = staffServicePort.getService(tenantId, request.serviceExternalId());
+        if (!service.active()) {
+            throw new BusinessValidationException("Service is not active");
+        }
+
+        // 5. Check plan limits (bypass cache for write operations)
+        checkPlanLimits(tenantId);
+
+        // 6. Convert local time to UTC and check for conflicts
+        ZonedDateTime zonedStart = request.requestedTime().atZone(SALON_TIMEZONE);
+        Instant startTimeUtc = zonedStart.toInstant();
+        Instant endTimeUtc = zonedStart.plusMinutes(service.durationMinutes()).toInstant();
+
+        List<Appointment> overlapping = appointmentPersistencePort
+                .findOverlappingForUpdate(tenantId, request.employeeExternalId(), startTimeUtc, endTimeUtc);
+        if (!overlapping.isEmpty()) {
+            throw new AppointmentConflictException(employee.fullName(),
+                    request.requestedTime() + " - " + request.requestedTime().plusMinutes(service.durationMinutes()));
+        }
+
+        // 7. Find or create client by email+phone in client-service
+        ClientServicePort.ClientInfo client = clientServicePort.findOrCreateClient(
+                tenantId, request.clientFirstName(), request.clientLastName(),
+                request.clientEmail(), request.clientPhone());
+
+        // 8. Build and persist the appointment
+        Appointment appointment = Appointment.builder()
+                .externalId(ExternalIdGenerator.generate("apt"))
+                .tenantId(tenantId)
+                .clientId(client.externalId())
+                .clientName(client.fullName())
+                .clientPhone(request.clientPhone())
+                .clientEmail(request.clientEmail())
+                .employeeId(request.employeeExternalId())
+                .employeeName(employee.fullName())
+                .serviceId(request.serviceExternalId())
+                .serviceName(service.name())
+                .servicePrice(service.price())
+                .serviceDurationMinutes(service.durationMinutes())
+                .startTime(startTimeUtc)
+                .endTime(endTimeUtc)
+                .status(AppointmentStatus.PENDING)
+                .source(AppointmentSource.ONLINE)
+                .reminderSent(false)
+                .build();
+
+        Appointment saved = appointmentPersistencePort.save(appointment);
+
+        // 9. Schedule notifications (fire-and-forget — failures must not block the booking)
+        try {
+            notificationServicePort.sendConfirmation(saved);
+        } catch (Exception e) {
+            log.atWarn().setCause(e).addKeyValue("appointmentId", saved.getExternalId())
+                    .log("Failed to send confirmation — booking created anyway");
+        }
+        try {
+            notificationServicePort.scheduleReminder(saved);
+        } catch (Exception e) {
+            log.atWarn().setCause(e).addKeyValue("appointmentId", saved.getExternalId())
+                    .log("Failed to schedule reminder — booking created anyway");
+        }
+
+        log.atInfo()
+                .addKeyValue("appointmentId", saved.getExternalId())
+                .addKeyValue("source", "ONLINE")
+                .addKeyValue("salonSlug", request.salonSlug())
+                .log("Public booking created");
+
+        return new PublicBookingResponse(
+                saved.getExternalId(),
+                salon.name(),
+                employee.fullName(),
+                service.name(),
+                saved.getStartTime(),
+                saved.getEndTime(),
+                saved.getStatus().name());
     }
 
     private Appointment findOrThrow(String externalId) {
