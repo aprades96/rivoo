@@ -27,3 +27,5 @@ rivoo:
       url: http://localhost:8084
     billing-service:
       url: http://localhost:8087
+    notification-service:
+      url: http://localhost:8086

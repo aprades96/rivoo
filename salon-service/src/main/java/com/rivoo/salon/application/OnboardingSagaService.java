@@ -13,6 +13,7 @@ import com.rivoo.salon.domain.port.in.RegisterSalonUseCase;
 import com.rivoo.salon.domain.port.out.AuthServicePort;
 import com.rivoo.salon.domain.port.out.BillingServicePort;
 import com.rivoo.salon.domain.port.out.BusinessHoursPersistencePort;
+import com.rivoo.salon.domain.port.out.NotificationServicePort;
 import com.rivoo.salon.domain.port.out.SalonPersistencePort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +38,7 @@ public class OnboardingSagaService implements RegisterSalonUseCase {
     private final BusinessHoursPersistencePort businessHoursPersistencePort;
     private final AuthServicePort authServicePort;
     private final BillingServicePort billingServicePort;
+    private final NotificationServicePort notificationServicePort;
 
     @Override
     @Transactional
@@ -127,8 +129,12 @@ public class OnboardingSagaService implements RegisterSalonUseCase {
             throw e;
         }
 
-        // Step 8 (SKIP): notification-service — Fase 8
-        log.atInfo().log("Skipping notification-service integration (not implemented yet)");
+        // Step 8: Send welcome email (fire-and-forget — non-critical)
+        try {
+            notificationServicePort.sendWelcomeEmail(externalId, request.email(), request.name());
+        } catch (Exception e) {
+            log.atWarn().setCause(e).addKeyValue("externalId", externalId).log("Failed to send welcome email, continuing");
+        }
 
         return new RegisterSalonResponse(
                 savedSalon.getExternalId(),
