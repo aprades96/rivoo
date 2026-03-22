@@ -1,5 +1,6 @@
 package com.rivoo.client.application;
 
+import com.rivoo.client.application.dto.ClientAppointmentDto;
 import com.rivoo.client.application.dto.ClientExportResponse;
 import com.rivoo.client.application.dto.ClientInternalResponse;
 import com.rivoo.client.application.dto.ClientResponse;
@@ -18,6 +19,7 @@ import com.rivoo.client.domain.port.in.ExportClientDataUseCase;
 import com.rivoo.client.domain.port.in.GetClientUseCase;
 import com.rivoo.client.domain.port.in.InternalClientUseCase;
 import com.rivoo.client.domain.port.in.UpdateClientUseCase;
+import com.rivoo.client.domain.port.out.AppointmentServicePort;
 import com.rivoo.client.domain.port.out.ClientPersistencePort;
 import com.rivoo.client.infrastructure.mapper.ClientDtoMapper;
 import com.rivoo.common.util.ExternalIdGenerator;
@@ -39,6 +41,7 @@ public class ClientService implements CreateClientUseCase, GetClientUseCase,
         UpdateClientUseCase, AnonymizeClientUseCase, ExportClientDataUseCase, InternalClientUseCase {
 
     private final ClientPersistencePort clientPersistencePort;
+    private final AppointmentServicePort appointmentServicePort;
     private final ClientDtoMapper mapper;
 
     // ── Create Client ───────────────────────────────────────────────────
@@ -135,7 +138,16 @@ public class ClientService implements CreateClientUseCase, GetClientUseCase,
     public ClientExportResponse export(String externalId) {
         Client client = clientPersistencePort.findByExternalId(externalId)
                 .orElseThrow(() -> new ClientNotFoundException(externalId));
-        return mapper.toExportResponse(client, List.of());
+
+        List<ClientAppointmentDto> appointments = List.of();
+        try {
+            appointments = appointmentServicePort.getClientAppointments(externalId, client.getTenantId());
+        } catch (Exception e) {
+            log.atWarn().setCause(e).addKeyValue("clientId", externalId)
+                    .log("Failed to fetch appointments for GDPR export");
+        }
+
+        return mapper.toExportResponse(client, appointments);
     }
 
     // ── Internal ────────────────────────────────────────────────────────

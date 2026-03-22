@@ -81,4 +81,6 @@ public interface AppointmentJpaRepository extends JpaRepository<AppointmentJpaEn
 
     @Query("SELECT a.source, COUNT(a) FROM AppointmentJpaEntity a WHERE a.tenantId = :tenantId AND a.startTime >= :monthStart AND a.startTime < :monthEnd GROUP BY a.source")
     List<Object[]> countBySourceGrouped(@Param("tenantId") String tenantId, @Param("monthStart") Instant monthStart, @Param("monthEnd") Instant monthEnd);
+
+    List<AppointmentJpaEntity> findByClientIdAndTenantId(String clientId, String tenantId);
 }

@@ -172,6 +172,14 @@ public class AppointmentService implements CreateAppointmentUseCase, GetAppointm
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<AppointmentInternalResponse> getByClientId(String clientId, String tenantId) {
+        return appointmentPersistencePort.findByClientId(clientId, tenantId).stream()
+                .map(mapper::toInternalResponse)
+                .toList();
+    }
+
+    @Override
     @Transactional
     public AppointmentResponse updateStatus(String externalId, String newStatus) {
         Appointment appointment = findOrThrow(externalId);

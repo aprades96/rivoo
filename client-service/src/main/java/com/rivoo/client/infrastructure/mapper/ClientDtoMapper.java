@@ -1,5 +1,6 @@
 package com.rivoo.client.infrastructure.mapper;
 
+import com.rivoo.client.application.dto.ClientAppointmentDto;
 import com.rivoo.client.application.dto.ClientExportResponse;
 import com.rivoo.client.application.dto.ClientInternalResponse;
 import com.rivoo.client.application.dto.ClientResponse;
@@ -21,7 +22,7 @@ public interface ClientDtoMapper {
     @Mapping(target = "gender", expression = "java(client.getGender() != null ? client.getGender().name() : null)")
     @Mapping(target = "source", expression = "java(client.getSource() != null ? client.getSource().name() : null)")
     @Mapping(target = "appointments", source = "appointments")
-    ClientExportResponse toExportResponse(Client client, List<String> appointments);
+    ClientExportResponse toExportResponse(Client client, List<ClientAppointmentDto> appointments);
 
     @Mapping(target = "id", source = "externalId")
     ClientInternalResponse toInternalResponse(Client client);

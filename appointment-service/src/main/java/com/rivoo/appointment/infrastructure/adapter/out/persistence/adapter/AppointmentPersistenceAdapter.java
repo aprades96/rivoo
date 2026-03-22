@@ -77,4 +77,11 @@ public class AppointmentPersistenceAdapter implements AppointmentPersistencePort
         // Not directly needed — stats use grouped queries
         return 0;
     }
+
+    @Override
+    public List<Appointment> findByClientId(String clientId, String tenantId) {
+        return repository.findByClientIdAndTenantId(clientId, tenantId).stream()
+                .map(mapper::toDomain)
+                .toList();
+    }
 }

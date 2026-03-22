@@ -16,6 +16,6 @@ public record ClientExportResponse(
         Instant lastVisitAt,
         Instant gdprConsentAt,
         Instant createdAt,
-        List<String> appointments
+        List<ClientAppointmentDto> appointments
 ) {
 }

@@ -20,3 +20,6 @@ spring:
 rivoo:
   security:
     internal-service-key: rivoo-dev-internal-key-2026
+  services:
+    appointment-service:
+      url: http://localhost:8085

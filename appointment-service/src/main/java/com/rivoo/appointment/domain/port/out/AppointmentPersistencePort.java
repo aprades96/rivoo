@@ -29,4 +29,6 @@ public interface AppointmentPersistencePort {
     long countByTenantAndStatus(String tenantId, AppointmentStatus status);
 
     long countByTenantAndSource(String tenantId, String source);
+
+    List<Appointment> findByClientId(String clientId, String tenantId);
 }
