@@ -26,7 +26,7 @@ public class AppointmentInternalController {
 
     @GetMapping("/stats")
     public ResponseEntity<AppointmentStatsResponse> getStats(@RequestParam String tenantId) {
-        log.atInfo().addKeyValue("tenantId", tenantId).log("GET /api/internal/admin/appointments/stats");
+        log.atInfo().log("GET /api/internal/admin/appointments/stats");
         AppointmentStatsResponse response = appointmentStatsUseCase.getStats(tenantId);
         return ResponseEntity.ok(response);
     }

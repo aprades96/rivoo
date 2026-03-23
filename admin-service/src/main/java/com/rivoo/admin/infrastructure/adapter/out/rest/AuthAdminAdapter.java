@@ -32,7 +32,6 @@ public class AuthAdminAdapter {
      */
     public void setTenantEnabled(String tenantId, boolean enabled) {
         log.atInfo()
-                .addKeyValue("tenantId", tenantId)
                 .addKeyValue("enabled", enabled)
                 .log("Calling auth-service PUT /api/internal/admin/tenants/status");
 
@@ -44,7 +43,6 @@ public class AuthAdminAdapter {
                 .toBodilessEntity();
 
         log.atInfo()
-                .addKeyValue("tenantId", tenantId)
                 .addKeyValue("enabled", enabled)
                 .log("auth-service tenant status updated");
     }
@@ -55,7 +53,7 @@ public class AuthAdminAdapter {
      * We map it to TenantUsersDto; email/firstName/lastName are not available from the local DB endpoint.
      */
     public List<TenantUsersDto> getTenantUsers(String tenantId) {
-        log.atInfo().addKeyValue("tenantId", tenantId).log("Calling auth-service GET /api/internal/auth/tenants/users");
+        log.atInfo().log("Calling auth-service GET /api/internal/auth/tenants/users");
 
         List<Map<String, Object>> raw = restClient.get()
                 .uri("/api/internal/auth/tenants/{tenantId}/users", tenantId)
@@ -76,7 +74,7 @@ public class AuthAdminAdapter {
                 ))
                 .toList();
 
-        log.atInfo().addKeyValue("tenantId", tenantId).addKeyValue("count", users.size()).log("auth-service returned tenant users");
+        log.atInfo().addKeyValue("count", users.size()).log("auth-service returned tenant users");
         return users;
     }
 }

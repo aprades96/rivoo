@@ -22,7 +22,7 @@ public class BillingServiceStubAdapter implements BillingServicePort {
 
     @Override
     public int getMaxEmployees(String tenantId) {
-        log.atInfo().addKeyValue("tenantId", tenantId).log("Calling billing-service for plan limits (write operation)");
+        log.atInfo().log("Calling billing-service for plan limits (write operation)");
 
         try {
             PlanLimitsDto limits = restClient.get()
@@ -31,19 +31,18 @@ public class BillingServiceStubAdapter implements BillingServicePort {
                     .body(PlanLimitsDto.class);
 
             if (limits == null) {
-                log.atWarn().addKeyValue("tenantId", tenantId).log("Billing-service returned null plan limits, falling back to unlimited");
+                log.atWarn().log("Billing-service returned null plan limits, falling back to unlimited");
                 return -1;
             }
 
             log.atInfo()
-                    .addKeyValue("tenantId", tenantId)
                     .addKeyValue("planName", limits.planName())
                     .addKeyValue("maxEmployees", limits.maxEmployees())
                     .log("Plan limits retrieved from billing-service");
 
             return limits.maxEmployees();
         } catch (Exception e) {
-            log.atWarn().setCause(e).addKeyValue("tenantId", tenantId)
+            log.atWarn().setCause(e)
                     .log("Failed to fetch plan limits from billing-service, falling back to unlimited");
             return -1;
         }

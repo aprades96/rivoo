@@ -11,6 +11,17 @@ public interface KeycloakAdminPort {
     String createUser(String email, String password, String firstName, String lastName);
 
     /**
+     * Creates an employee user with temporary password and required actions (UPDATE_PASSWORD, VERIFY_EMAIL).
+     * Keycloak will send an email to the employee with a link to set their password.
+     */
+    String createEmployeeUser(String email, String password, String firstName, String lastName);
+
+    /**
+     * Sends an email to the user to execute required actions (e.g., UPDATE_PASSWORD, VERIFY_EMAIL).
+     */
+    void sendRequiredActionsEmail(String keycloakUserId);
+
+    /**
      * Sets user attributes (tenant_id, subscription_plan, salon_name).
      */
     void setUserAttributes(String keycloakUserId, Map<String, List<String>> attributes);

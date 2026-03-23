@@ -82,13 +82,13 @@ class EmployeeServiceTest {
         when(mapper.toResponse(any(Employee.class))).thenAnswer(inv -> {
             Employee e = inv.getArgument(0);
             return new EmployeeResponse(e.getExternalId(), e.getFirstName(), e.getLastName(),
-                    e.getEmail(), e.getPhone(), e.getRole().name(), e.isActive(),
+                    e.getEmail(), e.getPhone(), null, null, e.getRole().name(), e.isActive(),
                     Instant.now(), Instant.now());
         });
 
         CreateEmployeeRequest request = new CreateEmployeeRequest(
                 "Maria", "Garcia", "maria@salon.com", "+34 600 111 222",
-                "STYLIST", false, null);
+                null, null, "STYLIST", false, null);
 
         EmployeeResponse response = employeeService.create(TENANT_ID, request);
 
@@ -200,7 +200,7 @@ class EmployeeServiceTest {
 
         CreateEmployeeRequest request = new CreateEmployeeRequest(
                 "Pedro", "Lopez", "pedro@salon.com", "+34 600 333 444",
-                "STYLIST", true, "Pass1234!");
+                null, null, "STYLIST", true, "Pass1234!");
 
         employeeService.create(TENANT_ID, request);
 
@@ -222,7 +222,7 @@ class EmployeeServiceTest {
 
         // createKeycloakAccount=true but email is null
         CreateEmployeeRequest request = new CreateEmployeeRequest(
-                "Luis", "Perez", null, null, "STYLIST", true, "Pass1234!");
+                "Luis", "Perez", null, null, null, null, "STYLIST", true, "Pass1234!");
 
         employeeService.create(TENANT_ID, request);
 
@@ -234,11 +234,11 @@ class EmployeeServiceTest {
 
     private CreateEmployeeRequest buildRequest(boolean withKeycloak) {
         return new CreateEmployeeRequest("Ana", "Martinez", "ana@salon.com",
-                "+34 600 000 111", "STYLIST", withKeycloak, withKeycloak ? "Pass1234!" : null);
+                "+34 600 000 111", null, null, "STYLIST", withKeycloak, withKeycloak ? "Pass1234!" : null);
     }
 
     private EmployeeResponse dummyResponse() {
         return new EmployeeResponse("emp_abc", "Ana", "Martinez",
-                "ana@salon.com", null, "STYLIST", true, Instant.now(), Instant.now());
+                "ana@salon.com", null, null, null, "STYLIST", true, Instant.now(), Instant.now());
     }
 }

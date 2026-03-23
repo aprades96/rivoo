@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
@@ -34,6 +35,7 @@ public class BillingSecurityConfig {
                 auth.requestMatchers("/actuator/**").permitAll();
                 auth.requestMatchers("/api/internal/**").permitAll(); // authenticated by InternalEndpointFilter (PSK)
                 auth.requestMatchers("/api/webhooks/stripe").permitAll(); // Stripe webhook — verified by signature
+                auth.requestMatchers(HttpMethod.GET, "/api/v1/billing/plans").permitAll(); // Public — plan listing
                 auth.anyRequest().authenticated();
             })
             .addFilterBefore(internalEndpointFilter, UsernamePasswordAuthenticationFilter.class)

@@ -44,7 +44,6 @@ public class CheckoutService implements CheckoutUseCase {
                 successUrl, cancelUrl);
 
         log.atInfo()
-                .addKeyValue("tenantId", tenantId)
                 .addKeyValue("targetPlan", request.planName())
                 .log("Checkout session created");
 

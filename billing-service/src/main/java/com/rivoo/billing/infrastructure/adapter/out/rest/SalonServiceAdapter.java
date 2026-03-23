@@ -26,7 +26,6 @@ public class SalonServiceAdapter implements SalonServicePort {
     @Override
     public void updateSalonStatus(String tenantId, String status) {
         log.atInfo()
-                .addKeyValue("tenantId", tenantId)
                 .addKeyValue("status", status)
                 .log("Calling salon-service to update salon status");
 
@@ -41,13 +40,11 @@ public class SalonServiceAdapter implements SalonServicePort {
                     .toBodilessEntity();
 
             log.atInfo()
-                    .addKeyValue("tenantId", tenantId)
                     .addKeyValue("status", status)
                     .log("Salon status updated in salon-service");
         } catch (Exception ex) {
             log.atWarn()
                     .setCause(ex)
-                    .addKeyValue("tenantId", tenantId)
                     .addKeyValue("status", status)
                     .log("Failed to update salon status in salon-service");
             throw new RuntimeException("Failed to update salon status for tenant: " + tenantId, ex);

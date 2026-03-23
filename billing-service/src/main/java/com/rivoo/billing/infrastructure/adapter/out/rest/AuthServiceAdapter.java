@@ -28,7 +28,6 @@ public class AuthServiceAdapter implements AuthServicePort {
     @Override
     public void updateTenantAttributes(String tenantId, Map<String, String> attributes) {
         log.atInfo()
-                .addKeyValue("tenantId", tenantId)
                 .addKeyValue("attributeKeys", attributes.keySet())
                 .log("Calling auth-service to update tenant attributes");
 
@@ -43,12 +42,10 @@ public class AuthServiceAdapter implements AuthServicePort {
                     .toBodilessEntity();
 
             log.atInfo()
-                    .addKeyValue("tenantId", tenantId)
                     .log("Tenant attributes updated in auth-service");
         } catch (Exception ex) {
             log.atWarn()
                     .setCause(ex)
-                    .addKeyValue("tenantId", tenantId)
                     .log("Failed to update tenant attributes in auth-service");
             throw new RuntimeException("Failed to update tenant attributes for tenant: " + tenantId, ex);
         }

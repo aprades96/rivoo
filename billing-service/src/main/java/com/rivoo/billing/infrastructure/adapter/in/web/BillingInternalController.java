@@ -34,7 +34,7 @@ public class BillingInternalController {
     @PostMapping("/subscriptions")
     public ResponseEntity<SubscriptionResponse> createSubscription(
             @Valid @RequestBody CreateSubscriptionRequest request) {
-        log.atInfo().addKeyValue("tenantId", request.tenantId()).log("POST /api/internal/billing/subscriptions");
+        log.atInfo().log("POST /api/internal/billing/subscriptions");
         SubscriptionResponse response = createSubscriptionUseCase.create(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -44,7 +44,6 @@ public class BillingInternalController {
             @PathVariable String tenantId,
             @RequestParam(defaultValue = "false") boolean forWriteOperation) {
         log.atInfo()
-                .addKeyValue("tenantId", tenantId)
                 .addKeyValue("forWriteOperation", forWriteOperation)
                 .log("GET /api/internal/billing/tenants/plan-limits");
         PlanLimitsResponse response = managePlanLimitsUseCase.getPlanLimits(tenantId, forWriteOperation);
@@ -55,7 +54,7 @@ public class BillingInternalController {
     public ResponseEntity<SubscriptionResponse> updateStatus(
             @PathVariable String tenantId,
             @Valid @RequestBody UpdateSubscriptionStatusRequest request) {
-        log.atInfo().addKeyValue("tenantId", tenantId).addKeyValue("status", request.status())
+        log.atInfo().addKeyValue("status", request.status())
                 .log("PUT /api/internal/billing/subscriptions/status");
         SubscriptionResponse response = updateSubscriptionStatusUseCase.updateStatus(tenantId, request.status());
         return ResponseEntity.ok(response);

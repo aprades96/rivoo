@@ -8,6 +8,8 @@ public record EmployeeResponse(
         String lastName,
         String email,
         String phone,
+        String jobTitle,
+        String colorHex,
         String role,
         boolean active,
         Instant createdAt,

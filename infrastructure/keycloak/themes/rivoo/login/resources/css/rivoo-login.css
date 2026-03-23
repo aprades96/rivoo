@@ -1,0 +1,218 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=DM+Sans:wght@600;700&display=swap');
+
+:root {
+    --rivoo-primary: #18181b;
+    --rivoo-primary-hover: #27272a;
+    --rivoo-bg: #f4f4f5;
+    --rivoo-card: #ffffff;
+    --rivoo-border: #e4e4e7;
+    --rivoo-text: #18181b;
+    --rivoo-muted: #71717a;
+    --rivoo-radius: 0.625rem;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--rivoo-bg);
+    color: var(--rivoo-text);
+    -webkit-font-smoothing: antialiased;
+}
+
+.rivoo-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 1rem;
+}
+
+.rivoo-card {
+    width: 100%;
+    max-width: 400px;
+    background: var(--rivoo-card);
+    border: 1px solid var(--rivoo-border);
+    border-radius: var(--rivoo-radius);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 6px 16px rgba(0,0,0,0.04);
+    padding: 2rem;
+}
+
+/* Header */
+.rivoo-header {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+.rivoo-logo {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 0.75rem;
+}
+
+.rivoo-title {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.rivoo-subtitle {
+    font-size: 0.875rem;
+    color: var(--rivoo-muted);
+    margin-top: 0.25rem;
+}
+
+/* Alerts */
+.rivoo-alert {
+    padding: 0.625rem 0.75rem;
+    border-radius: var(--rivoo-radius);
+    font-size: 0.8125rem;
+    margin-bottom: 1rem;
+}
+
+.rivoo-alert-error, .rivoo-alert-warning {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #dc2626;
+}
+
+.rivoo-alert-success {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #16a34a;
+}
+
+.rivoo-alert-info {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #2563eb;
+}
+
+/* Form */
+.rivoo-field {
+    margin-bottom: 1rem;
+}
+
+.rivoo-label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    margin-bottom: 0.375rem;
+}
+
+.rivoo-input {
+    display: block;
+    width: 100%;
+    height: 2.25rem;
+    padding: 0 0.75rem;
+    font-family: inherit;
+    font-size: 0.875rem;
+    color: var(--rivoo-text);
+    background: var(--rivoo-card);
+    border: 1px solid var(--rivoo-border);
+    border-radius: var(--rivoo-radius);
+    outline: none;
+    transition: border-color 150ms, box-shadow 150ms;
+}
+
+.rivoo-input:focus {
+    border-color: var(--rivoo-primary);
+    box-shadow: 0 0 0 3px rgba(24,24,27,0.08);
+}
+
+/* Options */
+.rivoo-options {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.25rem;
+    font-size: 0.8125rem;
+}
+
+.rivoo-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    color: var(--rivoo-muted);
+    cursor: pointer;
+}
+
+.rivoo-checkbox input[type="checkbox"] {
+    width: 0.875rem;
+    height: 0.875rem;
+    accent-color: var(--rivoo-primary);
+    cursor: pointer;
+}
+
+.rivoo-link {
+    color: var(--rivoo-muted);
+    text-decoration: none;
+    font-size: 0.8125rem;
+}
+
+.rivoo-link:hover {
+    color: var(--rivoo-primary);
+    text-decoration: underline;
+}
+
+/* Button */
+.rivoo-btn {
+    display: block;
+    width: 100%;
+    height: 2.5rem;
+    font-family: inherit;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #fff;
+    background: var(--rivoo-primary);
+    border: none;
+    border-radius: var(--rivoo-radius);
+    cursor: pointer;
+    transition: background 150ms;
+}
+
+.rivoo-btn:hover {
+    background: var(--rivoo-primary-hover);
+}
+
+.rivoo-btn:active {
+    transform: translateY(1px);
+}
+
+/* Info / registration link */
+.rivoo-info {
+    text-align: center;
+    margin-top: 1.5rem;
+    font-size: 0.8125rem;
+    color: var(--rivoo-muted);
+}
+
+.rivoo-info a {
+    color: var(--rivoo-primary);
+    font-weight: 500;
+    text-decoration: none;
+    margin-left: 0.25rem;
+}
+
+.rivoo-info a:hover {
+    text-decoration: underline;
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+    .rivoo-page {
+        padding: 0;
+        align-items: stretch;
+    }
+
+    .rivoo-card {
+        max-width: 100%;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+}

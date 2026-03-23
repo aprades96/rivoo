@@ -22,6 +22,8 @@ public class Employee {
     private String lastName;
     private String email;
     private String phone;
+    private String jobTitle;
+    private String colorHex;
     private EmployeeRole role;
     private String keycloakUserId;
     private boolean active;

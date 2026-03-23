@@ -13,6 +13,8 @@ public record UpdateSalonRequest(
         @Size(max = 100) String addressCity,
         @Size(max = 10) String addressPostalCode,
         String timezone,
-        String currency
+        String currency,
+        @Size(max = 500) String logoUrl,
+        @Pattern(regexp = "^#[0-9A-Fa-f]{6}$", message = "Must be a valid hex color") String primaryColor
 ) {
 }

@@ -24,7 +24,6 @@ public class StripeStubAdapter implements StripePort {
     public String createCustomer(String tenantId, String email, String salonName) {
         String customerId = "cus_mock_" + UUID.randomUUID().toString().replace("-", "");
         log.atInfo()
-                .addKeyValue("tenantId", tenantId)
                 .addKeyValue("email", email)
                 .addKeyValue("salonName", salonName)
                 .addKeyValue("stripeCustomerId", customerId)

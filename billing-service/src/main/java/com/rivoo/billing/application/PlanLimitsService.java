@@ -47,7 +47,7 @@ public class PlanLimitsService implements ManagePlanLimitsUseCase {
         if (!forWriteOperation) {
             PlanLimitsResponse cached = cache.getIfPresent(tenantId);
             if (cached != null) {
-                log.atDebug().addKeyValue("tenantId", tenantId).log("Plan limits cache hit");
+                log.atDebug().log("Plan limits cache hit");
                 return cached;
             }
         }
@@ -63,7 +63,7 @@ public class PlanLimitsService implements ManagePlanLimitsUseCase {
         PlanLimitsResponse response = buildResponse(plan.getName(), limits);
         cache.put(tenantId, response);
 
-        log.atDebug().addKeyValue("tenantId", tenantId).addKeyValue("plan", plan.getName()).log("Plan limits fetched from DB");
+        log.atDebug().addKeyValue("plan", plan.getName()).log("Plan limits fetched from DB");
         return response;
     }
 

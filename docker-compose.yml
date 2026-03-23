@@ -25,8 +25,27 @@ services:
       - "9080:9080"
     volumes:
       - ./infrastructure/keycloak/rivoo-realm.json:/opt/keycloak/data/import/rivoo-realm.json
+      - ./infrastructure/keycloak/themes/rivoo:/opt/keycloak/themes/rivoo
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/9080 && echo -e 'GET /realms/rivoo HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
     depends_on:
       mysql:
+        condition: service_healthy
+
+  keycloak-init:
+    image: curlimages/curl:latest
+    volumes:
+      - ./infrastructure/keycloak/rivoo-user-profile.json:/opt/keycloak/rivoo-user-profile.json
+      - ./infrastructure/keycloak/setup-user-profile.sh:/opt/keycloak/setup-user-profile.sh
+    environment:
+      KEYCLOAK_URL: http://keycloak:9080
+    entrypoint: ["sh", "/opt/keycloak/setup-user-profile.sh"]
+    depends_on:
+      keycloak:
         condition: service_healthy
 
   auth-service:
@@ -42,15 +61,15 @@ services:
       SPRING_DATASOURCE_PASSWORD: root
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:9080/realms/rivoo/protocol/openid-connect/certs
       RIVOO_SECURITY_INTERNAL_SERVICE_KEY: rivoo-dev-internal-key-2026
-      RIVOO_KEYCLOAK_SERVER_URL: http://keycloak:9080
-      RIVOO_KEYCLOAK_REALM: rivoo
-      RIVOO_KEYCLOAK_CLIENT_ID: salon-admin-cli
-      RIVOO_KEYCLOAK_CLIENT_SECRET: salon-admin-cli-secret
+      RIVOO_KEYCLOAK_ADMIN_SERVER_URL: http://keycloak:9080
+      RIVOO_KEYCLOAK_ADMIN_REALM: rivoo
+      RIVOO_KEYCLOAK_ADMIN_CLIENT_ID: salon-admin-cli
+      RIVOO_KEYCLOAK_ADMIN_CLIENT_SECRET: rivoo-admin-cli-secret-dev
     depends_on:
       mysql:
         condition: service_healthy
-      keycloak:
-        condition: service_started
+      keycloak-init:
+        condition: service_completed_successfully
 
   salon-service:
     build:
@@ -190,9 +209,18 @@ services:
     ports:
       - "8080:8080"
     environment:
-      SPRING_PROFILES_ACTIVE: local
+      SPRING_PROFILES_ACTIVE: prod
       SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI: http://keycloak:9080/realms/rivoo/protocol/openid-connect/certs
       RIVOO_SECURITY_INTERNAL_SERVICE_KEY: rivoo-dev-internal-key-2026
+      RIVOO_SERVICES_AUTH_SERVICE_URL: http://auth-service:8081
+      RIVOO_SERVICES_SALON_SERVICE_URL: http://salon-service:8082
+      RIVOO_SERVICES_STAFF_SERVICE_URL: http://staff-service:8083
+      RIVOO_SERVICES_CLIENT_SERVICE_URL: http://client-service:8084
+      RIVOO_SERVICES_APPOINTMENT_SERVICE_URL: http://appointment-service:8085
+      RIVOO_SERVICES_NOTIFICATION_SERVICE_URL: http://notification-service:8086
+      RIVOO_SERVICES_BILLING_SERVICE_URL: http://billing-service:8087
+      RIVOO_SERVICES_ADMIN_SERVICE_URL: http://admin-service:8088
+      RIVOO_SERVICES_KEYCLOAK_URL: http://keycloak:9080
     depends_on:
       - auth-service
       - salon-service

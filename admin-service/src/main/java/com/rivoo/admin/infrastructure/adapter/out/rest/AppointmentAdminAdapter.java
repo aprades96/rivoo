@@ -20,14 +20,14 @@ public class AppointmentAdminAdapter {
     }
 
     public AppointmentStatsDto getAppointmentStats(String tenantId) {
-        log.atInfo().addKeyValue("tenantId", tenantId).log("Calling appointment-service GET /api/internal/admin/appointments/stats");
+        log.atInfo().log("Calling appointment-service GET /api/internal/admin/appointments/stats");
 
         AppointmentStatsDto stats = restClient.get()
                 .uri("/api/internal/admin/appointments/stats?tenantId={tenantId}", tenantId)
                 .retrieve()
                 .body(AppointmentStatsDto.class);
 
-        log.atInfo().addKeyValue("tenantId", tenantId).log("appointment-service returned stats");
+        log.atInfo().log("appointment-service returned stats");
         return stats;
     }
 }

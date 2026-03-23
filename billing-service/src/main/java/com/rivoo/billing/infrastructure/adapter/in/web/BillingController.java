@@ -50,7 +50,6 @@ public class BillingController {
     }
 
     @GetMapping("/plans")
-    @PreAuthorize("hasRole('SALON_OWNER')")
     public ResponseEntity<List<PlanResponse>> listPlans() {
         log.atInfo().log("GET /api/v1/billing/plans");
         List<PlanResponse> plans = listPlansUseCase.listActivePlans();

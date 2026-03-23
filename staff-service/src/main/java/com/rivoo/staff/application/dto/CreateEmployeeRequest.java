@@ -10,8 +10,13 @@ public record CreateEmployeeRequest(
         @NotBlank @Size(max = 100) String lastName,
         @Email String email,
         @Pattern(regexp = "^\\+?[0-9\\s\\-()]{7,20}$") String phone,
+        @Size(max = 100) String jobTitle,
+        @Size(max = 7) String colorHex,
         String role,
-        boolean createKeycloakAccount,
+        Boolean createKeycloakAccount,
         @Size(min = 8) String password
 ) {
+    public boolean shouldCreateKeycloakAccount() {
+        return Boolean.TRUE.equals(createKeycloakAccount);
+    }
 }

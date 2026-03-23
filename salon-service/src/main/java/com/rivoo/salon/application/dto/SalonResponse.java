@@ -9,6 +9,8 @@ public record SalonResponse(
         String email,
         String phone,
         String description,
+        String logoUrl,
+        String primaryColor,
         String addressStreet,
         String addressCity,
         String addressPostalCode,

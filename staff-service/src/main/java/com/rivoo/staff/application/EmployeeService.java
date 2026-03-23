@@ -76,12 +76,14 @@ public class EmployeeService implements CreateEmployeeUseCase, GetEmployeeUseCas
                 .lastName(request.lastName())
                 .email(request.email())
                 .phone(request.phone())
+                .jobTitle(request.jobTitle())
+                .colorHex(request.colorHex() != null ? request.colorHex() : "#3B82F6")
                 .role(request.role() != null ? EmployeeRole.valueOf(request.role()) : EmployeeRole.STYLIST)
                 .active(true)
                 .build();
 
         // Optionally register in Keycloak
-        if (request.createKeycloakAccount() && request.email() != null && request.password() != null) {
+        if (request.shouldCreateKeycloakAccount() && request.email() != null && request.password() != null) {
             String keycloakUserId = authServicePort.registerEmployee(
                     tenantId, request.email(), request.password(),
                     request.firstName(), request.lastName(), null);
@@ -133,6 +135,8 @@ public class EmployeeService implements CreateEmployeeUseCase, GetEmployeeUseCas
         if (request.lastName() != null) employee.setLastName(request.lastName());
         if (request.email() != null) employee.setEmail(request.email());
         if (request.phone() != null) employee.setPhone(request.phone());
+        if (request.jobTitle() != null) employee.setJobTitle(request.jobTitle());
+        if (request.colorHex() != null) employee.setColorHex(request.colorHex());
         if (request.role() != null) employee.setRole(EmployeeRole.valueOf(request.role()));
 
         Employee updated = employeePersistencePort.save(employee);

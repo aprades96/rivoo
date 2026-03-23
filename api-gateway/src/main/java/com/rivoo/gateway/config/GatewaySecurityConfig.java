@@ -18,9 +18,11 @@ public class GatewaySecurityConfig {
             .csrf(ServerHttpSecurity.CsrfSpec::disable)
             .cors(Customizer.withDefaults())
             .authorizeExchange(exchanges -> {
+                exchanges.pathMatchers(HttpMethod.OPTIONS, "/**").permitAll();
                 exchanges.pathMatchers("/actuator/**").permitAll();
                 exchanges.pathMatchers(HttpMethod.POST, "/api/v1/salons").permitAll();
                 exchanges.pathMatchers("/api/v1/salons/public/**").permitAll();
+                exchanges.pathMatchers(HttpMethod.GET, "/api/v1/billing/plans").permitAll();
                 exchanges.pathMatchers(HttpMethod.POST, "/api/v1/appointments/book").permitAll();
                 exchanges.pathMatchers("/api/webhooks/stripe").permitAll();
                 exchanges.pathMatchers("/realms/**").permitAll();

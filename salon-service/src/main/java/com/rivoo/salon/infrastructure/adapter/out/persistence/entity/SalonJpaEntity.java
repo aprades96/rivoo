@@ -49,6 +49,12 @@ public class SalonJpaEntity extends TenantAwareEntity {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
+    @Column(name = "logo_url", length = 500)
+    private String logoUrl;
+
+    @Column(name = "primary_color", length = 7)
+    private String primaryColor;
+
     @Column(name = "address_street", nullable = false, length = 300)
     private String addressStreet;
 

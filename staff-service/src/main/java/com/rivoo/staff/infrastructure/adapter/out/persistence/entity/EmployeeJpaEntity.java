@@ -44,6 +44,12 @@ public class EmployeeJpaEntity extends TenantAwareEntity {
     @Column(name = "phone", length = 20)
     private String phone;
 
+    @Column(name = "job_title", length = 100)
+    private String jobTitle;
+
+    @Column(name = "color_hex", length = 7)
+    private String colorHex;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false)
     private EmployeeRole role;

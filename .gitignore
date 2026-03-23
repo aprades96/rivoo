@@ -42,6 +42,9 @@ desktop.ini
 *.log
 logs/
 
+# --- Claude Code ---
+.claude/
+
 # --- Environment ---
 .env
 *.env.local

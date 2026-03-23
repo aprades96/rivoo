@@ -29,7 +29,6 @@ public class SalonStatusAdapter {
      */
     public void updateSalonStatus(String tenantId, String status) {
         log.atInfo()
-                .addKeyValue("tenantId", tenantId)
                 .addKeyValue("status", status)
                 .log("Calling salon-service PUT /api/internal/salons/status");
 
@@ -41,7 +40,6 @@ public class SalonStatusAdapter {
                 .toBodilessEntity();
 
         log.atInfo()
-                .addKeyValue("tenantId", tenantId)
                 .addKeyValue("status", status)
                 .log("salon-service salon status updated");
     }

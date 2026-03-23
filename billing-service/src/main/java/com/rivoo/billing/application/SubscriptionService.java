@@ -70,7 +70,6 @@ public class SubscriptionService implements CreateSubscriptionUseCase, GetSubscr
         Subscription saved = subscriptionPersistencePort.save(subscription);
 
         log.atInfo()
-                .addKeyValue("tenantId", request.tenantId())
                 .addKeyValue("subscriptionId", saved.getExternalId())
                 .addKeyValue("stripeCustomerId", stripeCustomerId)
                 .log("Subscription created (FREE_TRIAL)");
@@ -112,7 +111,6 @@ public class SubscriptionService implements CreateSubscriptionUseCase, GetSubscr
                 .orElseThrow(() -> new PlanNotFoundException(String.valueOf(saved.getPlanId())));
 
         log.atInfo()
-                .addKeyValue("tenantId", tenantId)
                 .addKeyValue("newStatus", newStatus)
                 .log("Subscription status updated");
 
@@ -137,7 +135,7 @@ public class SubscriptionService implements CreateSubscriptionUseCase, GetSubscr
             authServicePort.updateTenantAttributes(tenantId,
                     Map.of("subscription_plan", newPlanName.name()));
         } catch (Exception e) {
-            log.atWarn().setCause(e).addKeyValue("tenantId", tenantId)
+            log.atWarn().setCause(e)
                     .log("Failed to sync plan to Keycloak — subscription updated anyway");
         }
 
@@ -145,7 +143,6 @@ public class SubscriptionService implements CreateSubscriptionUseCase, GetSubscr
         planLimitsService.evictCache(tenantId);
 
         log.atInfo()
-                .addKeyValue("tenantId", tenantId)
                 .addKeyValue("newPlan", newPlanName)
                 .log("Subscription upgraded");
     }

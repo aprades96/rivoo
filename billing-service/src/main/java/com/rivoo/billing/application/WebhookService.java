@@ -84,7 +84,7 @@ public class WebhookService implements ProcessWebhookUseCase {
                     }
 
                     subscriptionPersistencePort.save(sub);
-                    log.atInfo().addKeyValue("tenantId", sub.getTenantId()).log("Checkout completed — subscription activated");
+                    log.atInfo().log("Checkout completed — subscription activated");
                 });
     }
 
@@ -93,7 +93,7 @@ public class WebhookService implements ProcessWebhookUseCase {
                 .ifPresent(sub -> {
                     sub.setStatus(SubscriptionStatus.ACTIVE);
                     subscriptionPersistencePort.save(sub);
-                    log.atInfo().addKeyValue("tenantId", sub.getTenantId()).log("Invoice paid — subscription active");
+                    log.atInfo().log("Invoice paid — subscription active");
                 });
     }
 
@@ -102,7 +102,7 @@ public class WebhookService implements ProcessWebhookUseCase {
                 .ifPresent(sub -> {
                     sub.setStatus(SubscriptionStatus.PAST_DUE);
                     subscriptionPersistencePort.save(sub);
-                    log.atWarn().addKeyValue("tenantId", sub.getTenantId()).log("Payment failed — subscription PAST_DUE");
+                    log.atWarn().log("Payment failed — subscription PAST_DUE");
                 });
     }
 
@@ -115,7 +115,7 @@ public class WebhookService implements ProcessWebhookUseCase {
                 .ifPresent(sub -> {
                     sub.setStatus(SubscriptionStatus.CANCELLED);
                     subscriptionPersistencePort.save(sub);
-                    log.atWarn().addKeyValue("tenantId", sub.getTenantId()).log("Subscription deleted — CANCELLED");
+                    log.atWarn().log("Subscription deleted — CANCELLED");
                 });
     }
 }

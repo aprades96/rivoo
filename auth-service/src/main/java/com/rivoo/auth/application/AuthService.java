@@ -68,7 +68,7 @@ public class AuthService implements RegisterOwnerUseCase, RegisterEmployeeUseCas
     public RegisterEmployeeResponse registerEmployee(RegisterEmployeeRequest request) {
         log.atInfo().addKeyValue("email", request.email()).log("Registering employee");
 
-        String keycloakUserId = keycloakAdminPort.createUser(
+        String keycloakUserId = keycloakAdminPort.createEmployeeUser(
                 request.email(), request.password(), request.firstName(), request.lastName());
 
         try {
@@ -84,6 +84,14 @@ public class AuthService implements RegisterOwnerUseCase, RegisterEmployeeUseCas
             onboardingEventPort.save(new OnboardingEvent(
                     request.tenantId(), keycloakUserId, request.email(),
                     EventType.EMPLOYEE_CREATED, null));
+
+            // Send email with link to set password (fire-and-forget)
+            try {
+                keycloakAdminPort.sendRequiredActionsEmail(keycloakUserId);
+            } catch (Exception emailError) {
+                log.atWarn().setCause(emailError).addKeyValue("keycloakUserId", keycloakUserId)
+                        .log("Failed to send required actions email, employee can still use temp password");
+            }
 
             log.atInfo().addKeyValue("keycloakUserId", keycloakUserId).log("Employee registered successfully");
 

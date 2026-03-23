@@ -79,6 +79,8 @@ public class SalonService implements GetSalonUseCase, UpdateSalonUseCase,
         if (request.addressPostalCode() != null) salon.setAddressPostalCode(request.addressPostalCode());
         if (request.timezone() != null) salon.setTimezone(request.timezone());
         if (request.currency() != null) salon.setCurrency(request.currency());
+        if (request.logoUrl() != null) salon.setLogoUrl(request.logoUrl());
+        if (request.primaryColor() != null) salon.setPrimaryColor(request.primaryColor());
 
         Salon updated = salonPersistencePort.save(salon);
         log.atInfo().log("Salon updated");
@@ -109,7 +111,7 @@ public class SalonService implements GetSalonUseCase, UpdateSalonUseCase,
                     SalonBusinessHours bh = SalonBusinessHours.builder()
                             .salonId(salon.getId())
                             .dayOfWeek(r.dayOfWeek())
-                            .open(r.open())
+                            .open(r.isOpen())
                             .openTime(r.openTime())
                             .closeTime(r.closeTime())
                             .breakStartTime(r.breakStartTime())

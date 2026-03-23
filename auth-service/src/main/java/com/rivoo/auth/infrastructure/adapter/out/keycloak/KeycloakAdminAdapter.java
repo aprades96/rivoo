@@ -83,6 +83,64 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
     }
 
     @Override
+    public String createEmployeeUser(String email, String password, String firstName, String lastName) {
+        log.atDebug().addKeyValue("email", email).log("Creating Keycloak employee user with temp password");
+
+        KeycloakUserRepresentation user = KeycloakUserRepresentation.forEmployeeCreation(
+                email, password, firstName, lastName);
+
+        try {
+            URI location = restClient.post()
+                    .uri(baseUrl + "/users")
+                    .headers(h -> h.setBearerAuth(tokenManager.getAccessToken()))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(user)
+                    .retrieve()
+                    .toBodilessEntity()
+                    .getHeaders()
+                    .getLocation();
+
+            if (location == null) {
+                throw new KeycloakOperationException("Keycloak did not return Location header after employee creation");
+            }
+
+            String path = location.getPath();
+            String userId = path.substring(path.lastIndexOf('/') + 1);
+
+            log.atInfo().addKeyValue("email", email).addKeyValue("keycloakUserId", userId).log("Keycloak employee user created");
+            return userId;
+
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.CONFLICT) {
+                throw new UserAlreadyExistsException(email);
+            }
+            throw new KeycloakOperationException("Failed to create employee user: " + e.getMessage(), e);
+        } catch (KeycloakOperationException | UserAlreadyExistsException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new KeycloakOperationException("Failed to create employee user", e);
+        }
+    }
+
+    @Override
+    public void sendRequiredActionsEmail(String keycloakUserId) {
+        log.atDebug().addKeyValue("keycloakUserId", keycloakUserId).log("Sending required actions email");
+
+        executeKeycloakOperation("send required actions email", () -> {
+            restClient.put()
+                    .uri(baseUrl + "/users/" + keycloakUserId + "/execute-actions-email")
+                    .headers(h -> h.setBearerAuth(tokenManager.getAccessToken()))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(List.of("UPDATE_PASSWORD"))
+                    .retrieve()
+                    .toBodilessEntity();
+
+            log.atInfo().addKeyValue("keycloakUserId", keycloakUserId).log("Required actions email sent");
+            return null;
+        });
+    }
+
+    @Override
     public void setUserAttributes(String keycloakUserId, Map<String, List<String>> attributes) {
         log.atDebug().addKeyValue("keycloakUserId", keycloakUserId).addKeyValue("attributeKeys", attributes.keySet()).log("Setting Keycloak user attributes");
 

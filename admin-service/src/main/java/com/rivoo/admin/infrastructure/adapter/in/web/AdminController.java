@@ -65,7 +65,7 @@ public class AdminController {
     @GetMapping("/appointments/stats")
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<AppointmentStatsDto> getAppointmentStats(@RequestParam String tenantId) {
-        log.atInfo().addKeyValue("tenantId", tenantId).log("GET /api/v1/admin/appointments/stats");
+        log.atInfo().log("GET /api/v1/admin/appointments/stats");
 
         AppointmentStatsDto stats = appointmentAdminAdapter.getAppointmentStats(tenantId);
 
@@ -85,7 +85,6 @@ public class AdminController {
             @PathVariable String tenantId,
             @Valid @RequestBody SuspendTenantRequest request) {
         log.atInfo()
-                .addKeyValue("tenantId", tenantId)
                 .addKeyValue("status", request.status())
                 .log("PUT /api/v1/admin/tenants/status");
 
@@ -98,7 +97,6 @@ public class AdminController {
         salonStatusAdapter.updateSalonStatus(tenantId, request.status());
 
         log.atInfo()
-                .addKeyValue("tenantId", tenantId)
                 .addKeyValue("status", request.status())
                 .log("Tenant status updated successfully");
 
@@ -110,7 +108,7 @@ public class AdminController {
     @GetMapping("/tenants/{tenantId}/users")
     @PreAuthorize("hasRole('PLATFORM_ADMIN')")
     public ResponseEntity<List<TenantUsersDto>> getTenantUsers(@PathVariable String tenantId) {
-        log.atInfo().addKeyValue("tenantId", tenantId).log("GET /api/v1/admin/tenants/users");
+        log.atInfo().log("GET /api/v1/admin/tenants/users");
 
         List<TenantUsersDto> users = authAdminAdapter.getTenantUsers(tenantId);
 
