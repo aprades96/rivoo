@@ -92,10 +92,14 @@ class SalonExceptionHandlerOrderTest {
     }
 
     @Test
-    void getPublicBySlug_nonActiveSalon_returns404WithSameBodyShapeAsUnknownSlug() throws Exception {
-        // A non-ACTIVE salon surfaces as the exact same SalonNotFoundException as a
-        // missing one (see SalonPublicSnapshotLoader): from the controller's point of
-        // view there is no difference, which is precisely what must not leak.
+    void salonNotFound_returns404WithExpectedProblemDetailShape() throws Exception {
+        // This throws SalonNotFoundException from a mocked GetSalonUseCase, above
+        // SalonPublicSnapshotLoader — the class that actually implements the
+        // ACTIVE-status filter. It only pins the ProblemDetail shape for that
+        // exception; it does NOT exercise, and must not be read as exercising,
+        // the "unknown slug and non-ACTIVE salon are indistinguishable" property.
+        // That property is covered with the real loader wired in, in
+        // com.rivoo.salon.application.SalonPublicEndpointEnumerationTest.
         when(getSalonUseCase.getPublicBySlug(eq("onboarding-salon")))
                 .thenThrow(new SalonNotFoundException("onboarding-salon"));
 
@@ -103,8 +107,6 @@ class SalonExceptionHandlerOrderTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.detail").value("Salon not found: onboarding-salon"))
-                // Same fields as the unknown-slug case: no extra "reason" property
-                // that would let a client tell the two apart.
                 .andExpect(jsonPath("$.title").value("Salon Not Found"))
                 .andExpect(jsonPath("$.type").value("https://rivoo.com/errors/salon-not-found"));
     }
