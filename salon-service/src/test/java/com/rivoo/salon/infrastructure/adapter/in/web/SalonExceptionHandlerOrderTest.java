@@ -1,6 +1,7 @@
 package com.rivoo.salon.infrastructure.adapter.in.web;
 
 import com.rivoo.common.web.GlobalExceptionHandler;
+import com.rivoo.common.web.RivooErrorTypes;
 import com.rivoo.salon.domain.exception.SalonNotFoundException;
 import com.rivoo.salon.domain.port.in.GetSalonUseCase;
 import com.rivoo.salon.domain.port.in.ListSalonsUseCase;
@@ -108,7 +109,7 @@ class SalonExceptionHandlerOrderTest {
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.detail").value("Salon not found: onboarding-salon"))
                 .andExpect(jsonPath("$.title").value("Salon Not Found"))
-                .andExpect(jsonPath("$.type").value("https://rivoo.com/errors/salon-not-found"));
+                .andExpect(jsonPath("$.type").value(RivooErrorTypes.SALON_NOT_FOUND));
     }
 
 }

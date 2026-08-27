@@ -3,6 +3,7 @@ package com.rivoo.appointment.infrastructure.adapter.out.rest;
 import com.rivoo.appointment.domain.exception.SalonNotFoundException;
 import com.rivoo.appointment.domain.exception.SalonServiceUnavailableException;
 import com.rivoo.appointment.domain.port.out.SalonServicePort;
+import com.rivoo.common.web.RivooErrorTypes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -74,9 +75,9 @@ class SalonServiceAdapterTest {
         server.expect(requestTo(SALON_SERVICE_URL + "/api/internal/salons/by-slug/ghost-slug"))
                 .andExpect(method(GET))
                 .andRespond(withStatus(NOT_FOUND).contentType(MediaType.APPLICATION_PROBLEM_JSON).body("""
-                        {"type":"https://rivoo.com/errors/salon-not-found","title":"Salon Not Found",
+                        {"type":"%s","title":"Salon Not Found",
                          "status":404,"detail":"Salon not found: ghost-slug"}
-                        """));
+                        """.formatted(RivooErrorTypes.SALON_NOT_FOUND)));
 
         // Must be the domain "not found" exception, not the generic RuntimeException that
         // used to blanket-wrap every failure (which surfaced as a 500 via the catch-all

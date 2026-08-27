@@ -14,6 +14,7 @@ import com.rivoo.appointment.domain.port.out.StaffServicePort;
 import com.rivoo.appointment.infrastructure.adapter.out.rest.SalonServiceAdapter;
 import com.rivoo.appointment.infrastructure.mapper.AppointmentDtoMapper;
 import com.rivoo.common.web.GlobalExceptionHandler;
+import com.rivoo.common.web.RivooErrorTypes;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
@@ -133,11 +134,11 @@ class AppointmentPublicEndpointsEnumerationTest {
                 .andExpect(method(GET))
                 // The exact body salon-service's own SalonExceptionHandler produces for a
                 // genuine SalonNotFoundException — SalonServiceAdapter only trusts a 404 as
-                // "unknown salon" when it carries this marker (see Bloque 2).
+                // "unknown salon" when it carries this marker (see Bloque 3: RivooErrorTypes).
                 .andRespond(withStatus(NOT_FOUND).contentType(MediaType.APPLICATION_PROBLEM_JSON).body("""
-                        {"type":"https://rivoo.com/errors/salon-not-found","title":"Salon Not Found",
+                        {"type":"%s","title":"Salon Not Found",
                          "status":404,"detail":"Salon not found: %s"}
-                        """.formatted(slug)));
+                        """.formatted(RivooErrorTypes.SALON_NOT_FOUND, slug)));
         return new Fixture(buildMockMvc(builder), server);
     }
 

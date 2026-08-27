@@ -4,6 +4,7 @@ import com.rivoo.appointment.domain.exception.SalonNotFoundException;
 import com.rivoo.appointment.domain.exception.SalonServiceUnavailableException;
 import com.rivoo.appointment.domain.port.out.SalonServicePort;
 import com.rivoo.appointment.infrastructure.adapter.out.rest.dto.SalonInternalDto;
+import com.rivoo.common.web.RivooErrorTypes;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ProblemDetail;
@@ -23,7 +24,7 @@ public class SalonServiceAdapter implements SalonServicePort {
     // its internal by-slug 404 (see salon-service's SalonExceptionHandler.handleSalonNotFound).
     // Only a 404 carrying THIS marker is trusted to mean "salon-service looked, and there is
     // genuinely no salon for this slug".
-    private static final URI GENUINE_SALON_NOT_FOUND_TYPE = URI.create("https://rivoo.com/errors/salon-not-found");
+    private static final URI GENUINE_SALON_NOT_FOUND_TYPE = URI.create(RivooErrorTypes.SALON_NOT_FOUND);
 
     private final RestClient restClient;
 

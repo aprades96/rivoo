@@ -5,6 +5,7 @@ import com.rivoo.salon.domain.exception.BillingServiceException;
 import com.rivoo.salon.domain.exception.EmailAlreadyInUseException;
 import com.rivoo.salon.domain.exception.SalonNotFoundException;
 import com.rivoo.salon.domain.exception.SlugAlreadyExistsException;
+import com.rivoo.common.web.RivooErrorTypes;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.core.annotation.Order;
@@ -38,7 +39,9 @@ public class SalonExceptionHandler {
     public ProblemDetail handleSalonNotFound(SalonNotFoundException ex) {
         log.atWarn().addKeyValue("detail", ex.getMessage()).log("Salon not found");
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
-        problem.setType(URI.create("https://rivoo.com/errors/salon-not-found"));
+        // Shared with appointment-service's SalonServiceAdapter, which parses this exact value
+        // to recognize a genuine "no salon for this slug" 404 (see Bloque 3 / RivooErrorTypes).
+        problem.setType(URI.create(RivooErrorTypes.SALON_NOT_FOUND));
         problem.setTitle("Salon Not Found");
         enrichProblemDetail(problem);
         return problem;
