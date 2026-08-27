@@ -1,7 +1,9 @@
 package com.rivoo.staff.application;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.rivoo.staff.application.dto.EmployeeInternalResponse;
 import com.rivoo.staff.application.dto.EmployeePublicResponse;
+import com.rivoo.staff.domain.exception.EmployeeNotFoundException;
 import com.rivoo.staff.domain.model.Employee;
 import com.rivoo.staff.domain.model.EmployeeRole;
 import com.rivoo.staff.domain.model.EmployeeServiceAssignment;
@@ -53,6 +55,7 @@ class EmployeeServicePublicListTest {
     private EmployeeService employeeService;
 
     private static final String TENANT_A = "sal_tenant-A";
+    private static final String TENANT_B = "sal_tenant-B";
 
     @BeforeEach
     void setUp() {
@@ -127,6 +130,35 @@ class EmployeeServicePublicListTest {
         assertThat(json).doesNotContain("+34 600 999 888");
         assertThat(json).doesNotContainIgnoringCase("email");
         assertThat(json).doesNotContainIgnoringCase("phone");
+    }
+
+    // ── getInternal: cross-tenant regression (block 1) ────────────────────
+
+    @Test
+    void getInternal_employeeBelongsToDifferentTenant_throwsNotFound_neverExposesIt() {
+        Employee employeeOfTenantB = buildEmployee("emp_from_b", TENANT_B);
+        when(employeePersistencePort.findByExternalId("emp_from_b")).thenReturn(java.util.Optional.of(employeeOfTenantB));
+
+        assertThatThrownBy(() -> employeeService.getInternal(TENANT_A, "emp_from_b"))
+                .isInstanceOf(EmployeeNotFoundException.class);
+    }
+
+    @Test
+    void getInternal_sameTenant_returnsResponse() {
+        Employee employeeOfTenantA = buildEmployee("emp_from_a", TENANT_A);
+        when(employeePersistencePort.findByExternalId("emp_from_a")).thenReturn(java.util.Optional.of(employeeOfTenantA));
+
+        EmployeeInternalResponse response = employeeService.getInternal(TENANT_A, "emp_from_a");
+
+        assertThat(response.id()).isEqualTo("emp_from_a");
+    }
+
+    @Test
+    void getInternal_blankTenantId_throwsIllegalArgumentException_withoutTouchingPersistence() {
+        assertThatThrownBy(() -> employeeService.getInternal("", "emp_from_a"))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        verifyNoInteractions(employeePersistencePort);
     }
 
     // ── helpers ────────────────────────────────────────────────────────

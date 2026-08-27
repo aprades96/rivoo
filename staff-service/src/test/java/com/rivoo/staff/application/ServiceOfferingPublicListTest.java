@@ -1,6 +1,8 @@
 package com.rivoo.staff.application;
 
+import com.rivoo.staff.application.dto.ServiceOfferingInternalResponse;
 import com.rivoo.staff.application.dto.ServiceOfferingPublicResponse;
+import com.rivoo.staff.domain.exception.ServiceOfferingNotFoundException;
 import com.rivoo.staff.domain.model.ServiceOffering;
 import com.rivoo.staff.domain.port.out.ServiceOfferingPersistencePort;
 import com.rivoo.staff.infrastructure.mapper.ServiceOfferingDtoMapper;
@@ -30,6 +32,7 @@ class ServiceOfferingPublicListTest {
     private ServiceOfferingService serviceOfferingService;
 
     private static final String TENANT_A = "sal_tenant-A";
+    private static final String TENANT_B = "sal_tenant-B";
 
     @BeforeEach
     void setUp() {
@@ -87,5 +90,50 @@ class ServiceOfferingPublicListTest {
                 .isInstanceOf(IllegalArgumentException.class);
 
         verifyNoInteractions(serviceOfferingPersistencePort);
+    }
+
+    // ── getInternal: cross-tenant regression (block 1) ────────────────────
+
+    @Test
+    void getInternal_serviceBelongsToDifferentTenant_throwsNotFound_neverExposesIt() {
+        ServiceOffering serviceOfTenantB = buildService("svc_from_b", TENANT_B);
+        when(serviceOfferingPersistencePort.findByExternalId("svc_from_b")).thenReturn(java.util.Optional.of(serviceOfTenantB));
+
+        assertThatThrownBy(() -> serviceOfferingService.getInternal(TENANT_A, "svc_from_b"))
+                .isInstanceOf(ServiceOfferingNotFoundException.class);
+    }
+
+    @Test
+    void getInternal_sameTenant_returnsResponse() {
+        ServiceOffering serviceOfTenantA = buildService("svc_from_a", TENANT_A);
+        when(serviceOfferingPersistencePort.findByExternalId("svc_from_a")).thenReturn(java.util.Optional.of(serviceOfTenantA));
+
+        ServiceOfferingInternalResponse response = serviceOfferingService.getInternal(TENANT_A, "svc_from_a");
+
+        assertThat(response.id()).isEqualTo("svc_from_a");
+    }
+
+    @Test
+    void getInternal_blankTenantId_throwsIllegalArgumentException_withoutTouchingPersistence() {
+        assertThatThrownBy(() -> serviceOfferingService.getInternal("", "svc_from_a"))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        verifyNoInteractions(serviceOfferingPersistencePort);
+    }
+
+    // ── helpers ────────────────────────────────────────────────────────
+
+    private ServiceOffering buildService(String externalId, String tenantId) {
+        return ServiceOffering.builder()
+                .id(1L)
+                .externalId(externalId)
+                .tenantId(tenantId)
+                .name("Haircut")
+                .description("Classic haircut")
+                .durationMinutes(30)
+                .price(new BigDecimal("25.00"))
+                .currency("EUR")
+                .active(true)
+                .build();
     }
 }

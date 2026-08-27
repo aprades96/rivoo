@@ -119,8 +119,17 @@ public class EmployeeService implements CreateEmployeeUseCase, GetEmployeeUseCas
     @Override
     @Transactional(readOnly = true)
     public EmployeeInternalResponse getInternal(String tenantId, String employeeExternalId) {
+        if (tenantId == null || tenantId.isBlank()) {
+            throw new IllegalArgumentException("tenantId must not be blank");
+        }
+
         Employee employee = employeePersistencePort.findByExternalId(employeeExternalId)
                 .orElseThrow(() -> new EmployeeNotFoundException(employeeExternalId));
+
+        if (!tenantId.equals(employee.getTenantId())) {
+            throw new EmployeeNotFoundException(employeeExternalId);
+        }
+
         return mapper.toInternalResponse(employee);
     }
 

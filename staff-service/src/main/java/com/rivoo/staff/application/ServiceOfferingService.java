@@ -95,8 +95,17 @@ public class ServiceOfferingService implements ManageServiceOfferingUseCase {
     @Override
     @Transactional(readOnly = true)
     public ServiceOfferingInternalResponse getInternal(String tenantId, String serviceExternalId) {
+        if (tenantId == null || tenantId.isBlank()) {
+            throw new IllegalArgumentException("tenantId must not be blank");
+        }
+
         ServiceOffering service = serviceOfferingPersistencePort.findByExternalId(serviceExternalId)
                 .orElseThrow(() -> new ServiceOfferingNotFoundException(serviceExternalId));
+
+        if (!tenantId.equals(service.getTenantId())) {
+            throw new ServiceOfferingNotFoundException(serviceExternalId);
+        }
+
         return mapper.toInternalResponse(service);
     }
 
