@@ -884,6 +884,8 @@ El bloque más grande; merece plan propio.
 
 - [x] **RP.29** Flag `degraded` en el agregado publico (decidido 2026-08-27)
 - [x] **RP.30** `AuthServiceException` de staff-service: mismo defecto que RP.27
+- [ ] **RP.32** SEGURIDAD: oraculo de enumeracion de salones en los endpoints anonimos de citas
+- [ ] **RP.33** Rehacer `b62a2d7`: el javadoc corregido sigue mintiendo, y el `@Order` de 4 advices
 - [ ] **RP.31** Consumir `degraded` en el frontend de la pagina de reserva
 
 > **RP.29 — por que se hace.** El argumento decisivo no es la caida de staff-service, es que
@@ -918,3 +920,43 @@ El bloque más grande; merece plan propio.
 > Al hacerlo, cuidado con el mensaje: con `degraded=false` y listas vacias el texto correcto es
 > "este negocio aun no ha publicado sus servicios" (estado legitimo por la opcion B del
 > onboarding); con `degraded=true`, "no hemos podido cargar el catalogo" y ofrecer reintentar.
+
+
+> **RP.32, de la review de RP.27-28 (2026-08-27). SEGURIDAD, preexistente, anonimo, explotable.**
+> `GET /api/v1/appointments/public/availability?salonSlug=X` (permitAll desde `d060fe4`) da:
+> - **500** si X no existe — `SalonServiceAdapter:31-38` captura el 404 de salon-service y lo
+>   convierte en `RuntimeException`, que cae en el `@ExceptionHandler(Exception.class)`.
+> - **422** `detail: "Salon is not active"` si X existe y esta suspendido
+>   (`AvailabilityService:44-46`, y el gemelo en `AppointmentService:293`).
+> - **200** si esta activo.
+> Tres respuestas distinguibles → cualquiera enumera slugs y descubre que negocios existen y
+> cuales estan suspendidos. Mismo vector en `POST /api/v1/appointments/book`.
+> **Contradice justo el invariante que protegimos en salon-service**, donde `SalonPublicSnapshotLoader`
+> hace indistinguibles "no existe" y "no ACTIVE" con un test que lo fija. Lo protegimos en un
+> endpoint y lo dejamos roto en los otros dos de la misma superficie anonima.
+> Arreglo: que appointment-service trate ambos casos con la MISMA respuesta (404), y que el
+> adaptador no convierta el 404 legitimo en 500. Leccion registrada en `lessons.md`.
+
+> **RP.33, de la misma review. `b62a2d7` recibio CAMBIOS REQUERIDOS: su codigo es correcto, su texto no.**
+> 1. `BusinessHoursResponseJsonTest:30` — el javadoc CORREGIDO sigue mintiendo. Cita una anotacion
+>    `@JsonProperty("isOpen")` que **no existe** (`grep -rn "JsonProperty" salon-service/src/main`
+>    → cero) y `@JsonComponent`, que **no esta en el classpath del modulo** (el revisor intento
+>    usarlo y no compila). Lo unico cierto de la lista es "Jackson module": el revisor registro un
+>    `SimpleModule` que renombra `isOpen`→`open` y el test SI fallo.
+> 2. `GlobalExceptionHandler:19` — el comentario afirma que cualquier advice de servicio queda
+>    **"guaranteed"** por delante. **Es falso para 4 de 6 servicios**: `StaffExceptionHandler`,
+>    `AppointmentExceptionHandler`, `BillingExceptionHandler` y `ClientExceptionHandler` tampoco
+>    declaran `@Order`, asi que siguen empatados en `LOWEST_PRECEDENCE` y el desempate sigue sin
+>    especificar. El revisor lo probo registrando ambos advices en los dos ordenes. Consecuencia
+>    viva: staff `AuthServiceException` → 502 **o** 500; appointment/billing `IllegalArgumentException`
+>    → 400 **o** 500; client `DataIntegrityViolationException` → 409 **o** 500.
+>    Arreglo: reformular el comentario a lo que realmente hace, y poner `@Order(0)` en los cuatro.
+>    (Nota: `StaffExceptionHandler` ya lo recibio en `66f8a64`; quedan tres.)
+> 3. Menores: `SalonExceptionHandlerOrderTest:27,40` tiene javadoc obsoleto por este mismo lote, y
+>    su linea 50 afirma "byte-for-byte identical response bodies", que el test no comprueba y que
+>    ademas es falso (el `detail` incrusta el slug y hay `timestamp`).
+> 4. `EmployeeService:203-209` — el chequeo de tenant de `getWorkingHoursInternal` **no tiene test**:
+>    el revisor lo borro en su mutacion y no fallo nada. Es el patron que `b412690` dice replicar.
+> 5. `SalonExceptionHandler:36-74` — tres de los cuatro handlers producen ya un ProblemDetail
+>    identico al de `handleRivooException` (verificado). Solo el de `AuthServiceException` aporta
+>    el `atError`+stack trace. Envejecera mal: un cambio en un sitio los desincroniza sin test.

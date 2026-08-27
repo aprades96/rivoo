@@ -311,3 +311,38 @@ era mi `git commit`.
 con los colaboradores mockeados, y `.setControllerAdvice(...)` si hace falta ejercitar el
 manejo de excepciones. No es un apano: es la via disponible. Recordar sus limites —no carga
 filtros de seguridad ni autoconfiguracion—, asi que no cuenta como cobertura de seguridad.
+
+### Un comentario ya corregido miente con MAS autoridad (2026-08-27)
+
+**Patron del error:** una review encontro que el javadoc de `BusinessHoursResponseJsonTest`
+prometia una cobertura falsa. Despache el arreglo. La review siguiente comprobo el texto nuevo
+y encontro **dos afirmaciones falsas nuevas**: cita una anotacion `@JsonProperty("isOpen")` que
+no existe en el codigo (`grep` da cero) y un mecanismo `@JsonComponent` que **no esta en el
+classpath del modulo** (falla al compilar). El proposito declarado de ese commit era eliminar
+una afirmacion falsa, y entrego dos.
+
+**Regla:** cuando se corrige un comentario por ser inexacto, la correccion necesita el MISMO
+rigor de verificacion que se le exigiria a codigo: cada mecanismo citado, comprobado
+(`grep` de la anotacion, compilar contra la clase). Un comentario que ya ha pasado una revision
+lleva mas autoridad que el original, asi que equivocarse en la segunda vuelta es peor que en la
+primera: el siguiente lector asume que alguien ya lo verifico.
+
+**Corolario para mis prompts:** cuando encargue "arregla este comentario que miente", pedir
+explicitamente que **verifique cada afirmacion que escriba** y que diga como la comprobo. Decir
+"recorta la afirmacion a lo que el test garantiza" no basta: invita a reescribir de memoria.
+
+### El invariante de no-fuga hay que verificarlo en TODA la superficie anonima (2026-08-27)
+
+**Patron del error:** invertimos esfuerzo en que `GET /api/v1/salons/public/{slug}` devuelva un
+404 indistinguible para "salon no existe" y "salon no ACTIVE", con test que lo fija. Un salto
+mas alla, los OTROS dos endpoints anonimos —`GET /api/v1/appointments/public/availability` y
+`POST /api/v1/appointments/book`— distinguen tres casos: 500 si el slug no existe, 422 con
+detail "Salon is not active" si existe y esta suspendido, 200 si esta activo. El invariante
+estaba protegido en un endpoint y roto en los otros dos.
+
+**Regla:** una propiedad de no-fuga no es de un endpoint, es de la **superficie anonima
+completa**. Al declararla, enumerar TODOS los endpoints `permitAll` (leer
+`GatewaySecurityConfig` y cada `*SecurityConfig` de servicio) y comprobar la propiedad en cada
+uno. Y ojo con las conversiones de excepcion entre servicios: aqui el 404 legitimo de
+salon-service se convertia en `RuntimeException` dentro del adaptador de appointment-service y
+salia como 500, creando la diferencia observable.
