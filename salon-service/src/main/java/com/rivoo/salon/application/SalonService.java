@@ -39,6 +39,7 @@ public class SalonService implements GetSalonUseCase, UpdateSalonUseCase,
     private final BusinessHoursPersistencePort businessHoursPersistencePort;
     private final StaffServicePort staffServicePort;
     private final SalonDtoMapper salonDtoMapper;
+    private final SalonPublicSnapshotLoader salonPublicSnapshotLoader;
 
     // ── Get Salon ───────────────────────────────────────────────────────
 
@@ -59,17 +60,16 @@ public class SalonService implements GetSalonUseCase, UpdateSalonUseCase,
     }
 
     @Override
-    @Transactional(readOnly = true)
     public SalonPublicResponse getPublicBySlug(String slug) {
-        // A non-ACTIVE salon (ONBOARDING, INACTIVE, SUSPENDED, FAILED) must be
-        // indistinguishable from a non-existent one to an anonymous visitor:
-        // filtering here (instead of checking status after the lookup) keeps
-        // both cases resolving to the same 404, without leaking salon state.
-        Salon salon = salonPersistencePort.findBySlug(slug)
-                .filter(s -> s.getStatus() == SalonStatus.ACTIVE)
-                .orElseThrow(() -> new SalonNotFoundException(slug));
+        // The DB read (salon + business hours) runs and commits inside
+        // SalonPublicSnapshotLoader, in its own transaction. By the time we get
+        // here the JDBC connection has already been released: the two staff-service
+        // HTTP calls below never run while a connection is held, so a slow or
+        // unresponsive staff-service cannot exhaust the HikariCP pool.
+        SalonPublicSnapshot snapshot = salonPublicSnapshotLoader.loadActiveSalon(slug);
+        Salon salon = snapshot.salon();
 
-        List<BusinessHoursResponse> businessHours = businessHoursPersistencePort.findBySalonId(salon.getId())
+        List<BusinessHoursResponse> businessHours = snapshot.businessHours()
                 .stream()
                 .map(salonDtoMapper::toBusinessHoursResponse)
                 .toList();

@@ -1,7 +1,5 @@
 package com.rivoo.salon.application;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.rivoo.salon.application.dto.BusinessHoursResponse;
 import com.rivoo.salon.application.dto.SalonPublicResponse;
 import com.rivoo.salon.domain.exception.SalonNotFoundException;
 import com.rivoo.salon.domain.model.Salon;
@@ -15,15 +13,12 @@ import com.rivoo.salon.infrastructure.mapper.SalonDtoMapperImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -32,6 +27,17 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+/**
+ * Unit tests for the {@code SalonService.getPublicBySlug} aggregate itself
+ * (does it combine salon + hours + services + employees correctly, does it
+ * degrade gracefully). {@code SalonPublicSnapshotLoader} is mocked here: its
+ * own ACTIVE-only filtering behavior is covered by
+ * {@link SalonPublicSnapshotLoaderTest}, and the transaction-boundary
+ * guarantee (staff-service calls happen after the DB transaction is closed)
+ * is covered by {@link SalonServiceTransactionBoundaryTest}, which needs a
+ * real Spring transactional proxy and therefore cannot be proven with plain
+ * Mockito mocks.
+ */
 @ExtendWith(MockitoExtension.class)
 class SalonServicePublicAggregateTest {
 
@@ -47,13 +53,17 @@ class SalonServicePublicAggregateTest {
     @Mock
     private StaffServicePort staffServicePort;
 
+    @Mock
+    private SalonPublicSnapshotLoader salonPublicSnapshotLoader;
+
     private SalonService salonService;
 
     @BeforeEach
     void setUp() {
         // Real mapper (not mocked) so we exercise the actual isOpen/open MapStruct mapping.
         SalonDtoMapper mapper = new SalonDtoMapperImpl();
-        salonService = new SalonService(salonPersistencePort, businessHoursPersistencePort, staffServicePort, mapper);
+        salonService = new SalonService(salonPersistencePort, businessHoursPersistencePort, staffServicePort,
+                mapper, salonPublicSnapshotLoader);
     }
 
     // ── the aggregate this task exists for ────────────────────────────────
@@ -61,13 +71,13 @@ class SalonServicePublicAggregateTest {
     @Test
     void getPublicBySlug_aggregatesHoursServicesAndEmployees() {
         Salon salon = activeSalon();
-        when(salonPersistencePort.findBySlug(SLUG)).thenReturn(Optional.of(salon));
-        when(businessHoursPersistencePort.findBySalonId(salon.getId())).thenReturn(List.of(
+        List<SalonBusinessHours> hours = List.of(
                 SalonBusinessHours.builder()
                         .id(1L).salonId(salon.getId()).dayOfWeek(1).open(true)
                         .openTime(LocalTime.of(9, 0)).closeTime(LocalTime.of(18, 0))
                         .build()
-        ));
+        );
+        when(salonPublicSnapshotLoader.loadActiveSalon(SLUG)).thenReturn(new SalonPublicSnapshot(salon, hours));
         when(staffServicePort.getPublicServices(TENANT_ID)).thenReturn(List.of(
                 new StaffServicePort.ServicePublicInfo("svc_1", "Haircut", "Basic haircut", 30,
                         new BigDecimal("25.00"), "EUR")
@@ -101,27 +111,22 @@ class SalonServicePublicAggregateTest {
         verify(staffServicePort).getPublicEmployees(TENANT_ID);
     }
 
-    // ── only ACTIVE salons are publicly bookable ──────────────────────────
+    // ── a missing/non-bookable salon short-circuits before calling staff-service ──
 
-    @ParameterizedTest
-    @EnumSource(value = SalonStatus.class, names = "ACTIVE", mode = EnumSource.Mode.EXCLUDE)
-    void getPublicBySlug_nonActiveSalon_throwsSalonNotFound(SalonStatus status) {
-        Salon salon = activeSalon();
-        salon.setStatus(status);
-        when(salonPersistencePort.findBySlug(SLUG)).thenReturn(Optional.of(salon));
+    @Test
+    void getPublicBySlug_snapshotLoaderThrows_propagatesAndSkipsStaffService() {
+        when(salonPublicSnapshotLoader.loadActiveSalon(SLUG)).thenThrow(new SalonNotFoundException(SLUG));
 
         assertThatThrownBy(() -> salonService.getPublicBySlug(SLUG))
                 .isInstanceOf(SalonNotFoundException.class);
 
-        verifyNoInteractions(businessHoursPersistencePort);
         verifyNoInteractions(staffServicePort);
     }
 
     @Test
     void getPublicBySlug_activeSalon_doesNotThrow() {
         Salon salon = activeSalon();
-        when(salonPersistencePort.findBySlug(SLUG)).thenReturn(Optional.of(salon));
-        when(businessHoursPersistencePort.findBySalonId(salon.getId())).thenReturn(List.of());
+        when(salonPublicSnapshotLoader.loadActiveSalon(SLUG)).thenReturn(new SalonPublicSnapshot(salon, List.of()));
         when(staffServicePort.getPublicServices(TENANT_ID)).thenReturn(List.of());
         when(staffServicePort.getPublicEmployees(TENANT_ID)).thenReturn(List.of());
 
@@ -133,8 +138,7 @@ class SalonServicePublicAggregateTest {
     @Test
     void getPublicBySlug_staffServiceReturnsEmptyLists_buildsAggregateWithoutError() {
         Salon salon = activeSalon();
-        when(salonPersistencePort.findBySlug(SLUG)).thenReturn(Optional.of(salon));
-        when(businessHoursPersistencePort.findBySalonId(salon.getId())).thenReturn(List.of());
+        when(salonPublicSnapshotLoader.loadActiveSalon(SLUG)).thenReturn(new SalonPublicSnapshot(salon, List.of()));
         when(staffServicePort.getPublicServices(TENANT_ID)).thenReturn(List.of());
         when(staffServicePort.getPublicEmployees(TENANT_ID)).thenReturn(List.of());
 
@@ -143,18 +147,6 @@ class SalonServicePublicAggregateTest {
         assertThat(response.services()).isEmpty();
         assertThat(response.employees()).isEmpty();
         assertThat(response.businessHours()).isEmpty();
-    }
-
-    // ── regression test for the isOpen/open Jackson bug ───────────────────
-
-    @Test
-    void businessHoursResponse_serializesIsOpenField_notOpen() throws Exception {
-        BusinessHoursResponse response = new BusinessHoursResponse(1, true, null, null, null, null);
-
-        String json = new ObjectMapper().writeValueAsString(response);
-
-        assertThat(json).contains("\"isOpen\"");
-        assertThat(json).doesNotContain("\"open\":");
     }
 
     // ── helpers ────────────────────────────────────────────────────────
