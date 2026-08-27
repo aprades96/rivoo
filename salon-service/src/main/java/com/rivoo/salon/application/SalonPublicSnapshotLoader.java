@@ -22,10 +22,17 @@ import java.util.List;
  * that proxy entirely (self-invocation), so the annotation would silently do
  * nothing. Going through a distinct bean guarantees the proxy — and therefore
  * the transaction boundary — is actually applied.
+ * <p>
+ * Public (not package-private): {@code SalonPublicEndpointEnumerationTest} constructs this
+ * class directly, from a different package, wired with a mocked {@link SalonPersistencePort}
+ * as the double — the port immediately below this class, which is where the anti-enumeration
+ * property (a missing salon and a non-ACTIVE salon both collapsing into the same exception)
+ * actually lives. Widening visibility here is deliberate so that test can exercise the real
+ * class instead of stubbing it away.
  */
 @Service
 @RequiredArgsConstructor
-class SalonPublicSnapshotLoader {
+public class SalonPublicSnapshotLoader {
 
     private final SalonPersistencePort salonPersistencePort;
     private final BusinessHoursPersistencePort businessHoursPersistencePort;

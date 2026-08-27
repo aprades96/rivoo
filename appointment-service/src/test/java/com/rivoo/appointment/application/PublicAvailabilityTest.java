@@ -91,7 +91,7 @@ class PublicAvailabilityTest {
     }
 
     @Test
-    @DisplayName("same slug: 'does not exist' and 'exists but suspended' raise byte-for-byte " +
+    @DisplayName("same slug: 'does not exist' and 'exists but suspended' raise field-for-field " +
             "indistinguishable exceptions (the actual enumeration-oracle property)")
     void publicAvailability_notFoundAndSuspended_areIndistinguishable() {
         String slug = "misteriosa";

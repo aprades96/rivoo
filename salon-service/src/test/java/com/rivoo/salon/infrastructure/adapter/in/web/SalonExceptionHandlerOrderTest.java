@@ -13,7 +13,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -49,16 +48,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * regression here: the bug is in *ordering between the two beans*, which
  * only manifests when both are registered together, as they are at runtime.
  * <p>
- * Also asserts that a non-existent slug and a non-ACTIVE salon (both surface
- * as the very same {@link SalonNotFoundException}, by design — see
- * {@code SalonPublicSnapshotLoader}) produce response bodies that are
- * identical field-for-field EXCEPT for the two fields that are expected to
- * vary by construction: {@code detail} (which embeds the requested slug —
- * the same input the caller supplied, not information about the salon's
- * actual state) and {@code timestamp} (set to {@code Instant.now()}
- * independently on each request). {@code identicalExceptSlugAndTimestamp}
- * below verifies this on the full raw body, not just a handful of
- * hand-picked {@code jsonPath} assertions.
+ * This class only covers advice ORDERING plus the shape of a single
+ * {@link SalonNotFoundException} response. It deliberately does NOT assert the
+ * cross-scenario "unknown slug and non-ACTIVE salon are indistinguishable"
+ * property: doing that here would require stubbing {@code GetSalonUseCase}
+ * (a mock ABOVE {@code SalonPublicSnapshotLoader}, the class that actually
+ * implements the property) with the same hand-built exception twice, which
+ * proves nothing about the real ACTIVE-status check. That property is
+ * verified below the fixed layer, with the real {@code SalonPublicSnapshotLoader}
+ * and {@code SalonService} wired in and only {@code SalonPersistencePort}
+ * doubled, in {@code com.rivoo.salon.application.SalonPublicEndpointEnumerationTest}.
  */
 class SalonExceptionHandlerOrderTest {
 
@@ -110,41 +109,4 @@ class SalonExceptionHandlerOrderTest {
                 .andExpect(jsonPath("$.type").value("https://rivoo.com/errors/salon-not-found"));
     }
 
-    @Test
-    void getPublicBySlug_unknownSlugAndNonActiveSalon_bodiesAreIdenticalExceptSlugAndTimestamp() throws Exception {
-        // Same underlying slug for both requests so that "detail" (which embeds the
-        // slug) also matches — the only thing left free to vary is "timestamp".
-        String slug = "misteriosa";
-
-        when(getSalonUseCase.getPublicBySlug(eq(slug)))
-                .thenThrow(new SalonNotFoundException(slug));
-        String unknownSlugBody = mockMvc.perform(get("/api/v1/salons/public/" + slug))
-                .andExpect(status().isNotFound())
-                .andReturn().getResponse().getContentAsString();
-
-        // A fresh mock (and controller) simulating the OTHER root cause — the slug
-        // resolves but the salon is not ACTIVE — collapsing to the exact same
-        // exception, per SalonPublicSnapshotLoader's design.
-        GetSalonUseCase nonActiveUseCase = mock(GetSalonUseCase.class);
-        when(nonActiveUseCase.getPublicBySlug(eq(slug))).thenThrow(new SalonNotFoundException(slug));
-        SalonController nonActiveController = new SalonController(
-                mock(RegisterSalonUseCase.class),
-                nonActiveUseCase,
-                mock(UpdateSalonUseCase.class),
-                mock(ManageBusinessHoursUseCase.class),
-                mock(ManageSalonStatusUseCase.class),
-                mock(ListSalonsUseCase.class));
-        MockMvc nonActiveMockMvc = MockMvcBuilders.standaloneSetup(nonActiveController)
-                .setControllerAdvice(new GlobalExceptionHandler(), new SalonExceptionHandler())
-                .build();
-        String nonActiveBody = nonActiveMockMvc.perform(get("/api/v1/salons/public/" + slug))
-                .andExpect(status().isNotFound())
-                .andReturn().getResponse().getContentAsString();
-
-        assertThat(normalizeTimestamp(unknownSlugBody)).isEqualTo(normalizeTimestamp(nonActiveBody));
-    }
-
-    private static String normalizeTimestamp(String body) {
-        return body.replaceAll("\"timestamp\"\\s*:\\s*\"[^\"]*\"", "\"timestamp\":\"NORMALIZED\"");
-    }
 }

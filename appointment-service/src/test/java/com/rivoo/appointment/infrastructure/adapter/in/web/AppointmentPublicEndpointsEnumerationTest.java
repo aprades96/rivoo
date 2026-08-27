@@ -1,98 +1,74 @@
 package com.rivoo.appointment.infrastructure.adapter.in.web;
 
-import com.rivoo.appointment.application.dto.PublicBookingRequest;
-import com.rivoo.appointment.domain.exception.SalonNotFoundException;
+import com.rivoo.appointment.application.AppointmentService;
+import com.rivoo.appointment.application.AvailabilityService;
 import com.rivoo.appointment.domain.port.in.CancelAppointmentUseCase;
-import com.rivoo.appointment.domain.port.in.CheckAvailabilityUseCase;
 import com.rivoo.appointment.domain.port.in.CreateAppointmentUseCase;
 import com.rivoo.appointment.domain.port.in.GetAppointmentUseCase;
-import com.rivoo.appointment.domain.port.in.PublicBookingUseCase;
 import com.rivoo.appointment.domain.port.in.UpdateAppointmentStatusUseCase;
+import com.rivoo.appointment.domain.port.out.AppointmentPersistencePort;
+import com.rivoo.appointment.domain.port.out.BillingServicePort;
+import com.rivoo.appointment.domain.port.out.ClientServicePort;
+import com.rivoo.appointment.domain.port.out.NotificationServicePort;
+import com.rivoo.appointment.domain.port.out.StaffServicePort;
+import com.rivoo.appointment.infrastructure.adapter.out.rest.SalonServiceAdapter;
+import com.rivoo.appointment.infrastructure.mapper.AppointmentDtoMapper;
 import com.rivoo.common.web.GlobalExceptionHandler;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-
-import java.time.LocalDate;
+import org.springframework.web.client.RestClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.reset;
-import static org.mockito.Mockito.when;
+import static org.springframework.http.HttpMethod.GET;
+import static org.springframework.http.HttpStatus.NOT_FOUND;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * Proves — at the HTTP contract level, with the real {@link GlobalExceptionHandler} and
- * {@link AppointmentExceptionHandler} wired together as they are at runtime — that the two
- * anonymous public endpoints ({@code GET /api/v1/appointments/public/availability} and
+ * {@link AppointmentExceptionHandler} wired together as they are at runtime, AND with the real
+ * {@link AvailabilityService} / {@link AppointmentService} (the classes that actually implement
+ * the ACTIVE-only check) and the real {@link SalonServiceAdapter} (the class that actually
+ * converts a salon-service 404 into a domain exception) — that the two anonymous public
+ * endpoints ({@code GET /api/v1/appointments/public/availability} and
  * {@code POST /api/v1/appointments/book}) do not let a caller enumerate salons: a slug that
  * does not exist and a slug that exists but is not ACTIVE must produce the exact same
  * response (status, type, title, detail), not just the same HTTP status.
  * <p>
- * Both root causes are represented here by the same {@link SalonNotFoundException} because
- * that is the actual production design (see {@code SalonServiceAdapter#getSalonBySlug} for
- * the "does not exist" case and {@code AvailabilityService}/{@code AppointmentService#book}
- * for the "not ACTIVE" case) — the unification happens before the exception ever reaches
- * this controller, so what this test protects is that the HTTP layer does not reintroduce a
- * distinction (e.g. via response headers, extra properties, or a different message) once the
- * exception arrives.
+ * The double here is deliberately pushed all the way down to the HTTP edge, via
+ * {@link MockRestServiceServer} (the same tool {@code SalonServiceAdapterTest} already uses):
+ * scenario A makes the fake salon-service answer with a genuine 404 (what
+ * {@link SalonServiceAdapter#getSalonBySlug} turns into a {@code SalonNotFoundException}),
+ * scenario B makes it answer with 200 and a salon whose status is {@code SUSPENDED} (what
+ * {@link AvailabilityService} / {@link AppointmentService#book} turn into the very same
+ * exception via their ACTIVE-only check). Both root causes are real, distinct code paths —
+ * not the same mock stubbed twice — so reverting either half of the anti-enumeration fix
+ * (the adapter's 404 handling or the services' ACTIVE check) makes these tests fail.
  */
 class AppointmentPublicEndpointsEnumerationTest {
 
-    private CheckAvailabilityUseCase checkAvailabilityUseCase;
-    private PublicBookingUseCase publicBookingUseCase;
-    private MockMvc mockMvc;
-
-    @BeforeEach
-    void setUp() {
-        checkAvailabilityUseCase = mock(CheckAvailabilityUseCase.class);
-        publicBookingUseCase = mock(PublicBookingUseCase.class);
-        AppointmentController controller = new AppointmentController(
-                mock(CreateAppointmentUseCase.class),
-                mock(GetAppointmentUseCase.class),
-                mock(UpdateAppointmentStatusUseCase.class),
-                mock(CancelAppointmentUseCase.class),
-                checkAvailabilityUseCase,
-                publicBookingUseCase);
-
-        mockMvc = MockMvcBuilders.standaloneSetup(controller)
-                .setControllerAdvice(new GlobalExceptionHandler(), new AppointmentExceptionHandler())
-                .build();
-    }
+    private static final String SALON_SERVICE_URL = "http://salon";
 
     @Test
     void publicAvailability_unknownSlugAndSuspendedSalon_produceIdenticalResponseBodies() throws Exception {
         String slug = "misteriosa";
 
-        // Scenario A: the slug does not exist at all (what SalonServiceAdapter throws on a 404).
-        when(checkAvailabilityUseCase.getPublicAvailableSlots(eq(slug), anyString(), any(LocalDate.class), any()))
-                .thenThrow(new SalonNotFoundException(slug));
-        String notFoundBody = mockMvc.perform(get("/api/v1/appointments/public/availability")
-                        .param("salonSlug", slug)
-                        .param("employeeId", "emp_1")
-                        .param("date", "2026-09-01"))
+        // Scenario A: salon-service genuinely has no salon for this slug.
+        String notFoundBody = performAvailability(unknownSlugMockMvc(slug), slug)
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.type").value("https://rivoo.com/errors/resource-not-found"))
-                .andExpect(jsonPath("$.title").value("Resource Not Found"))
                 .andReturn().getResponse().getContentAsString();
 
-        // Scenario B: the slug exists but resolves to a non-ACTIVE salon (what AvailabilityService
-        // throws after checking status). Same slug, different underlying cause.
-        reset(checkAvailabilityUseCase);
-        when(checkAvailabilityUseCase.getPublicAvailableSlots(eq(slug), anyString(), any(LocalDate.class), any()))
-                .thenThrow(new SalonNotFoundException(slug));
-        String suspendedBody = mockMvc.perform(get("/api/v1/appointments/public/availability")
-                        .param("salonSlug", slug)
-                        .param("employeeId", "emp_1")
-                        .param("date", "2026-09-01"))
+        // Scenario B: the slug resolves, but the salon is SUSPENDED.
+        String suspendedBody = performAvailability(suspendedSalonMockMvc(slug), slug)
                 .andExpect(status().isNotFound())
                 .andReturn().getResponse().getContentAsString();
 
@@ -102,30 +78,94 @@ class AppointmentPublicEndpointsEnumerationTest {
     @Test
     void publicBook_unknownSlugAndSuspendedSalon_produceIdenticalResponseBodies() throws Exception {
         String slug = "misteriosa";
-        String requestBody = validBookingRequestJson(slug);
 
-        // Scenario A: the slug does not exist at all.
-        when(publicBookingUseCase.book(any(PublicBookingRequest.class)))
-                .thenThrow(new SalonNotFoundException(slug));
-        String notFoundBody = mockMvc.perform(post("/api/v1/appointments/book")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestBody))
+        // Scenario A: salon-service genuinely has no salon for this slug.
+        String notFoundBody = performBooking(unknownSlugMockMvc(slug), slug)
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.type").value("https://rivoo.com/errors/resource-not-found"))
-                .andExpect(jsonPath("$.title").value("Resource Not Found"))
                 .andReturn().getResponse().getContentAsString();
 
-        // Scenario B: the slug exists but resolves to a non-ACTIVE salon.
-        reset(publicBookingUseCase);
-        when(publicBookingUseCase.book(any(PublicBookingRequest.class)))
-                .thenThrow(new SalonNotFoundException(slug));
-        String suspendedBody = mockMvc.perform(post("/api/v1/appointments/book")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(requestBody))
+        // Scenario B: the slug resolves, but the salon is SUSPENDED.
+        String suspendedBody = performBooking(suspendedSalonMockMvc(slug), slug)
                 .andExpect(status().isNotFound())
                 .andReturn().getResponse().getContentAsString();
 
         assertBodiesIdenticalExceptTimestamp(notFoundBody, suspendedBody);
+    }
+
+    private static org.springframework.test.web.servlet.ResultActions performAvailability(
+            MockMvc mockMvc, String slug) throws Exception {
+        return mockMvc.perform(get("/api/v1/appointments/public/availability")
+                .param("salonSlug", slug)
+                .param("employeeId", "emp_1")
+                .param("date", "2026-09-01"));
+    }
+
+    private static org.springframework.test.web.servlet.ResultActions performBooking(
+            MockMvc mockMvc, String slug) throws Exception {
+        return mockMvc.perform(post("/api/v1/appointments/book")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(validBookingRequestJson(slug)));
+    }
+
+    /**
+     * Builds the full real chain (controller + both advices + real use cases + real
+     * {@link SalonServiceAdapter}) backed by a fake salon-service that answers 404 for the
+     * given slug — mirroring a slug salon-service has genuinely never heard of.
+     */
+    private static MockMvc unknownSlugMockMvc(String slug) {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo(SALON_SERVICE_URL + "/api/internal/salons/by-slug/" + slug))
+                .andExpect(method(GET))
+                .andRespond(withStatus(NOT_FOUND));
+        return buildMockMvc(builder);
+    }
+
+    /**
+     * Builds the full real chain backed by a fake salon-service that answers 200 with a
+     * salon whose status is {@code SUSPENDED} — mirroring a slug that exists but is not
+     * publicly bookable.
+     */
+    private static MockMvc suspendedSalonMockMvc(String slug) {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo(SALON_SERVICE_URL + "/api/internal/salons/by-slug/" + slug))
+                .andExpect(method(GET))
+                .andRespond(withSuccess("""
+                        {"id":"sal_X","name":"Misteriosa","slug":"%s","status":"SUSPENDED"}
+                        """.formatted(slug), MediaType.APPLICATION_JSON));
+        return buildMockMvc(builder);
+    }
+
+    private static MockMvc buildMockMvc(RestClient.Builder salonServiceRestClientBuilder) {
+        SalonServiceAdapter salonServiceAdapter =
+                new SalonServiceAdapter(salonServiceRestClientBuilder, SALON_SERVICE_URL);
+
+        AvailabilityService availabilityService = new AvailabilityService(
+                mock(AppointmentPersistencePort.class),
+                mock(StaffServicePort.class),
+                salonServiceAdapter);
+
+        AppointmentService appointmentService = new AppointmentService(
+                mock(AppointmentPersistencePort.class),
+                mock(StaffServicePort.class),
+                mock(ClientServicePort.class),
+                mock(BillingServicePort.class),
+                mock(NotificationServicePort.class),
+                salonServiceAdapter,
+                mock(AppointmentDtoMapper.class));
+
+        AppointmentController controller = new AppointmentController(
+                mock(CreateAppointmentUseCase.class),
+                mock(GetAppointmentUseCase.class),
+                mock(UpdateAppointmentStatusUseCase.class),
+                mock(CancelAppointmentUseCase.class),
+                availabilityService,
+                appointmentService);
+
+        return MockMvcBuilders.standaloneSetup(controller)
+                .setControllerAdvice(new GlobalExceptionHandler(), new AppointmentExceptionHandler())
+                .build();
     }
 
     private static String validBookingRequestJson(String slug) {
@@ -148,7 +188,7 @@ class AppointmentPublicEndpointsEnumerationTest {
      * The only field allowed to differ between the two responses is {@code timestamp}
      * (set to {@code Instant.now()} independently on each call). Everything else — status,
      * type, title, detail, and the absence of any extra distinguishing property — must be
-     * byte-for-byte identical, which is what actually closes the enumeration oracle.
+     * identical, which is what actually closes the enumeration oracle.
      */
     private static void assertBodiesIdenticalExceptTimestamp(String bodyA, String bodyB) {
         String normalizedA = bodyA.replaceAll("\"timestamp\"\\s*:\\s*\"[^\"]*\"", "\"timestamp\":\"NORMALIZED\"");

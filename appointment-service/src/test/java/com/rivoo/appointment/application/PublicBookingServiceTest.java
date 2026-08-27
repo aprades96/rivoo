@@ -196,7 +196,7 @@ class PublicBookingServiceTest {
     }
 
     @Test
-    @DisplayName("same slug: 'does not exist' and 'exists but not ACTIVE' raise byte-for-byte " +
+    @DisplayName("same slug: 'does not exist' and 'exists but not ACTIVE' raise field-for-field " +
             "indistinguishable exceptions (the actual enumeration-oracle property)")
     void salonNotFoundAndSalonNotActive_areIndistinguishable() {
         PublicBookingRequest request = validFutureRequest();
