@@ -116,4 +116,15 @@ public class AppointmentController {
         AvailabilityResponse response = checkAvailabilityUseCase.getAvailableSlots(tenantId, employeeId, date, serviceId);
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/public/availability")
+    public ResponseEntity<AvailabilityResponse> publicAvailability(
+            @RequestParam String salonSlug,
+            @RequestParam String employeeId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) String serviceId) {
+        log.atInfo().addKeyValue("salonSlug", salonSlug).log("GET /api/v1/appointments/public/availability");
+        return ResponseEntity.ok(
+                checkAvailabilityUseCase.getPublicAvailableSlots(salonSlug, employeeId, date, serviceId));
+    }
 }

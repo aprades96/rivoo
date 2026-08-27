@@ -6,7 +6,9 @@ import com.rivoo.appointment.application.dto.EmployeeWorkingHoursDto;
 import com.rivoo.appointment.domain.model.Appointment;
 import com.rivoo.appointment.domain.port.in.CheckAvailabilityUseCase;
 import com.rivoo.appointment.domain.port.out.AppointmentPersistencePort;
+import com.rivoo.appointment.domain.port.out.SalonServicePort;
 import com.rivoo.appointment.domain.port.out.StaffServicePort;
+import com.rivoo.common.exception.BusinessValidationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,6 +33,21 @@ public class AvailabilityService implements CheckAvailabilityUseCase {
 
     private final AppointmentPersistencePort appointmentPersistencePort;
     private final StaffServicePort staffServicePort;
+    private final SalonServicePort salonServicePort;
+
+    @Override
+    @Transactional(readOnly = true)
+    public AvailabilityResponse getPublicAvailableSlots(String salonSlug, String employeeId,
+                                                          LocalDate date, String serviceId) {
+        // Resolve tenant from salon slug — same pattern as the public booking flow.
+        SalonServicePort.SalonInfo salon = salonServicePort.getSalonBySlug(salonSlug);
+        if (!"ACTIVE".equals(salon.status())) {
+            throw new BusinessValidationException("Salon is not active");
+        }
+        String tenantId = salon.tenantId();
+
+        return getAvailableSlots(tenantId, employeeId, date, serviceId);
+    }
 
     @Override
     @Transactional(readOnly = true)

@@ -6,4 +6,7 @@ import java.time.LocalDate;
 
 public interface CheckAvailabilityUseCase {
     AvailabilityResponse getAvailableSlots(String tenantId, String employeeId, LocalDate date, String serviceId);
+
+    AvailabilityResponse getPublicAvailableSlots(String salonSlug, String employeeId,
+                                                  LocalDate date, String serviceId);
 }

@@ -35,6 +35,7 @@ public class AppointmentSecurityConfig {
                 auth.requestMatchers("/actuator/**").permitAll();
                 auth.requestMatchers("/api/internal/**").permitAll();
                 auth.requestMatchers(HttpMethod.POST, "/api/v1/appointments/book").permitAll();
+                auth.requestMatchers(HttpMethod.GET, "/api/v1/appointments/public/**").permitAll();
                 auth.anyRequest().authenticated();
             })
             .addFilterBefore(internalEndpointFilter, UsernamePasswordAuthenticationFilter.class)
