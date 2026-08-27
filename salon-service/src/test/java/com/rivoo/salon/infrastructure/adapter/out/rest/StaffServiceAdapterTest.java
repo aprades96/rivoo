@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withNoContent;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 import static org.springframework.http.HttpMethod.GET;
@@ -257,6 +258,66 @@ class StaffServiceAdapterTest {
     }
 
     @Test
+    void getPublicEmployees_returnsEmptyOptionalWhenStaffServiceRespondsWithEmptyBody() {
+        String tenantId = "sal_A";
+        server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/public/employees"))
+                .andExpect(method(GET))
+                .andRespond(withSuccess("", MediaType.APPLICATION_JSON));
+
+        Optional<List<StaffServicePort.EmployeePublicInfo>> result = adapter.getPublicEmployees(tenantId);
+
+        assertThat(result)
+                .as("a 200 with an empty body is an unreadable response, not staff-service telling us there are no employees")
+                .isEmpty();
+        assertThat(logAppender.list)
+                .as("a null/absent body must degrade quietly (WARN)")
+                .anySatisfy(event -> assertThat(event.getLevel()).isEqualTo(Level.WARN));
+        assertThat(logAppender.list).noneMatch(event -> event.getLevel() == Level.ERROR);
+        assertThat(logAppender.list)
+                .anySatisfy(event -> assertThat(hasTargetTenantId(event, tenantId)).isTrue());
+    }
+
+    @Test
+    void getPublicEmployees_returnsEmptyOptionalWhenStaffServiceRespondsWithJsonNull() {
+        String tenantId = "sal_A";
+        server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/public/employees"))
+                .andExpect(method(GET))
+                .andRespond(withSuccess("null", MediaType.APPLICATION_JSON));
+
+        Optional<List<StaffServicePort.EmployeePublicInfo>> result = adapter.getPublicEmployees(tenantId);
+
+        assertThat(result)
+                .as("a 200 with a literal JSON null body is an unreadable response, not staff-service telling us there are no employees")
+                .isEmpty();
+        assertThat(logAppender.list)
+                .as("a null/absent body must degrade quietly (WARN)")
+                .anySatisfy(event -> assertThat(event.getLevel()).isEqualTo(Level.WARN));
+        assertThat(logAppender.list).noneMatch(event -> event.getLevel() == Level.ERROR);
+        assertThat(logAppender.list)
+                .anySatisfy(event -> assertThat(hasTargetTenantId(event, tenantId)).isTrue());
+    }
+
+    @Test
+    void getPublicEmployees_returnsEmptyOptionalWhenStaffServiceRespondsWithNoContent() {
+        String tenantId = "sal_A";
+        server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/public/employees"))
+                .andExpect(method(GET))
+                .andRespond(withNoContent());
+
+        Optional<List<StaffServicePort.EmployeePublicInfo>> result = adapter.getPublicEmployees(tenantId);
+
+        assertThat(result)
+                .as("a 204 No Content is an unreadable/absent response, not staff-service telling us there are no employees")
+                .isEmpty();
+        assertThat(logAppender.list)
+                .as("a null/absent body must degrade quietly (WARN)")
+                .anySatisfy(event -> assertThat(event.getLevel()).isEqualTo(Level.WARN));
+        assertThat(logAppender.list).noneMatch(event -> event.getLevel() == Level.ERROR);
+        assertThat(logAppender.list)
+                .anySatisfy(event -> assertThat(hasTargetTenantId(event, tenantId)).isTrue());
+    }
+
+    @Test
     void getPublicEmployees_returnsEmptyOptionalWhenStaffServiceRespondsWithObjectInsteadOfArray() {
         String tenantId = "sal_A";
         server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/public/employees"))
@@ -272,6 +333,66 @@ class StaffServiceAdapterTest {
                 .isEmpty();
         assertThat(logAppender.list)
                 .as("a shape mismatch from a rolling deploy is treated as a transient degradation, so it must be WARN")
+                .anySatisfy(event -> assertThat(event.getLevel()).isEqualTo(Level.WARN));
+        assertThat(logAppender.list).noneMatch(event -> event.getLevel() == Level.ERROR);
+        assertThat(logAppender.list)
+                .anySatisfy(event -> assertThat(hasTargetTenantId(event, tenantId)).isTrue());
+    }
+
+    @Test
+    void getPublicServices_returnsEmptyOptionalWhenStaffServiceRespondsWithEmptyBody() {
+        String tenantId = "sal_A";
+        server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/public/services"))
+                .andExpect(method(GET))
+                .andRespond(withSuccess("", MediaType.APPLICATION_JSON));
+
+        Optional<List<StaffServicePort.ServicePublicInfo>> result = adapter.getPublicServices(tenantId);
+
+        assertThat(result)
+                .as("a 200 with an empty body is an unreadable response, not staff-service telling us there are no services")
+                .isEmpty();
+        assertThat(logAppender.list)
+                .as("a null/absent body must degrade quietly (WARN)")
+                .anySatisfy(event -> assertThat(event.getLevel()).isEqualTo(Level.WARN));
+        assertThat(logAppender.list).noneMatch(event -> event.getLevel() == Level.ERROR);
+        assertThat(logAppender.list)
+                .anySatisfy(event -> assertThat(hasTargetTenantId(event, tenantId)).isTrue());
+    }
+
+    @Test
+    void getPublicServices_returnsEmptyOptionalWhenStaffServiceRespondsWithJsonNull() {
+        String tenantId = "sal_A";
+        server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/public/services"))
+                .andExpect(method(GET))
+                .andRespond(withSuccess("null", MediaType.APPLICATION_JSON));
+
+        Optional<List<StaffServicePort.ServicePublicInfo>> result = adapter.getPublicServices(tenantId);
+
+        assertThat(result)
+                .as("a 200 with a literal JSON null body is an unreadable response, not staff-service telling us there are no services")
+                .isEmpty();
+        assertThat(logAppender.list)
+                .as("a null/absent body must degrade quietly (WARN)")
+                .anySatisfy(event -> assertThat(event.getLevel()).isEqualTo(Level.WARN));
+        assertThat(logAppender.list).noneMatch(event -> event.getLevel() == Level.ERROR);
+        assertThat(logAppender.list)
+                .anySatisfy(event -> assertThat(hasTargetTenantId(event, tenantId)).isTrue());
+    }
+
+    @Test
+    void getPublicServices_returnsEmptyOptionalWhenStaffServiceRespondsWithNoContent() {
+        String tenantId = "sal_A";
+        server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/public/services"))
+                .andExpect(method(GET))
+                .andRespond(withNoContent());
+
+        Optional<List<StaffServicePort.ServicePublicInfo>> result = adapter.getPublicServices(tenantId);
+
+        assertThat(result)
+                .as("a 204 No Content is an unreadable/absent response, not staff-service telling us there are no services")
+                .isEmpty();
+        assertThat(logAppender.list)
+                .as("a null/absent body must degrade quietly (WARN)")
                 .anySatisfy(event -> assertThat(event.getLevel()).isEqualTo(Level.WARN));
         assertThat(logAppender.list).noneMatch(event -> event.getLevel() == Level.ERROR);
         assertThat(logAppender.list)

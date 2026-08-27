@@ -86,7 +86,15 @@ public class StaffServiceAdapter implements StaffServicePort {
         }
 
         if (employees == null) {
-            return Optional.of(List.of());
+            // A 2xx with a null body (empty body, literal JSON "null", or 204 No
+            // Content) is not staff-service telling us "no employees": it is an
+            // unreadable/absent body, same family as the RestClientException case
+            // above. Per StaffServicePort's contract, that must be Optional.empty(),
+            // not a present-but-empty list.
+            log.atWarn()
+                    .addKeyValue("targetTenantId", tenantId)
+                    .log("staff-service returned a 2xx with a null/absent body for public employees, degrading");
+            return Optional.empty();
         }
 
         return Optional.of(employees.stream()
@@ -130,7 +138,13 @@ public class StaffServiceAdapter implements StaffServicePort {
         }
 
         if (services == null) {
-            return Optional.of(List.of());
+            // See getPublicEmployees for why a null body (empty body, literal JSON
+            // "null", or 204 No Content) must degrade instead of being read as "no
+            // services exist".
+            log.atWarn()
+                    .addKeyValue("targetTenantId", tenantId)
+                    .log("staff-service returned a 2xx with a null/absent body for public services, degrading");
+            return Optional.empty();
         }
 
         return Optional.of(services.stream()
