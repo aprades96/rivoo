@@ -1,6 +1,5 @@
 package com.rivoo.staff.application;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.rivoo.staff.application.dto.EmployeeInternalResponse;
 import com.rivoo.staff.application.dto.EmployeePublicResponse;
 import com.rivoo.staff.domain.exception.EmployeeNotFoundException;
@@ -20,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 
