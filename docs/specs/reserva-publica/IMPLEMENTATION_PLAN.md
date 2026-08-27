@@ -43,6 +43,20 @@ Esto no es teórico: es el comportamiento por defecto del stack. **La Task 3 y l
 
 ---
 
+## ⚠️ Corrección al plan (descubierta ejecutando la Task 7)
+
+**Un endpoint público necesita DOS reglas, no una.** Cada servicio tiene su propia cadena de Spring Security terminada en `.anyRequest().authenticated()`. Quitar `@PreAuthorize` **no** basta: sin una regla `permitAll` en la config del propio servicio, el endpoint sigue exigiendo JWT aunque el gateway lo deje pasar.
+
+| Servicio | Config propia | ¿Hace falta tocarla? |
+|---|---|---|
+| `appointment-service` | `AppointmentSecurityConfig:37-38` | **Sí** — hecho en Task 7 |
+| `salon-service` | `SalonSecurityConfig:38` | **No** — ya permite `GET /api/v1/salons/public/**`; el agregado de la Task 6 viaja en esa regla |
+| `staff-service` | ninguna (usa la compartida) | **No** — los endpoints de la Task 4 van bajo `/api/internal/**`, ya permitido y protegido por PSK |
+
+**Segunda corrección:** la Task 7 decía implementar `getPublicAvailableSlots` en `AppointmentService`. Es erróneo: `CheckAvailabilityUseCase` lo implementa `AvailabilityService`, y añadirlo a `AppointmentService` habría creado un segundo bean del mismo puerto → inyección ambigua → Spring no arranca. Implementado en `AvailabilityService`.
+
+---
+
 ## Estructura de ficheros
 
 ### Backend (`E:\IdeaProjects\rivoo`)

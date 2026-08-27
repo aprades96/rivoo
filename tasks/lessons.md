@@ -186,3 +186,30 @@
 
 ### Hibernate Dialect Warning
 - En SB4/Hibernate 7, no hace falta especificar `hibernate.dialect` explícitamente — se auto-detecta. El warning "MySQLDialect does not need to be specified" es informativo; se puede eliminar la property `hibernate.dialect` de application-local.yml (mejora menor).
+
+### Endpoint público = dos reglas, no una (2026-08-27)
+
+**Patrón del error:** al planificar la reserva pública asumí que quitar `@PreAuthorize`
+más una regla en `GatewaySecurityConfig` bastaba para hacer público un endpoint.
+No basta. Cada servicio tiene su propia cadena de Spring Security terminada en
+`.anyRequest().authenticated()`, así que el endpoint seguía exigiendo JWT aunque
+el gateway lo dejara pasar. Lo detectó el implementador, no el plan.
+
+**Regla:** antes de dar por público un endpoint nuevo, comprobar las DOS capas:
+1. `api-gateway/.../GatewaySecurityConfig.java`
+2. La `*SecurityConfig` del servicio dueño — y si no tiene, la compartida de `rivoo-common`.
+La prueba de que el patrón ya existía estaba a la vista: `AppointmentSecurityConfig:37`
+ya llevaba el `permitAll` de `POST /book`, y `SalonSecurityConfig:38` el de
+`GET /api/v1/salons/public/**`. Leer la config del servicio antes de planificar,
+no después.
+
+### Verificar quién implementa un puerto antes de decir dónde añadir un método (2026-08-27)
+
+**Patrón del error:** el plan mandaba añadir `getPublicAvailableSlots` a
+`AppointmentService` sin comprobar que `CheckAvailabilityUseCase` lo implementa
+`AvailabilityService`. Habría creado dos beans del mismo puerto → inyección
+ambigua → Spring no arranca.
+
+**Regla:** en hexagonal, antes de asignar un método a una clase concreta, ejecutar
+`grep -rln "implements.*<NombreDelPuerto>"` y escribir en el plan la clase que
+salga, no la que suene razonable.
