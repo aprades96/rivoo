@@ -28,6 +28,7 @@ public interface EmployeeDtoMapper {
     @Mapping(target = "role", expression = "java(employee.getRole().name())")
     EmployeeInternalResponse toInternalResponse(Employee employee);
 
+    @Mapping(target = "isOpen", source = "open")
     WorkingHoursResponse toWorkingHoursResponse(EmployeeWorkingHours hours);
 
     @Mapping(target = "serviceId", source = "serviceExternalId")

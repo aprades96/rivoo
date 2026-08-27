@@ -230,7 +230,7 @@ public class EmployeeService implements CreateEmployeeUseCase, GetEmployeeUseCas
                     EmployeeWorkingHours wh = EmployeeWorkingHours.builder()
                             .employeeId(employee.getId())
                             .dayOfWeek(r.dayOfWeek())
-                            .open(r.open())
+                            .open(r.isOpen())
                             .openTime(r.openTime())
                             .closeTime(r.closeTime())
                             .breakStartTime(r.breakStartTime())
