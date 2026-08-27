@@ -891,6 +891,7 @@ El bloque más grande; merece plan propio.
 - [x] **RP.36** Huecos de cobertura y nombre del flag (F1, F3, F4, F5 de la review de RP.29)
 - [x] **RP.37** Paridad de logging para `BillingServiceException` (atError + stack trace)
 - [x] **RP.38** Tests anti-enumeracion que ejercitan la propiedad de verdad
+- [x] **RP.42** Deuda de la review de RP.37-38 (visibilidad, nombre de test, constante, javadoc)
 - [ ] **RP.31** Consumir `catalogueUnavailable` en el frontend de la pagina de reserva
 
 > **RP.29 — por que se hace.** El argumento decisivo no es la caida de staff-service, es que
@@ -1050,3 +1051,16 @@ El bloque más grande; merece plan propio.
 > anonimo. Atenuante: `AuthServiceException` ya hacia lo mismo en ese mismo endpoint, asi que es
 > convencion sistemica, no defecto nuevo. Opciones: (a) dejarlo; (b) mensaje generico hacia fuera y el
 > detalle solo al log. Afecta a todas las excepciones de dependencia del monorepo, no solo a esta.
+
+
+> **RP.42 cerrada.** La constante `RivooErrorTypes.SALON_NOT_FOUND` vive ya en `rivoo-common` y la
+> usan productor y consumidor. Cero literales sueltos en el repo (verificado).
+> **Objecion del implementador, y tiene razon:** pedi que mutar la constante rompiera un test en
+> los dos servicios, pero eso solo tenia sentido MIENTRAS existiera la duplicacion. Centralizada,
+> la divergencia es imposible por construccion: ningun test puede detectarla porque no puede
+> ocurrir. Es garantia de compilacion, mas fuerte que la de test que yo pedia. Mi criterio estaba
+> mal planteado.
+> **Queda pendiente su sugerencia**, que acepto: un test "golden" que fije el valor literal. Ese
+> `type` sale en respuestas HTTP a llamantes anonimos, o sea contrato publico (RFC 9457): cambiarlo
+> rompe a cualquiera que lo consuma, y hoy nada obliga a pararse a pensarlo. Va con la siguiente
+> tanda, no merece agente propio.
