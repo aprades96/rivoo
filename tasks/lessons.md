@@ -276,3 +276,38 @@ que sigue el operador) y `docker-compose.yml`. En ambos faltaba
 `RIVOO_SERVICES_STAFF_SERVICE_URL` para salon-service, asi que el arranque en prod seguia roto
 para quien siguiera la documentacion, y la reserva publica no funciona en el stack de docker.
 Extension de la leccion anterior sobre perfiles: yml, runbook y compose, los tres.
+
+### `git commit` publica el INDICE entero, no las rutas que acabas de anadir (2026-08-27)
+
+**Patron del error:** con dos agentes trabajando en paralelo sobre el mismo working tree,
+cerre una tarea con `git add <rutas explicitas> && git commit -F -`. Di por hecho que
+commiteaba solo esas rutas. No: `git commit` sin `-a` publica **todo lo que este en el
+indice**, venga de donde venga. El otro agente tenia un `git mv` en vuelo —y `git mv` estadea
+solo—, asi que mi commit `6eb273f` (un fix de config de despliegue) se llevo dentro dos
+renombrados de DTO ajenos. Viajaron con el fichero renombrado pero el nombre de clase antiguo
+dentro: ese commit **no compila aislado**, aunque HEAD si.
+
+**Regla:** cuando haya mas de un agente sobre el mismo arbol, commitear siempre con pathspec:
+
+    git commit -- <ruta> <ruta>          # solo esas rutas, ignora el resto del indice
+
+y comprobar con `git show --stat <sha>` que el commit contiene lo que esperabas y nada mas.
+Antes de commitear, `git status --short` no basta: hay que mirar tambien `git diff --cached
+--name-only` para ver que hay estadeado por otros.
+
+**Corolario de diseno:** el aislamiento no se pide por prompt, se impone por herramienta. Si
+dos agentes van a commitear en paralelo, o se les da un worktree propio
+(`Agent(isolation: "worktree")`), o se serializa el cierre de sus tareas. Pedirles "estadea
+por ruta explicita" no protege del indice compartido, porque el problema no era su `git add`,
+era mi `git commit`.
+
+### El entorno de test de Spring Boot 4 no trae `@WebMvcTest` (2026-08-27)
+
+**Dato verificado:** `spring-boot-test-autoconfigure-4.0.0.jar` solo contiene los slices
+`json` y `jdbc`. Spring Boot 4 modularizo los slices de test en artefactos separados, asi que
+`@WebMvcTest` y `@AutoConfigureMockMvc` **no estan en el classpath** de este repo.
+
+**Regla:** para probar una capa web aqui, usar `MockMvcBuilders.standaloneSetup(controller)`
+con los colaboradores mockeados, y `.setControllerAdvice(...)` si hace falta ejercitar el
+manejo de excepciones. No es un apano: es la via disponible. Recordar sus limites —no carga
+filtros de seguridad ni autoconfiguracion—, asi que no cuenta como cobertura de seguridad.
