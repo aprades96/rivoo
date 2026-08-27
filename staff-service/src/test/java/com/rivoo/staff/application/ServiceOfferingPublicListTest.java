@@ -121,6 +121,14 @@ class ServiceOfferingPublicListTest {
         verifyNoInteractions(serviceOfferingPersistencePort);
     }
 
+    @Test
+    void getInternal_nullTenantId_throwsIllegalArgumentException_withoutTouchingPersistence() {
+        assertThatThrownBy(() -> serviceOfferingService.getInternal(null, "svc_from_a"))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        verifyNoInteractions(serviceOfferingPersistencePort);
+    }
+
     // ── helpers ────────────────────────────────────────────────────────
 
     private ServiceOffering buildService(String externalId, String tenantId) {

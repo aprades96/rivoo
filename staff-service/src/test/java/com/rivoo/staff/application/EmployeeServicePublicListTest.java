@@ -162,6 +162,14 @@ class EmployeeServicePublicListTest {
         verifyNoInteractions(employeePersistencePort);
     }
 
+    @Test
+    void getInternal_nullTenantId_throwsIllegalArgumentException_withoutTouchingPersistence() {
+        assertThatThrownBy(() -> employeeService.getInternal(null, "emp_from_a"))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        verifyNoInteractions(employeePersistencePort);
+    }
+
     // ── getWorkingHoursInternal: cross-tenant regression, same pattern as
     //    getInternal (b412690) but was left without a test of its own ────────
 
@@ -193,6 +201,15 @@ class EmployeeServicePublicListTest {
         // Same guard as getInternal (consistency, not exploitability: tenantId here is always
         // a @PathVariable and cannot actually be null/blank at runtime).
         assertThatThrownBy(() -> employeeService.getWorkingHoursInternal("", "emp_from_a"))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        verifyNoInteractions(employeePersistencePort);
+        verifyNoInteractions(workingHoursPersistencePort);
+    }
+
+    @Test
+    void getWorkingHoursInternal_nullTenantId_throwsIllegalArgumentException_withoutTouchingPersistence() {
+        assertThatThrownBy(() -> employeeService.getWorkingHoursInternal(null, "emp_from_a"))
                 .isInstanceOf(IllegalArgumentException.class);
 
         verifyNoInteractions(employeePersistencePort);

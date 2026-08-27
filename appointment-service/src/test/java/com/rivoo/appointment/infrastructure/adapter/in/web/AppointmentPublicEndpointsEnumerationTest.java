@@ -63,14 +63,21 @@ class AppointmentPublicEndpointsEnumerationTest {
         String slug = "misteriosa";
 
         // Scenario A: salon-service genuinely has no salon for this slug.
-        String notFoundBody = performAvailability(unknownSlugMockMvc(slug), slug)
+        Fixture unknownSlugFixture = unknownSlugMockMvc(slug);
+        String notFoundBody = performAvailability(unknownSlugFixture.mockMvc(), slug)
                 .andExpect(status().isNotFound())
                 .andReturn().getResponse().getContentAsString();
+        // Confirms the HTTP call to salon-service actually happened — without this, a
+        // refactor that short-circuited before reaching SalonServiceAdapter would leave
+        // the expectation above unmet in silence.
+        unknownSlugFixture.server().verify();
 
         // Scenario B: the slug resolves, but the salon is SUSPENDED.
-        String suspendedBody = performAvailability(suspendedSalonMockMvc(slug), slug)
+        Fixture suspendedSalonFixture = suspendedSalonMockMvc(slug);
+        String suspendedBody = performAvailability(suspendedSalonFixture.mockMvc(), slug)
                 .andExpect(status().isNotFound())
                 .andReturn().getResponse().getContentAsString();
+        suspendedSalonFixture.server().verify();
 
         assertBodiesIdenticalExceptTimestamp(notFoundBody, suspendedBody);
     }
@@ -80,16 +87,23 @@ class AppointmentPublicEndpointsEnumerationTest {
         String slug = "misteriosa";
 
         // Scenario A: salon-service genuinely has no salon for this slug.
-        String notFoundBody = performBooking(unknownSlugMockMvc(slug), slug)
+        Fixture unknownSlugFixture = unknownSlugMockMvc(slug);
+        String notFoundBody = performBooking(unknownSlugFixture.mockMvc(), slug)
                 .andExpect(status().isNotFound())
                 .andReturn().getResponse().getContentAsString();
+        unknownSlugFixture.server().verify();
 
         // Scenario B: the slug resolves, but the salon is SUSPENDED.
-        String suspendedBody = performBooking(suspendedSalonMockMvc(slug), slug)
+        Fixture suspendedSalonFixture = suspendedSalonMockMvc(slug);
+        String suspendedBody = performBooking(suspendedSalonFixture.mockMvc(), slug)
                 .andExpect(status().isNotFound())
                 .andReturn().getResponse().getContentAsString();
+        suspendedSalonFixture.server().verify();
 
         assertBodiesIdenticalExceptTimestamp(notFoundBody, suspendedBody);
+    }
+
+    private record Fixture(MockMvc mockMvc, MockRestServiceServer server) {
     }
 
     private static org.springframework.test.web.servlet.ResultActions performAvailability(
@@ -112,7 +126,7 @@ class AppointmentPublicEndpointsEnumerationTest {
      * {@link SalonServiceAdapter}) backed by a fake salon-service that answers 404 for the
      * given slug — mirroring a slug salon-service has genuinely never heard of.
      */
-    private static MockMvc unknownSlugMockMvc(String slug) {
+    private static Fixture unknownSlugMockMvc(String slug) {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo(SALON_SERVICE_URL + "/api/internal/salons/by-slug/" + slug))
@@ -124,7 +138,7 @@ class AppointmentPublicEndpointsEnumerationTest {
                         {"type":"https://rivoo.com/errors/salon-not-found","title":"Salon Not Found",
                          "status":404,"detail":"Salon not found: %s"}
                         """.formatted(slug)));
-        return buildMockMvc(builder);
+        return new Fixture(buildMockMvc(builder), server);
     }
 
     /**
@@ -132,7 +146,7 @@ class AppointmentPublicEndpointsEnumerationTest {
      * salon whose status is {@code SUSPENDED} — mirroring a slug that exists but is not
      * publicly bookable.
      */
-    private static MockMvc suspendedSalonMockMvc(String slug) {
+    private static Fixture suspendedSalonMockMvc(String slug) {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo(SALON_SERVICE_URL + "/api/internal/salons/by-slug/" + slug))
@@ -140,7 +154,7 @@ class AppointmentPublicEndpointsEnumerationTest {
                 .andRespond(withSuccess("""
                         {"id":"sal_X","name":"Misteriosa","slug":"%s","status":"SUSPENDED"}
                         """.formatted(slug), MediaType.APPLICATION_JSON));
-        return buildMockMvc(builder);
+        return new Fixture(buildMockMvc(builder), server);
     }
 
     private static MockMvc buildMockMvc(RestClient.Builder salonServiceRestClientBuilder) {
