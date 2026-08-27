@@ -409,3 +409,25 @@ o el nombre lo dice (`Incomplete`, `Partial`) o hay que desdoblar el campo.
 y `public-employee-step` son pasos distintos del flujo— un solo flag obliga a las dos a mostrar
 error aunque solo una haya fallado. Ahi desdoblar no es sobreingenieria: es lo que el consumidor
 necesita para no tirar datos buenos.
+
+### Un revert COMBINADO no prueba que cada sitio este cubierto (2026-08-27)
+
+**Patron del error:** al encargar los tests anti-enumeracion puse como criterio de aceptacion
+"revierte el arreglo de seguridad y comprueba que tus tests nuevos fallan". El implementador
+revirtio los cuatro sitios a la vez, vio los tests en rojo, y lo dio por probado. Yo lo acepte.
+
+El revisor hizo la matriz **sitio por sitio** (adaptador, check ACTIVE de disponibilidad, check
+ACTIVE de reserva, filtro del loader) y encontro que en el revert combinado los dos tests de
+appointment morian **en el escenario A**, o sea por la pata del adaptador. La cobertura de los
+checks ACTIVE no quedaba demostrada por esa evidencia. Lo estaban —la matriz lo confirmo— pero
+la prueba aportada no lo sostenia.
+
+**Regla:** cuando un arreglo toca N sitios, el criterio de aceptacion es una **matriz de N
+mutaciones independientes**, una por sitio, no un revert global. Un revert combinado solo prueba
+que al menos uno de los N esta cubierto, y no dice cual. Escribirlo asi en el prompt:
+"muta cada sitio por separado y dime que test muere con cada uno".
+
+**Corolario:** exigir que la mutacion se verifique en el bytecode (`javap`) antes de creer el
+resultado. En este repo, con `core.autocrlf=true`, una mutacion por `sed` sobre un arbol extraido
+con `git archive` puede ser un **no-op silencioso**: el patron no casa, no se sustituye nada, los
+tests pasan, y se concluye —al reves— que el test no cubre el arreglo. Ya le paso a dos revisores.
