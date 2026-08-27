@@ -2,8 +2,10 @@ package com.rivoo.salon.application;
 
 import com.rivoo.salon.application.dto.BusinessHoursRequest;
 import com.rivoo.salon.application.dto.BusinessHoursResponse;
+import com.rivoo.salon.application.dto.EmployeePublicDto;
 import com.rivoo.salon.application.dto.SalonPublicResponse;
 import com.rivoo.salon.application.dto.SalonResponse;
+import com.rivoo.salon.application.dto.ServicePublicDto;
 import com.rivoo.salon.application.dto.UpdateSalonRequest;
 import com.rivoo.salon.domain.exception.SalonNotFoundException;
 import com.rivoo.salon.domain.model.Salon;
@@ -16,6 +18,7 @@ import com.rivoo.salon.domain.port.in.ManageSalonStatusUseCase;
 import com.rivoo.salon.domain.port.in.UpdateSalonUseCase;
 import com.rivoo.salon.domain.port.out.BusinessHoursPersistencePort;
 import com.rivoo.salon.domain.port.out.SalonPersistencePort;
+import com.rivoo.salon.domain.port.out.StaffServicePort;
 import com.rivoo.salon.infrastructure.mapper.SalonDtoMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +37,7 @@ public class SalonService implements GetSalonUseCase, UpdateSalonUseCase,
 
     private final SalonPersistencePort salonPersistencePort;
     private final BusinessHoursPersistencePort businessHoursPersistencePort;
+    private final StaffServicePort staffServicePort;
     private final SalonDtoMapper salonDtoMapper;
 
     // ── Get Salon ───────────────────────────────────────────────────────
@@ -57,9 +61,30 @@ public class SalonService implements GetSalonUseCase, UpdateSalonUseCase,
     @Override
     @Transactional(readOnly = true)
     public SalonPublicResponse getPublicBySlug(String slug) {
+        // A non-ACTIVE salon (ONBOARDING, INACTIVE, SUSPENDED, FAILED) must be
+        // indistinguishable from a non-existent one to an anonymous visitor:
+        // filtering here (instead of checking status after the lookup) keeps
+        // both cases resolving to the same 404, without leaking salon state.
         Salon salon = salonPersistencePort.findBySlug(slug)
+                .filter(s -> s.getStatus() == SalonStatus.ACTIVE)
                 .orElseThrow(() -> new SalonNotFoundException(slug));
-        return salonDtoMapper.toPublicResponse(salon);
+
+        List<BusinessHoursResponse> businessHours = businessHoursPersistencePort.findBySalonId(salon.getId())
+                .stream()
+                .map(salonDtoMapper::toBusinessHoursResponse)
+                .toList();
+
+        // externalId == tenantId for a salon (the salon IS the tenant).
+        List<ServicePublicDto> services = staffServicePort.getPublicServices(salon.getTenantId())
+                .stream()
+                .map(salonDtoMapper::toServicePublicDto)
+                .toList();
+        List<EmployeePublicDto> employees = staffServicePort.getPublicEmployees(salon.getTenantId())
+                .stream()
+                .map(salonDtoMapper::toEmployeePublicDto)
+                .toList();
+
+        return salonDtoMapper.toPublicResponse(salon, businessHours, services, employees);
     }
 
     // ── Update Salon ────────────────────────────────────────────────────

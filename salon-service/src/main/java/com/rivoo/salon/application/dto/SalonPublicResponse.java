@@ -1,5 +1,7 @@
 package com.rivoo.salon.application.dto;
 
+import java.util.List;
+
 public record SalonPublicResponse(
         String name,
         String slug,
@@ -9,6 +11,9 @@ public record SalonPublicResponse(
         String primaryColor,
         String addressStreet,
         String addressCity,
-        String addressPostalCode
+        String addressPostalCode,
+        List<BusinessHoursResponse> businessHours,
+        List<ServicePublicDto> services,
+        List<EmployeePublicDto> employees
 ) {
 }
