@@ -1018,3 +1018,34 @@ El bloque más grande; merece plan propio.
 > excepcion original). Perder el stack trace ahi deja el diagnostico de una caida de billing en una
 > linea de WARN sin causa: exactamente el hueco contra el que `fb90062` acaba de escribir un test
 > para el caso de auth. Darle paridad.
+
+
+- [ ] **RP.39** Desdoblar el flag: `servicesUnavailable` / `employeesUnavailable`
+- [ ] **RP.40** `BillingServiceAdapter` convierte 4xx de negocio en 502
+- [ ] **RP.41** DECISION: el `detail` de las excepciones de dependencia filtra topologia interna
+
+> **RP.39, de la review de RP.34-36 (2026-08-27). Renombrado mio que quedo peor.**
+> `catalogueUnavailable` se calcula como `services.isEmpty() || employees.isEmpty()`, asi que puede
+> valer `true` con un array `services` real y con datos dentro. "Unavailable" afirma una totalidad
+> que el payload contradice. El propio nombre del test lo delata:
+> `..._catalogueUnavailableButServicesStillArrive`.
+> Riesgo concreto: el front lee `true`, oculta el catalogo entero y tira una lista de servicios buena.
+> **Decision: desdoblar en dos flags**, no buscar un tercer nombre. El consumidor tiene DOS pantallas
+> —`public-service-step` y `public-employee-step` son pasos distintos del flujo— asi que un solo flag
+> obliga a las dos a mostrar error aunque solo una haya fallado. Dos flags mapean 1:1 con las dos
+> pantallas y permiten el estado parcial preciso. Hacerlo ANTES de RP.31 (aun no hay consumidor).
+
+> **RP.40, de la misma review.** `BillingServiceAdapter:40` hace `catch (Exception e)` y convierte
+> **cualquier** fallo en 502. Pero billing-service puede devolver **422** (`DuplicateSubscriptionException`
+> → `BusinessValidationException`) o **400** (`@Valid` en `BillingInternalController:36`). Un duplicado
+> permanente se reporta como "dependencia caida, reintenta". NO es regresion (antes era 500, igual de
+> incorrecto) y NO es asimetria: los dos `AuthServiceAdapter` tienen la misma forma. Es una debilidad
+> compartida de convencion: al arreglarlo, mirar los tres a la vez.
+
+> **RP.41 — decision, no tarea mecanica.** `POST /api/v1/salons` es `permitAll` (`GatewaySecurityConfig:23`).
+> Antes el catch-all devolvia `"An unexpected error occurred"`; ahora `handleRivooException` pone
+> `detail = ex.getMessage()`, o sea `"Failed to create subscription in billing-service for tenant: sal_new"`,
+> y un test lo fija en el contrato. Expone topologia interna (que servicios hay, como se llaman) a un
+> anonimo. Atenuante: `AuthServiceException` ya hacia lo mismo en ese mismo endpoint, asi que es
+> convencion sistemica, no defecto nuevo. Opciones: (a) dejarlo; (b) mensaje generico hacia fuera y el
+> detalle solo al log. Afecta a todas las excepciones de dependencia del monorepo, no solo a esta.
