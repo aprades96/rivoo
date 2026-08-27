@@ -3,12 +3,12 @@ package com.rivoo.appointment.application;
 import com.rivoo.appointment.application.dto.AvailabilityResponse;
 import com.rivoo.appointment.application.dto.AvailableSlot;
 import com.rivoo.appointment.application.dto.EmployeeWorkingHoursDto;
+import com.rivoo.appointment.domain.exception.SalonNotFoundException;
 import com.rivoo.appointment.domain.model.Appointment;
 import com.rivoo.appointment.domain.port.in.CheckAvailabilityUseCase;
 import com.rivoo.appointment.domain.port.out.AppointmentPersistencePort;
 import com.rivoo.appointment.domain.port.out.SalonServicePort;
 import com.rivoo.appointment.domain.port.out.StaffServicePort;
-import com.rivoo.common.exception.BusinessValidationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -41,8 +41,13 @@ public class AvailabilityService implements CheckAvailabilityUseCase {
                                                           LocalDate date, String serviceId) {
         // Resolve tenant from salon slug — same pattern as the public booking flow.
         SalonServicePort.SalonInfo salon = salonServicePort.getSalonBySlug(salonSlug);
+        // A non-ACTIVE salon must be indistinguishable from a non-existent one to
+        // an anonymous caller: same exception, same response, as a slug that
+        // salon-service has never heard of (see SalonServiceAdapter). Otherwise a
+        // 422 here vs. a 404 for an unknown slug would let anyone enumerate which
+        // businesses exist but are suspended.
         if (!"ACTIVE".equals(salon.status())) {
-            throw new BusinessValidationException("Salon is not active");
+            throw new SalonNotFoundException(salonSlug);
         }
         String tenantId = salon.tenantId();
 

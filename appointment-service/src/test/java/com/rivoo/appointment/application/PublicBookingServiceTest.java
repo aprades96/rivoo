@@ -3,6 +3,7 @@ package com.rivoo.appointment.application;
 import com.rivoo.appointment.application.dto.PublicBookingRequest;
 import com.rivoo.appointment.application.dto.PublicBookingResponse;
 import com.rivoo.appointment.domain.exception.AppointmentConflictException;
+import com.rivoo.appointment.domain.exception.SalonNotFoundException;
 import com.rivoo.appointment.domain.model.Appointment;
 import com.rivoo.appointment.domain.model.AppointmentSource;
 import com.rivoo.appointment.domain.model.AppointmentStatus;
@@ -28,12 +29,15 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -176,16 +180,54 @@ class PublicBookingServiceTest {
     }
 
     @Test
-    @DisplayName("Salon not ACTIVE — throws BusinessValidationException")
-    void salonNotActive_throwsBusinessValidationException() {
+    @DisplayName("Salon not ACTIVE — throws SalonNotFoundException, same as an unknown slug")
+    void salonNotActive_throwsSalonNotFoundException() {
         PublicBookingRequest request = validFutureRequest();
 
         when(salonServicePort.getSalonBySlug(SALON_SLUG)).thenReturn(inactiveSalon());
 
-        assertThrows(BusinessValidationException.class,
+        // Must be SalonNotFoundException — the very same exception SalonServiceAdapter
+        // throws for a slug salon-service has never heard of — so an anonymous caller
+        // cannot tell "suspended" apart from "never existed" (enumeration oracle).
+        assertThrows(SalonNotFoundException.class,
                 () -> appointmentService.book(request));
 
         verify(appointmentPersistencePort, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("same slug: 'does not exist' and 'exists but not ACTIVE' raise byte-for-byte " +
+            "indistinguishable exceptions (the actual enumeration-oracle property)")
+    void salonNotFoundAndSalonNotActive_areIndistinguishable() {
+        PublicBookingRequest request = validFutureRequest();
+
+        // Scenario A: mirrors what SalonServiceAdapter throws for a slug salon-service has
+        // never heard of (a real 404 mapped to SalonNotFoundException).
+        SalonServicePort notFoundSalonPort = mock(SalonServicePort.class);
+        when(notFoundSalonPort.getSalonBySlug(SALON_SLUG)).thenThrow(new SalonNotFoundException(SALON_SLUG));
+        AppointmentService notFoundService = new AppointmentService(appointmentPersistencePort, staffServicePort,
+                clientServicePort, billingServicePort, notificationServicePort, notFoundSalonPort, mapper);
+
+        // Scenario B: the slug resolves fine but the salon is not ACTIVE.
+        SalonServicePort inactiveSalonPort = mock(SalonServicePort.class);
+        when(inactiveSalonPort.getSalonBySlug(SALON_SLUG)).thenReturn(inactiveSalon());
+        AppointmentService inactiveService = new AppointmentService(appointmentPersistencePort, staffServicePort,
+                clientServicePort, billingServicePort, notificationServicePort, inactiveSalonPort, mapper);
+
+        SalonNotFoundException notFoundException = catchThrowableOfType(
+                () -> notFoundService.book(request), SalonNotFoundException.class);
+        SalonNotFoundException inactiveException = catchThrowableOfType(
+                () -> inactiveService.book(request), SalonNotFoundException.class);
+
+        // Everything that GlobalExceptionHandler.handleRivooException(RivooException) copies
+        // into the HTTP response body must match, not just the exception's runtime type.
+        assertThat(notFoundException).isNotNull();
+        assertThat(inactiveException).isNotNull();
+        assertThat(inactiveException.getClass()).isEqualTo(notFoundException.getClass());
+        assertThat(inactiveException.getMessage()).isEqualTo(notFoundException.getMessage());
+        assertThat(inactiveException.getHttpStatus()).isEqualTo(notFoundException.getHttpStatus());
+        assertThat(inactiveException.getErrorType()).isEqualTo(notFoundException.getErrorType());
+        assertThat(inactiveException.getErrorTitle()).isEqualTo(notFoundException.getErrorTitle());
     }
 
     @Test

@@ -11,6 +11,7 @@ import com.rivoo.appointment.domain.exception.AppointmentConflictException;
 import com.rivoo.appointment.domain.exception.AppointmentLimitExceededException;
 import com.rivoo.appointment.domain.exception.AppointmentNotFoundException;
 import com.rivoo.appointment.domain.exception.InvalidStatusTransitionException;
+import com.rivoo.appointment.domain.exception.SalonNotFoundException;
 import com.rivoo.appointment.domain.model.Appointment;
 import com.rivoo.appointment.domain.model.AppointmentSource;
 import com.rivoo.appointment.domain.model.AppointmentStatus;
@@ -289,8 +290,13 @@ public class AppointmentService implements CreateAppointmentUseCase, GetAppointm
 
         // 3. Validate salon slug → get tenantId
         SalonServicePort.SalonInfo salon = salonServicePort.getSalonBySlug(request.salonSlug());
+        // A non-ACTIVE salon must be indistinguishable from a non-existent one to
+        // an anonymous caller: same exception, same response, as a slug that
+        // salon-service has never heard of (see SalonServiceAdapter). Otherwise a
+        // 422 here vs. a 404 for an unknown slug would let anyone enumerate which
+        // businesses exist but are suspended.
         if (!"ACTIVE".equals(salon.status())) {
-            throw new BusinessValidationException("Salon is not active");
+            throw new SalonNotFoundException(request.salonSlug());
         }
         String tenantId = salon.tenantId();
 

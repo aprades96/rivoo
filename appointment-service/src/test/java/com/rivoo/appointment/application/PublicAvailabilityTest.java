@@ -1,10 +1,10 @@
 package com.rivoo.appointment.application;
 
 import com.rivoo.appointment.application.dto.AvailabilityResponse;
+import com.rivoo.appointment.domain.exception.SalonNotFoundException;
 import com.rivoo.appointment.domain.port.out.AppointmentPersistencePort;
 import com.rivoo.appointment.domain.port.out.SalonServicePort;
 import com.rivoo.appointment.domain.port.out.StaffServicePort;
-import com.rivoo.common.exception.BusinessValidationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,6 +17,8 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -72,15 +74,57 @@ class PublicAvailabilityTest {
     }
 
     @Test
-    @DisplayName("rejects a salon that is not ACTIVE without touching the slot calculation")
+    @DisplayName("rejects a salon that is not ACTIVE without touching the slot calculation, " +
+            "with the same exception an unknown slug would raise")
     void publicAvailability_rejectsInactiveSalon() {
         when(salonServicePort.getSalonBySlug("suspendido"))
                 .thenReturn(new SalonServicePort.SalonInfo("sal_B", "Suspendido", "SUSPENDED"));
 
+        // Must be SalonNotFoundException — the very same exception SalonServiceAdapter
+        // throws for a slug salon-service has never heard of — so an anonymous caller
+        // cannot tell "suspended" apart from "never existed" (enumeration oracle).
         assertThatThrownBy(() ->
                 service.getPublicAvailableSlots("suspendido", EMPLOYEE_ID, LocalDate.now(), SERVICE_ID))
-                .isInstanceOf(BusinessValidationException.class);
+                .isInstanceOf(SalonNotFoundException.class);
 
         verifyNoInteractions(staffServicePort);
+    }
+
+    @Test
+    @DisplayName("same slug: 'does not exist' and 'exists but suspended' raise byte-for-byte " +
+            "indistinguishable exceptions (the actual enumeration-oracle property)")
+    void publicAvailability_notFoundAndSuspended_areIndistinguishable() {
+        String slug = "misteriosa";
+
+        // Scenario A: mirrors what SalonServiceAdapter throws for a slug salon-service has
+        // never heard of (a real 404 mapped to SalonNotFoundException).
+        SalonServicePort notFoundPort = mock(SalonServicePort.class);
+        when(notFoundPort.getSalonBySlug(slug)).thenThrow(new SalonNotFoundException(slug));
+        AvailabilityService notFoundService =
+                new AvailabilityService(appointmentPersistencePort, staffServicePort, notFoundPort);
+
+        // Scenario B: the slug resolves fine but the salon is not ACTIVE.
+        SalonServicePort suspendedPort = mock(SalonServicePort.class);
+        when(suspendedPort.getSalonBySlug(slug))
+                .thenReturn(new SalonServicePort.SalonInfo("sal_X", "Misteriosa", "SUSPENDED"));
+        AvailabilityService suspendedService =
+                new AvailabilityService(appointmentPersistencePort, staffServicePort, suspendedPort);
+
+        SalonNotFoundException notFoundException = catchThrowableOfType(
+                () -> notFoundService.getPublicAvailableSlots(slug, EMPLOYEE_ID, DATE, SERVICE_ID),
+                SalonNotFoundException.class);
+        SalonNotFoundException suspendedException = catchThrowableOfType(
+                () -> suspendedService.getPublicAvailableSlots(slug, EMPLOYEE_ID, DATE, SERVICE_ID),
+                SalonNotFoundException.class);
+
+        // Everything that GlobalExceptionHandler.handleRivooException(RivooException) copies
+        // into the HTTP response body must match, not just the exception's runtime type.
+        assertThat(notFoundException).isNotNull();
+        assertThat(suspendedException).isNotNull();
+        assertThat(suspendedException.getClass()).isEqualTo(notFoundException.getClass());
+        assertThat(suspendedException.getMessage()).isEqualTo(notFoundException.getMessage());
+        assertThat(suspendedException.getHttpStatus()).isEqualTo(notFoundException.getHttpStatus());
+        assertThat(suspendedException.getErrorType()).isEqualTo(notFoundException.getErrorType());
+        assertThat(suspendedException.getErrorTitle()).isEqualTo(notFoundException.getErrorTitle());
     }
 }
