@@ -105,6 +105,8 @@ GET /api/internal/tenants/{tenantId}/plan-limits
 |--------|------|---------|----------|
 | GET | `/api/internal/staff/{tenantId}/employees/{employeeId}` | Validate employee exists & active | appointment-service |
 | GET | `/api/internal/staff/{tenantId}/services/{serviceId}` | Get service details (duration, price) | appointment-service |
+| GET | `/api/internal/staff/{tenantId}/public/employees` | List active employees for public booking | salon-service |
+| GET | `/api/internal/staff/{tenantId}/public/services` | List active services for public booking | salon-service |
 
 ---
 

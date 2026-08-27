@@ -57,13 +57,17 @@ public class StaffInternalController {
 
     @GetMapping("/{tenantId}/public/employees")
     public ResponseEntity<List<EmployeePublicResponse>> listPublicEmployees(@PathVariable String tenantId) {
-        log.atInfo().log("GET /api/internal/staff/{tenantId}/public/employees");
+        // The anonymous public-booking flow never sends X-Tenant-Id, so TenantInterceptor
+        // never populates MDC's "tenantId" here. This tenant comes from the path instead,
+        // hence the distinct key name (also avoids colliding with the reserved MDC key).
+        log.atInfo().addKeyValue("targetTenantId", tenantId).log("GET public employees listing");
         return ResponseEntity.ok(getEmployeeUseCase.listPublicByTenant(tenantId));
     }
 
     @GetMapping("/{tenantId}/public/services")
     public ResponseEntity<List<ServiceOfferingPublicResponse>> listPublicServices(@PathVariable String tenantId) {
-        log.atInfo().log("GET /api/internal/staff/{tenantId}/public/services");
+        // See listPublicEmployees for why targetTenantId is used instead of relying on MDC.
+        log.atInfo().addKeyValue("targetTenantId", tenantId).log("GET public services listing");
         return ResponseEntity.ok(manageServiceOfferingUseCase.listPublicByTenant(tenantId));
     }
 }

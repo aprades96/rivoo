@@ -137,6 +137,7 @@ public record PublicBookingRequest(
 | Method | Path | Purpose |
 |--------|------|---------|
 | POST | `/api/v1/appointments/book` | Public booking |
+| GET | `/api/v1/appointments/public/availability` | Available slots for a salon, resolved by slug |
 
 ### Authenticated (JWT required)
 

@@ -1,0 +1,9 @@
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Never actually resolved in these tests: the unauthenticated GET is
+          # permitAll (no token decoding attempted) and the unauthenticated POST
+          # is rejected with 401 before any JWT would be decoded.
+          jwk-set-uri: http://localhost:0/realms/rivoo/protocol/openid-connect/certs
