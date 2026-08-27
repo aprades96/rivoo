@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -75,16 +76,28 @@ public class SalonService implements GetSalonUseCase, UpdateSalonUseCase,
                 .toList();
 
         // externalId == tenantId for a salon (the salon IS the tenant).
-        List<ServicePublicResponse> services = staffServicePort.getPublicServices(salon.getTenantId())
+        // Optional.empty() means that particular staff-service call failed (see
+        // StaffServicePort); a present Optional means it answered normally, even if
+        // the wrapped list is empty (a salon that skipped the optional
+        // employees/services onboarding step is not a degraded catalogue). The two
+        // calls fail independently: if only one fails, the other's real data still
+        // reaches the response, and `degraded` is true if either failed.
+        Optional<List<StaffServicePort.ServicePublicInfo>> servicesResult =
+                staffServicePort.getPublicServices(salon.getTenantId());
+        Optional<List<StaffServicePort.EmployeePublicInfo>> employeesResult =
+                staffServicePort.getPublicEmployees(salon.getTenantId());
+
+        List<ServicePublicResponse> services = servicesResult.orElseGet(List::of)
                 .stream()
                 .map(salonDtoMapper::toServicePublicResponse)
                 .toList();
-        List<EmployeePublicResponse> employees = staffServicePort.getPublicEmployees(salon.getTenantId())
+        List<EmployeePublicResponse> employees = employeesResult.orElseGet(List::of)
                 .stream()
                 .map(salonDtoMapper::toEmployeePublicResponse)
                 .toList();
+        boolean degraded = servicesResult.isEmpty() || employeesResult.isEmpty();
 
-        return salonDtoMapper.toPublicResponse(salon, businessHours, services, employees);
+        return salonDtoMapper.toPublicResponse(salon, businessHours, services, employees, degraded);
     }
 
     // ── Update Salon ────────────────────────────────────────────────────

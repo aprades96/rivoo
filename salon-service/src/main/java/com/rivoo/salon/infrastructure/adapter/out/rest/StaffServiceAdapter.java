@@ -15,6 +15,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Component
@@ -30,7 +31,7 @@ public class StaffServiceAdapter implements StaffServicePort {
     }
 
     @Override
-    public List<EmployeePublicInfo> getPublicEmployees(String tenantId) {
+    public Optional<List<EmployeePublicInfo>> getPublicEmployees(String tenantId) {
         List<EmployeePublicDto> employees;
         try {
             // Public booking requests are anonymous: TenantContext is empty (no JWT, no
@@ -60,14 +61,14 @@ public class StaffServiceAdapter implements StaffServicePort {
             log.atWarn()
                     .setCause(e)
                     .addKeyValue("targetTenantId", tenantId)
-                    .log("Failed to fetch public employees from staff-service, returning empty list");
-            return List.of();
+                    .log("Failed to fetch public employees from staff-service, degrading");
+            return Optional.empty();
         } catch (HttpClientErrorException e) {
             log.atError()
                     .setCause(e)
                     .addKeyValue("targetTenantId", tenantId)
-                    .log("staff-service rejected public employees request with a client error, returning empty list");
-            return List.of();
+                    .log("staff-service rejected public employees request with a client error, degrading");
+            return Optional.empty();
         } catch (RestClientException e) {
             // Backstop for a 2xx response whose body we cannot use: wrong Content-Type
             // (UnknownContentTypeException, e.g. an edge/proxy error page), a body cut
@@ -80,22 +81,22 @@ public class StaffServiceAdapter implements StaffServicePort {
             log.atWarn()
                     .setCause(e)
                     .addKeyValue("targetTenantId", tenantId)
-                    .log("Could not read public employees response body from staff-service, returning empty list");
-            return List.of();
+                    .log("Could not read public employees response body from staff-service, degrading");
+            return Optional.empty();
         }
 
         if (employees == null) {
-            return List.of();
+            return Optional.of(List.of());
         }
 
-        return employees.stream()
+        return Optional.of(employees.stream()
                 .map(dto -> new EmployeePublicInfo(dto.id(), dto.firstName(), dto.lastName(),
                         dto.jobTitle(), dto.serviceIds()))
-                .toList();
+                .toList());
     }
 
     @Override
-    public List<ServicePublicInfo> getPublicServices(String tenantId) {
+    public Optional<List<ServicePublicInfo>> getPublicServices(String tenantId) {
         List<ServiceOfferingPublicDto> services;
         try {
             // See getPublicEmployees for why X-Tenant-Id is set explicitly here, and for
@@ -109,14 +110,14 @@ public class StaffServiceAdapter implements StaffServicePort {
             log.atWarn()
                     .setCause(e)
                     .addKeyValue("targetTenantId", tenantId)
-                    .log("Failed to fetch public services from staff-service, returning empty list");
-            return List.of();
+                    .log("Failed to fetch public services from staff-service, degrading");
+            return Optional.empty();
         } catch (HttpClientErrorException e) {
             log.atError()
                     .setCause(e)
                     .addKeyValue("targetTenantId", tenantId)
-                    .log("staff-service rejected public services request with a client error, returning empty list");
-            return List.of();
+                    .log("staff-service rejected public services request with a client error, degrading");
+            return Optional.empty();
         } catch (RestClientException e) {
             // See getPublicEmployees for why a body we cannot read (bad Content-Type,
             // truncated body, or object/array shape mismatch from a rolling deploy) is
@@ -124,17 +125,17 @@ public class StaffServiceAdapter implements StaffServicePort {
             log.atWarn()
                     .setCause(e)
                     .addKeyValue("targetTenantId", tenantId)
-                    .log("Could not read public services response body from staff-service, returning empty list");
-            return List.of();
+                    .log("Could not read public services response body from staff-service, degrading");
+            return Optional.empty();
         }
 
         if (services == null) {
-            return List.of();
+            return Optional.of(List.of());
         }
 
-        return services.stream()
+        return Optional.of(services.stream()
                 .map(dto -> new ServicePublicInfo(dto.id(), dto.name(), dto.description(),
                         dto.durationMinutes(), dto.price(), dto.currency()))
-                .toList();
+                .toList());
     }
 }

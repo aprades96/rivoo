@@ -118,13 +118,13 @@ class SalonServiceTransactionBoundaryTest {
                 assertThat(TransactionSynchronizationManager.isActualTransactionActive())
                         .as("staff-service HTTP call must NOT run inside a transaction")
                         .isFalse();
-                return List.<StaffServicePort.ServicePublicInfo>of();
+                return Optional.of(List.<StaffServicePort.ServicePublicInfo>of());
             });
             when(port.getPublicEmployees(anyString())).thenAnswer(invocation -> {
                 assertThat(TransactionSynchronizationManager.isActualTransactionActive())
                         .as("staff-service HTTP call must NOT run inside a transaction")
                         .isFalse();
-                return List.<StaffServicePort.EmployeePublicInfo>of();
+                return Optional.of(List.<StaffServicePort.EmployeePublicInfo>of());
             });
             return port;
         }

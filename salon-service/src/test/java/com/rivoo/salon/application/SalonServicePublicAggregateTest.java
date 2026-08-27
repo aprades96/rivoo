@@ -19,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -78,18 +79,21 @@ class SalonServicePublicAggregateTest {
                         .build()
         );
         when(salonPublicSnapshotLoader.loadActiveSalon(SLUG)).thenReturn(new SalonPublicSnapshot(salon, hours));
-        when(staffServicePort.getPublicServices(TENANT_ID)).thenReturn(List.of(
+        when(staffServicePort.getPublicServices(TENANT_ID)).thenReturn(Optional.of(List.of(
                 new StaffServicePort.ServicePublicInfo("svc_1", "Haircut", "Basic haircut", 30,
                         new BigDecimal("25.00"), "EUR")
-        ));
-        when(staffServicePort.getPublicEmployees(TENANT_ID)).thenReturn(List.of(
+        )));
+        when(staffServicePort.getPublicEmployees(TENANT_ID)).thenReturn(Optional.of(List.of(
                 new StaffServicePort.EmployeePublicInfo("emp_1", "Ana", "Lopez", "Stylist", List.of("svc_1"))
-        ));
+        )));
 
         SalonPublicResponse response = salonService.getPublicBySlug(SLUG);
 
         assertThat(response.name()).isEqualTo("Demo Salon");
         assertThat(response.slug()).isEqualTo(SLUG);
+        assertThat(response.degraded())
+                .as("both staff-service calls succeeded, the aggregate must not be reported as degraded")
+                .isFalse();
 
         assertThat(response.businessHours()).hasSize(1);
         assertThat(response.businessHours().get(0).dayOfWeek()).isEqualTo(1);
@@ -127,26 +131,67 @@ class SalonServicePublicAggregateTest {
     void getPublicBySlug_activeSalon_doesNotThrow() {
         Salon salon = activeSalon();
         when(salonPublicSnapshotLoader.loadActiveSalon(SLUG)).thenReturn(new SalonPublicSnapshot(salon, List.of()));
-        when(staffServicePort.getPublicServices(TENANT_ID)).thenReturn(List.of());
-        when(staffServicePort.getPublicEmployees(TENANT_ID)).thenReturn(List.of());
+        when(staffServicePort.getPublicServices(TENANT_ID)).thenReturn(Optional.of(List.of()));
+        when(staffServicePort.getPublicEmployees(TENANT_ID)).thenReturn(Optional.of(List.of()));
 
         assertThatCode(() -> salonService.getPublicBySlug(SLUG)).doesNotThrowAnyException();
     }
 
-    // ── staff-service degraded: the page still loads ──────────────────────
+    // ── legitimately empty catalogue vs. staff-service failure ────────────
 
     @Test
-    void getPublicBySlug_staffServiceReturnsEmptyLists_buildsAggregateWithoutError() {
+    void getPublicBySlug_staffServiceRespondsWithEmptyLists_isNotDegraded() {
+        // A salon that skipped the optional employees/services onboarding step: both
+        // calls succeed (Optional.of(...)) and simply carry empty lists. This is the
+        // test that gives the task its purpose: it must be indistinguishable from a
+        // real failure only in the list contents, never in the `degraded` flag.
         Salon salon = activeSalon();
         when(salonPublicSnapshotLoader.loadActiveSalon(SLUG)).thenReturn(new SalonPublicSnapshot(salon, List.of()));
-        when(staffServicePort.getPublicServices(TENANT_ID)).thenReturn(List.of());
-        when(staffServicePort.getPublicEmployees(TENANT_ID)).thenReturn(List.of());
+        when(staffServicePort.getPublicServices(TENANT_ID)).thenReturn(Optional.of(List.of()));
+        when(staffServicePort.getPublicEmployees(TENANT_ID)).thenReturn(Optional.of(List.of()));
 
         SalonPublicResponse response = salonService.getPublicBySlug(SLUG);
 
         assertThat(response.services()).isEmpty();
         assertThat(response.employees()).isEmpty();
         assertThat(response.businessHours()).isEmpty();
+        assertThat(response.degraded())
+                .as("empty catalogue by onboarding choice is a legitimate state, not a staff-service failure")
+                .isFalse();
+    }
+
+    @Test
+    void getPublicBySlug_servicesCallFails_isDegradedButEmployeesStillArrive() {
+        Salon salon = activeSalon();
+        when(salonPublicSnapshotLoader.loadActiveSalon(SLUG)).thenReturn(new SalonPublicSnapshot(salon, List.of()));
+        when(staffServicePort.getPublicServices(TENANT_ID)).thenReturn(Optional.empty());
+        when(staffServicePort.getPublicEmployees(TENANT_ID)).thenReturn(Optional.of(List.of(
+                new StaffServicePort.EmployeePublicInfo("emp_1", "Ana", "Lopez", "Stylist", List.of("svc_1"))
+        )));
+
+        SalonPublicResponse response = salonService.getPublicBySlug(SLUG);
+
+        assertThat(response.degraded())
+                .as("the services call failed, the aggregate must be flagged as degraded")
+                .isTrue();
+        assertThat(response.services()).isEmpty();
+        assertThat(response.employees())
+                .as("a failure on the services call must not empty out the employees that DID load successfully")
+                .hasSize(1);
+    }
+
+    @Test
+    void getPublicBySlug_bothStaffServiceCallsFail_isDegradedWithEmptyLists() {
+        Salon salon = activeSalon();
+        when(salonPublicSnapshotLoader.loadActiveSalon(SLUG)).thenReturn(new SalonPublicSnapshot(salon, List.of()));
+        when(staffServicePort.getPublicServices(TENANT_ID)).thenReturn(Optional.empty());
+        when(staffServicePort.getPublicEmployees(TENANT_ID)).thenReturn(Optional.empty());
+
+        SalonPublicResponse response = salonService.getPublicBySlug(SLUG);
+
+        assertThat(response.degraded()).isTrue();
+        assertThat(response.services()).isEmpty();
+        assertThat(response.employees()).isEmpty();
     }
 
     // ── helpers ────────────────────────────────────────────────────────

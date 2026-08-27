@@ -18,6 +18,7 @@ import org.springframework.web.client.RestClient;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
@@ -74,11 +75,12 @@ class StaffServiceAdapterTest {
                         ]
                         """, MediaType.APPLICATION_JSON));
 
-        List<StaffServicePort.EmployeePublicInfo> result = adapter.getPublicEmployees(tenantId);
+        Optional<List<StaffServicePort.EmployeePublicInfo>> result = adapter.getPublicEmployees(tenantId);
 
         server.verify();
-        assertThat(result).hasSize(1);
-        StaffServicePort.EmployeePublicInfo employee = result.get(0);
+        assertThat(result).as("staff-service answered normally, the call must not be reported as failed").isPresent();
+        assertThat(result.get()).hasSize(1);
+        StaffServicePort.EmployeePublicInfo employee = result.get().get(0);
         assertThat(employee.id()).isEqualTo("emp_1");
         assertThat(employee.firstName()).isEqualTo("Ana");
         assertThat(employee.lastName()).isEqualTo("Lopez");
@@ -98,11 +100,12 @@ class StaffServiceAdapterTest {
                         ]
                         """, MediaType.APPLICATION_JSON));
 
-        List<StaffServicePort.ServicePublicInfo> result = adapter.getPublicServices(tenantId);
+        Optional<List<StaffServicePort.ServicePublicInfo>> result = adapter.getPublicServices(tenantId);
 
         server.verify();
-        assertThat(result).hasSize(1);
-        StaffServicePort.ServicePublicInfo service = result.get(0);
+        assertThat(result).as("staff-service answered normally, the call must not be reported as failed").isPresent();
+        assertThat(result.get()).hasSize(1);
+        StaffServicePort.ServicePublicInfo service = result.get().get(0);
         assertThat(service.id()).isEqualTo("svc_1");
         assertThat(service.name()).isEqualTo("Haircut");
         assertThat(service.description()).isEqualTo("Basic haircut");
@@ -112,15 +115,32 @@ class StaffServiceAdapterTest {
     }
 
     @Test
-    void getPublicEmployees_returnsEmptyListWhenStaffServiceIsDown() {
+    void getPublicEmployees_returnsEmptyListWhenCatalogueIsLegitimatelyEmpty() {
+        String tenantId = "sal_A";
+        server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/public/employees"))
+                .andExpect(method(GET))
+                .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
+
+        Optional<List<StaffServicePort.EmployeePublicInfo>> result = adapter.getPublicEmployees(tenantId);
+
+        assertThat(result)
+                .as("a 200 with an empty array is a legitimate catalogue state (onboarding skipped it), not a failure")
+                .isPresent();
+        assertThat(result.get()).isEmpty();
+    }
+
+    @Test
+    void getPublicEmployees_returnsEmptyOptionalWhenStaffServiceIsDown() {
         String tenantId = "sal_A";
         server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/public/employees"))
                 .andExpect(method(GET))
                 .andRespond(withStatus(SERVICE_UNAVAILABLE));
 
-        List<StaffServicePort.EmployeePublicInfo> result = adapter.getPublicEmployees(tenantId);
+        Optional<List<StaffServicePort.EmployeePublicInfo>> result = adapter.getPublicEmployees(tenantId);
 
-        assertThat(result).isEmpty();
+        assertThat(result)
+                .as("a failed call must be reported as Optional.empty(), distinct from a legitimately empty catalogue")
+                .isEmpty();
         assertThat(logAppender.list)
                 .as("a 5xx from staff-service must degrade quietly (WARN), not raise an alert")
                 .anySatisfy(event -> assertThat(event.getLevel()).isEqualTo(Level.WARN));
@@ -131,15 +151,17 @@ class StaffServiceAdapterTest {
     }
 
     @Test
-    void getPublicServices_returnsEmptyListWhenStaffServiceIsDown() {
+    void getPublicServices_returnsEmptyOptionalWhenStaffServiceIsDown() {
         String tenantId = "sal_A";
         server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/public/services"))
                 .andExpect(method(GET))
                 .andRespond(withStatus(SERVICE_UNAVAILABLE));
 
-        List<StaffServicePort.ServicePublicInfo> result = adapter.getPublicServices(tenantId);
+        Optional<List<StaffServicePort.ServicePublicInfo>> result = adapter.getPublicServices(tenantId);
 
-        assertThat(result).isEmpty();
+        assertThat(result)
+                .as("a failed call must be reported as Optional.empty(), distinct from a legitimately empty catalogue")
+                .isEmpty();
         assertThat(logAppender.list)
                 .as("a 5xx from staff-service must degrade quietly (WARN), not raise an alert")
                 .anySatisfy(event -> assertThat(event.getLevel()).isEqualTo(Level.WARN));
@@ -150,13 +172,13 @@ class StaffServiceAdapterTest {
     }
 
     @Test
-    void getPublicEmployees_returnsEmptyListButLogsErrorWhenStaffServiceRejectsWithClientError() {
+    void getPublicEmployees_returnsEmptyOptionalButLogsErrorWhenStaffServiceRejectsWithClientError() {
         String tenantId = "sal_A";
         server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/public/employees"))
                 .andExpect(method(GET))
                 .andRespond(withStatus(FORBIDDEN));
 
-        List<StaffServicePort.EmployeePublicInfo> result = adapter.getPublicEmployees(tenantId);
+        Optional<List<StaffServicePort.EmployeePublicInfo>> result = adapter.getPublicEmployees(tenantId);
 
         assertThat(result)
                 .as("the public page must not break even when a 4xx points at a misconfiguration on our side")
@@ -171,13 +193,13 @@ class StaffServiceAdapterTest {
     }
 
     @Test
-    void getPublicServices_returnsEmptyListButLogsErrorWhenStaffServiceRejectsWithClientError() {
+    void getPublicServices_returnsEmptyOptionalButLogsErrorWhenStaffServiceRejectsWithClientError() {
         String tenantId = "sal_A";
         server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/public/services"))
                 .andExpect(method(GET))
                 .andRespond(withStatus(FORBIDDEN));
 
-        List<StaffServicePort.ServicePublicInfo> result = adapter.getPublicServices(tenantId);
+        Optional<List<StaffServicePort.ServicePublicInfo>> result = adapter.getPublicServices(tenantId);
 
         assertThat(result)
                 .as("the public page must not break even when a 4xx points at a misconfiguration on our side")
@@ -192,13 +214,13 @@ class StaffServiceAdapterTest {
     }
 
     @Test
-    void getPublicEmployees_returnsEmptyListWhenStaffServiceRespondsWithUnexpectedContentType() {
+    void getPublicEmployees_returnsEmptyOptionalWhenStaffServiceRespondsWithUnexpectedContentType() {
         String tenantId = "sal_A";
         server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/public/employees"))
                 .andExpect(method(GET))
                 .andRespond(withSuccess("<html><body>502 Bad Gateway</body></html>", MediaType.TEXT_HTML));
 
-        List<StaffServicePort.EmployeePublicInfo> result = adapter.getPublicEmployees(tenantId);
+        Optional<List<StaffServicePort.EmployeePublicInfo>> result = adapter.getPublicEmployees(tenantId);
 
         assertThat(result)
                 .as("a 200 with an HTML body (e.g. a proxy/edge error page) must degrade, not propagate as a 500")
@@ -212,7 +234,7 @@ class StaffServiceAdapterTest {
     }
 
     @Test
-    void getPublicEmployees_returnsEmptyListWhenStaffServiceRespondsWithTruncatedJson() {
+    void getPublicEmployees_returnsEmptyOptionalWhenStaffServiceRespondsWithTruncatedJson() {
         String tenantId = "sal_A";
         server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/public/employees"))
                 .andExpect(method(GET))
@@ -221,7 +243,7 @@ class StaffServiceAdapterTest {
                           {"id":"emp_1","firstName":"Ana","lastName":"Lop
                         """, MediaType.APPLICATION_JSON));
 
-        List<StaffServicePort.EmployeePublicInfo> result = adapter.getPublicEmployees(tenantId);
+        Optional<List<StaffServicePort.EmployeePublicInfo>> result = adapter.getPublicEmployees(tenantId);
 
         assertThat(result)
                 .as("a 200 with a body cut short mid-stream must degrade, not propagate as a 500")
@@ -235,7 +257,7 @@ class StaffServiceAdapterTest {
     }
 
     @Test
-    void getPublicEmployees_returnsEmptyListWhenStaffServiceRespondsWithObjectInsteadOfArray() {
+    void getPublicEmployees_returnsEmptyOptionalWhenStaffServiceRespondsWithObjectInsteadOfArray() {
         String tenantId = "sal_A";
         server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/public/employees"))
                 .andExpect(method(GET))
@@ -243,7 +265,7 @@ class StaffServiceAdapterTest {
                         {"id":"emp_1","firstName":"Ana","lastName":"Lopez","jobTitle":"Stylist","serviceIds":["svc_1"]}
                         """, MediaType.APPLICATION_JSON));
 
-        List<StaffServicePort.EmployeePublicInfo> result = adapter.getPublicEmployees(tenantId);
+        Optional<List<StaffServicePort.EmployeePublicInfo>> result = adapter.getPublicEmployees(tenantId);
 
         assertThat(result)
                 .as("a 200 with an object where an array is expected (deploy skew) must degrade, not propagate as a 500")
