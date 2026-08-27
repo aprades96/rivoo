@@ -188,6 +188,17 @@ class EmployeeServicePublicListTest {
         verify(workingHoursPersistencePort).findByEmployeeId(employeeOfTenantA.getId());
     }
 
+    @Test
+    void getWorkingHoursInternal_blankTenantId_throwsIllegalArgumentException_withoutTouchingPersistence() {
+        // Same guard as getInternal (consistency, not exploitability: tenantId here is always
+        // a @PathVariable and cannot actually be null/blank at runtime).
+        assertThatThrownBy(() -> employeeService.getWorkingHoursInternal("", "emp_from_a"))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        verifyNoInteractions(employeePersistencePort);
+        verifyNoInteractions(workingHoursPersistencePort);
+    }
+
     // ── helpers ────────────────────────────────────────────────────────
 
     private Employee buildEmployee(String externalId, String tenantId) {
