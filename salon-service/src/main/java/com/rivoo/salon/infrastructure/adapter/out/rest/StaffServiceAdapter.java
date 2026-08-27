@@ -38,7 +38,7 @@ public class StaffServiceAdapter implements StaffServicePort {
             // the explicit filter, having the header turns that failure mode closed (returns
             // nothing) instead of open (returns every tenant's data).
             List<EmployeePublicDto> employees = restClient.get()
-                    .uri("/api/internal/staff/{tenantId}/employees/public", tenantId)
+                    .uri("/api/internal/staff/{tenantId}/public/employees", tenantId)
                     .header("X-Tenant-Id", tenantId)
                     .retrieve()
                     .body(new ParameterizedTypeReference<List<EmployeePublicDto>>() {});
@@ -65,7 +65,7 @@ public class StaffServiceAdapter implements StaffServicePort {
         try {
             // See getPublicEmployees for why X-Tenant-Id is set explicitly here.
             List<ServiceOfferingPublicDto> services = restClient.get()
-                    .uri("/api/internal/staff/{tenantId}/services/public", tenantId)
+                    .uri("/api/internal/staff/{tenantId}/public/services", tenantId)
                     .header("X-Tenant-Id", tenantId)
                     .retrieve()
                     .body(new ParameterizedTypeReference<List<ServiceOfferingPublicDto>>() {});

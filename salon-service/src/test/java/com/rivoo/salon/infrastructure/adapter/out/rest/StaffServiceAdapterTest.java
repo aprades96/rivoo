@@ -36,7 +36,7 @@ class StaffServiceAdapterTest {
     @Test
     void getPublicEmployees_sendsExplicitTenantIdHeader() {
         String tenantId = "sal_A";
-        server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/employees/public"))
+        server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/public/employees"))
                 .andExpect(method(GET))
                 .andExpect(header("X-Tenant-Id", tenantId))
                 .andRespond(withSuccess("""
@@ -60,7 +60,7 @@ class StaffServiceAdapterTest {
     @Test
     void getPublicServices_sendsExplicitTenantIdHeader() {
         String tenantId = "sal_A";
-        server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/services/public"))
+        server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/public/services"))
                 .andExpect(method(GET))
                 .andExpect(header("X-Tenant-Id", tenantId))
                 .andRespond(withSuccess("""
@@ -85,7 +85,7 @@ class StaffServiceAdapterTest {
     @Test
     void getPublicEmployees_returnsEmptyListWhenStaffServiceIsDown() {
         String tenantId = "sal_A";
-        server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/employees/public"))
+        server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/public/employees"))
                 .andExpect(method(GET))
                 .andRespond(withStatus(SERVICE_UNAVAILABLE));
 
@@ -97,7 +97,7 @@ class StaffServiceAdapterTest {
     @Test
     void getPublicServices_returnsEmptyListWhenStaffServiceIsDown() {
         String tenantId = "sal_A";
-        server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/services/public"))
+        server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/public/services"))
                 .andExpect(method(GET))
                 .andRespond(withStatus(SERVICE_UNAVAILABLE));
 

@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import java.math.BigDecimal;
 import java.util.List;
 
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -56,7 +57,7 @@ class StaffInternalControllerTest {
                 "emp_001", "Ana", "Martinez", "Stylist", List.of("svc_haircut"));
         when(getEmployeeUseCase.listPublicByTenant(TENANT_ID)).thenReturn(List.of(employee));
 
-        mockMvc.perform(get("/api/internal/staff/{tenantId}/employees/public", TENANT_ID))
+        mockMvc.perform(get("/api/internal/staff/{tenantId}/public/employees", TENANT_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value("emp_001"))
                 .andExpect(jsonPath("$[0].firstName").value("Ana"));
@@ -71,7 +72,7 @@ class StaffInternalControllerTest {
                 "svc_haircut", "Haircut", "Classic haircut", 30, new BigDecimal("25.00"), "EUR");
         when(manageServiceOfferingUseCase.listPublicByTenant(TENANT_ID)).thenReturn(List.of(service));
 
-        mockMvc.perform(get("/api/internal/staff/{tenantId}/services/public", TENANT_ID))
+        mockMvc.perform(get("/api/internal/staff/{tenantId}/public/services", TENANT_ID))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value("svc_haircut"))
                 .andExpect(jsonPath("$[0].name").value("Haircut"));
@@ -109,6 +110,21 @@ class StaffInternalControllerTest {
                 .andExpect(jsonPath("$.id").value("svc_haircut"));
 
         verify(manageServiceOfferingUseCase).getInternal(TENANT_ID, "svc_haircut");
+        verifyNoInteractions(getEmployeeUseCase);
+    }
+
+    @Test
+    void getService_withServiceIdValuePublic_stillResolvesToGetInternal_notToPublicListing() throws Exception {
+        ServiceOfferingInternalResponse service = new ServiceOfferingInternalResponse(
+                "public", "Not a listing", 30, new BigDecimal("25.00"), "EUR", true);
+        when(manageServiceOfferingUseCase.getInternal(TENANT_ID, "public")).thenReturn(service);
+
+        mockMvc.perform(get("/api/internal/staff/{tenantId}/services/{serviceId}", TENANT_ID, "public"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("public"));
+
+        verify(manageServiceOfferingUseCase).getInternal(TENANT_ID, "public");
+        verify(manageServiceOfferingUseCase, never()).listPublicByTenant(TENANT_ID);
         verifyNoInteractions(getEmployeeUseCase);
     }
 }

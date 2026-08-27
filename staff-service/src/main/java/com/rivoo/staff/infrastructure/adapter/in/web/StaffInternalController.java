@@ -55,15 +55,15 @@ public class StaffInternalController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/{tenantId}/employees/public")
+    @GetMapping("/{tenantId}/public/employees")
     public ResponseEntity<List<EmployeePublicResponse>> listPublicEmployees(@PathVariable String tenantId) {
-        log.atInfo().log("GET /api/internal/staff/{tenantId}/employees/public");
+        log.atInfo().log("GET /api/internal/staff/{tenantId}/public/employees");
         return ResponseEntity.ok(getEmployeeUseCase.listPublicByTenant(tenantId));
     }
 
-    @GetMapping("/{tenantId}/services/public")
+    @GetMapping("/{tenantId}/public/services")
     public ResponseEntity<List<ServiceOfferingPublicResponse>> listPublicServices(@PathVariable String tenantId) {
-        log.atInfo().log("GET /api/internal/staff/{tenantId}/services/public");
+        log.atInfo().log("GET /api/internal/staff/{tenantId}/public/services");
         return ResponseEntity.ok(manageServiceOfferingUseCase.listPublicByTenant(tenantId));
     }
 }
