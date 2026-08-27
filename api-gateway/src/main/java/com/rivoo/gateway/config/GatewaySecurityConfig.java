@@ -24,6 +24,7 @@ public class GatewaySecurityConfig {
                 exchanges.pathMatchers("/api/v1/salons/public/**").permitAll();
                 exchanges.pathMatchers(HttpMethod.GET, "/api/v1/billing/plans").permitAll();
                 exchanges.pathMatchers(HttpMethod.POST, "/api/v1/appointments/book").permitAll();
+                exchanges.pathMatchers(HttpMethod.GET, "/api/v1/appointments/public/**").permitAll();
                 exchanges.pathMatchers("/api/webhooks/stripe").permitAll();
                 exchanges.pathMatchers("/realms/**").permitAll();
                 exchanges.anyExchange().authenticated();
