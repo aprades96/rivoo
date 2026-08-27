@@ -31,3 +31,5 @@ rivoo:
       url: ${RIVOO_SERVICES_BILLING_SERVICE_URL}
     notification-service:
       url: ${RIVOO_SERVICES_NOTIFICATION_SERVICE_URL}
+    staff-service:
+      url: ${RIVOO_SERVICES_STAFF_SERVICE_URL}
