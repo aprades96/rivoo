@@ -11,6 +11,7 @@ import org.mapstruct.Mapping;
 public interface ServiceOfferingDtoMapper {
 
     @Mapping(target = "id", source = "externalId")
+    @Mapping(target = "isActive", source = "active")
     ServiceOfferingResponse toResponse(ServiceOffering service);
 
     @Mapping(target = "id", source = "externalId")

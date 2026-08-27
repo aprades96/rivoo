@@ -10,7 +10,7 @@ public record ServiceOfferingResponse(
         int durationMinutes,
         BigDecimal price,
         String currency,
-        boolean active,
+        boolean isActive,
         Instant createdAt,
         Instant updatedAt
 ) {
