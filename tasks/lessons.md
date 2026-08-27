@@ -431,3 +431,29 @@ que al menos uno de los N esta cubierto, y no dice cual. Escribirlo asi en el pr
 resultado. En este repo, con `core.autocrlf=true`, una mutacion por `sed` sobre un arbol extraido
 con `git archive` puede ser un **no-op silencioso**: el patron no casa, no se sustituye nada, los
 tests pasan, y se concluye —al reves— que el test no cubre el arreglo. Ya le paso a dos revisores.
+
+### El desajuste booleano backend/frontend es SISTEMICO, no incidental (2026-08-28)
+
+**Patron del error:** van ya TRES casos del mismo defecto, encontrados de uno en uno:
+1. `salon` `BusinessHoursResponse` emitia `open`, el frontend leia `isOpen`.
+2. `staff` `WorkingHoursRequest`/`Response` emitian y esperaban `open`, el frontend usaba `isOpen`
+   (roto en las dos direcciones: todo dia se guardaba cerrado y se leia cerrado).
+3. `staff` `ServiceOfferingResponse:13` emite `active`, el frontend filtra por `s.isActive`
+   → `undefined` → `filter` devuelve vacio → **la lista de servicios del wizard interno sale
+   siempre vacia** (`wizard/service-step.tsx:20`, `staff/service-assignment.tsx:19`).
+
+La causa comun: los **records de Java** exponen el componente con su propio nombre; no hay ninguna
+`PropertyNamingStrategy` de Jackson en el repo; y el frontend hace `apiFetch<T>`, que es un **cast
+sin validacion** — los genericos de TS se borran en ejecucion, asi que nada falla, el campo llega
+`undefined` y el sintoma es una lista vacia o un booleano siempre falso. Silencioso por diseno en
+las dos puntas.
+
+**Regla:** dejar de arreglarlos de uno en uno. Cuando aparezca uno, **auditar todos los booleanos
+de todos los DTO de respuesta** contra los tipos del frontend, de una vez. Un `grep` de
+`boolean \w+` en los `application/dto/*Response.java` de cada servicio contra las interfaces de
+`rivoo-frontend/src/types/` cierra la clase entera en minutos; buscarlos por sintoma cuesta meses
+(el de `isOpen` llevaba desde el principio).
+
+**Y la causa raiz de que sean invisibles:** `apiFetch<T>` promete un tipo que no verifica. Mientras
+la frontera no valide (zod o equivalente), CUALQUIER divergencia de contrato pasa silenciosa. Es
+tambien lo que convierte un dato corrupto en un crash: ver la leccion sobre `formatCurrency`.
