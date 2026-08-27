@@ -37,9 +37,15 @@
 
 Una petición pública **no tiene JWT, luego no tiene `TenantContext`**. `InterServiceRestClientConfig` propaga `X-Tenant-Id` *desde el TenantContext actual*, que estará vacío. Por tanto:
 
-> Si `StaffServiceAdapter` no pone `X-Tenant-Id` **explícitamente** en la llamada saliente, los endpoints de listado devolverán los empleados y servicios de **todos los salones de la plataforma** a cualquier visitante anónimo.
+> Si los listados se apoyaran en el `TenantContext` ambiental, devolverían los empleados y servicios de **todos los salones de la plataforma** a cualquier visitante anónimo.
 
-Esto no es teórico: es el comportamiento por defecto del stack. **La Task 3 y la Task 11 existen específicamente para cerrarlo y ambas llevan test dedicado.** Ningún reviewer debe aprobar esta feature sin ver esos dos tests en verde.
+**Corrección (2026-08-27, tras ejecutar las Tasks 2-5).** El párrafo de arriba describe el riesgo del stack por defecto, pero **ya no describe el código**: las Tasks 2 y 3 resolvieron el listado con filtrado por **columna explícita** (`findByTenantIdAndActiveTrue`), tomando el `tenantId` de la **ruta**, no del contexto. Con eso los datos son correctos aunque el header no viaje.
+
+El `X-Tenant-Id` explícito de la Task 5 sigue siendo necesario, pero como **defensa en profundidad**, no como única barrera: `TenantInterceptor` lo lee y reactiva el `@Filter` de Hibernate, de modo que si mañana alguien añade a esa ruta una consulta que olvide el filtro explícito, el fallo sea cerrado (no devuelve nada) en vez de abierto (devuelve todos los tenants).
+
+Mantener la redacción exagerada tenía un coste real: el día que alguien comprobase que no es cierta, dejaría de creerse el resto del documento. La regla es la misma que aplicamos a los comentarios de código.
+
+**Lo que sí sigue abierto y es una fuga real:** `EmployeeService.getInternal()` y `ServiceOfferingService.getInternal()` ignoran su parámetro `tenantId`, y `d060fe4` los ha vuelto alcanzables **sin JWT** desde `GET /api/v1/appointments/public/availability`. Registrado como **RP.15** en `tasks/todo.md`; debe cerrarse antes de que esta rama llegue a producción. Ningún reviewer debe aprobar esta feature sin ver en verde los tests de aislamiento cross-tenant (RP.12).
 
 ---
 
