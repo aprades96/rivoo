@@ -75,7 +75,7 @@ public class StaffServiceAdapter implements StaffServicePort {
             }
             return dtos.stream()
                     .map(dto -> new EmployeeWorkingHoursDto(
-                            dto.dayOfWeek(), dto.open(), dto.openTime(), dto.closeTime(),
+                            dto.dayOfWeek(), dto.isOpen(), dto.openTime(), dto.closeTime(),
                             dto.breakStartTime(), dto.breakEndTime()))
                     .toList();
         } catch (Exception e) {
