@@ -602,7 +602,7 @@ así que el paso 1 sale siempre vacío.
 - [x] **RP.10** Store de 6 pasos
 - [x] **RP.11** Paso Profesional y cableado del flujo
 - [~] **RP.12** Tests de aislamiento cross-tenant — **NO SE HACE (decision del usuario, 2026-08-27)**
-- [ ] **RP.13** Que el store acepte ServicePublic (hoy el componente rellena category/isActive a mano)
+- [x] **RP.13** Que el store acepte ServicePublic (hoy el componente rellena category/isActive a mano)
 - [ ] **RP.14** Filtrar los null de serviceIds (asignación huérfana → EmployeeServicePersistenceAdapter:45)
 - [x] **RP.15** `getInternal()` ignora su parámetro `tenantId` en empleados y servicios — **fuga cross-tenant en la ruta pública**
 
@@ -1064,3 +1064,26 @@ El bloque más grande; merece plan propio.
 > `type` sale en respuestas HTTP a llamantes anonimos, o sea contrato publico (RFC 9457): cambiarlo
 > rompe a cualquiera que lo consuma, y hoy nada obliga a pararse a pensarlo. Va con la siguiente
 > tanda, no merece agente propio.
+
+
+> **RP.13 cerrada (2026-08-28), commit `b786e4b` en rivoo-frontend.** El store publico ya se tipa con
+> `ServicePublic`. Dos cosas que el apano escondia y solo se vieron al quitarlo:
+> 1. Ademas de inventar `category: null, isActive: true`, **descartaba `currency`**, que el backend si
+>    envia. `formatCurrency` asumia EUR fijo; ahora acepta divisa (parametro con default, retrocompatible
+>    con las ~10 llamadas del flujo interno).
+> 2. Habia DOS consumidores mas que no detecte al despachar: `public-employee-step:36` y
+>    `public-success-step:44` tambien leen el precio.
+> Y el test del store estaba obsoleto (`mockService` tipado con la forma interna), el mismo patron que ya
+> nos mordio antes en este repo.
+
+> **RP.16 es SOLO backend.** Verificado: el frontend ya usa `isOpen` en `WorkingHoursResponse` **y** en
+> `WorkingHoursRequest` (`types/employee.ts:15,24`). Era el backend el que emitia y esperaba `open`. No
+> hay mitad de pantalla que hacer.
+
+- [ ] **RP.43** Deuda de lint preexistente en el frontend: 6 errores `react-hooks/set-state-in-effect`
+
+> **RP.43.** `npm run lint` sale en rojo con 36 problemas (6 errores + 30 warnings), **preexistentes** —
+> verificado con `git stash` que ya fallaba antes del commit de RP.13. Los 6 errores son
+> `react-hooks/set-state-in-effect` en `settings/salon/page.tsx`, `client-form.tsx`, `service-form.tsx`,
+> `employee-form.tsx`, `service-assignment.tsx` y `working-hours-editor.tsx`. Pendiente de dimensionar si
+> son cosmeticos o pueden causar bucles de render / estado desincronizado.
