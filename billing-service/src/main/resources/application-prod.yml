@@ -30,10 +30,12 @@ rivoo:
     salon-service:
       url: ${RIVOO_SERVICES_SALON_SERVICE_URL}
   billing:
-    # Debe apuntar al dominio real del frontend en produccion. El default solo
-    # existe para que un despliegue sin la variable arranque igualmente (el usuario
-    # volveria a localhost al salir del portal, pero el servicio no se cae).
-    portal-return-url: ${RIVOO_BILLING_PORTAL_RETURN_URL:http://localhost:3000/settings/billing}
+    # Sin default a proposito, como el resto del perfil prod: si falta la variable
+    # el contexto no arranca y el fallo se ve en el deploy. Con un default el
+    # servicio arrancaria sano y el error solo apareceria al volver del portal de
+    # Stripe a localhost. El @Value si lleva default inline, que es lo que garantiza
+    # que la ausencia de la propiedad nunca tumbe los perfiles que no la fijan.
+    portal-return-url: ${RIVOO_BILLING_PORTAL_RETURN_URL}
   stripe:
     api-key: ${STRIPE_API_KEY}
     webhook-secret: ${STRIPE_WEBHOOK_SECRET}

@@ -11,6 +11,8 @@ import com.rivoo.billing.domain.port.out.SubscriptionPersistencePort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -83,12 +85,28 @@ class BillingPortalServiceTest {
     }
 
     @Test
-    void createPortalSession_subscriptionWithoutStripeCustomer_throwsMappedTo422() {
+    void createPortalSession_nullStripeCustomer_throwsMappedTo422() {
         when(subscriptionPersistencePort.findByTenantId(TENANT_ID))
                 .thenReturn(Optional.of(buildSubscription(null)));
 
         // GlobalExceptionHandler derives the HTTP status from RivooException#getHttpStatus,
         // so asserting the status here is asserting the actual API contract: 422, not 500.
+        assertThatThrownBy(() -> billingPortalService.createPortalSession(TENANT_ID))
+                .isInstanceOf(StripeCustomerNotLinkedException.class)
+                .extracting(ex -> ((StripeCustomerNotLinkedException) ex).getHttpStatus())
+                .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+
+        verify(stripePort, never()).createBillingPortalSession(any(), any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "   "})
+    void createPortalSession_blankStripeCustomer_throwsMappedTo422(String blankCustomerId) {
+        // stripe_customer_id is VARCHAR(100) NULL: the column permits '' and whitespace
+        // just as much as NULL, and a != null guard would let those through to Stripe.
+        when(subscriptionPersistencePort.findByTenantId(TENANT_ID))
+                .thenReturn(Optional.of(buildSubscription(blankCustomerId)));
+
         assertThatThrownBy(() -> billingPortalService.createPortalSession(TENANT_ID))
                 .isInstanceOf(StripeCustomerNotLinkedException.class)
                 .extracting(ex -> ((StripeCustomerNotLinkedException) ex).getHttpStatus())

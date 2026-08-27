@@ -140,10 +140,19 @@ RIVOO_BILLING_PORTAL_RETURN_URL=https://tu-dominio.vercel.app/settings/billing
 > sale del portal de facturacion (`POST /api/v1/billing/portal`). A diferencia de
 > `RIVOO_SERVICES_*`, **no es una URL interna**: la abre el navegador, asi que tiene que ser
 > el dominio publico del frontend en Vercel, no `*.railway.internal`.
-> A diferencia de `RIVOO_SERVICES_STAFF_SERVICE_URL` en salon-service, esta si tiene valor
-> por defecto (`http://localhost:3000/settings/billing`) tanto en el `@Value` como en el yml
-> de `prod`, asi que si falta **el servicio arranca igual**; el sintoma no es una caida, es
-> que al salir del portal el usuario acaba en `localhost:3000` en vez de en el frontend real.
+> **No es opcional en prod.** `application-prod.yml` la declara como `${RIVOO_BILLING_PORTAL_RETURN_URL}`
+> sin valor por defecto, igual que `STRIPE_API_KEY` o los `RIVOO_SERVICES_*`: si falta,
+> Spring no resuelve el placeholder y **el contexto no arranca**, asi que el fallo se ve en
+> el deploy y no llega a produccion. Es deliberado. La alternativa —dejar un default en el
+> yml— hacia que el servicio arrancase sano, con los health checks en verde, y el error solo
+> apareciese cuando un cliente de pago terminase de gestionar su facturacion en Stripe,
+> pulsase "Volver" y aterrizase en `http://localhost:3000/...` con `ERR_CONNECTION_REFUSED`:
+> un fallo silencioso que solo reproduce un usuario real completando un pago real.
+>
+> El `@Value` de `BillingPortalService` si lleva default inline
+> (`http://localhost:3000/settings/billing`). Eso es lo que garantiza que la ausencia de la
+> propiedad no tumbe los perfiles que no la fijan; no debilita el fail-fast de prod, porque
+> ahi el placeholder del yml se evalua antes y ya no resuelve.
 
 ### 6. Frontend (Vercel)
 

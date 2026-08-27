@@ -143,21 +143,32 @@ GET /api/internal/tenants/{tenantId}/plan-limits
 
 ### Authenticated (JWT required)
 
-| Method | Path | Purpose | Roles |
-|--------|------|---------|-------|
-| GET | `/api/v1/billing/subscription` | Get current subscription | SALON_OWNER |
-| POST | `/api/v1/billing/checkout-session` | Create Stripe checkout session | SALON_OWNER |
-| POST | `/api/v1/billing/change-plan` | Upgrade/downgrade plan | SALON_OWNER |
-| POST | `/api/v1/billing/cancel` | Cancel subscription (end of period) | SALON_OWNER |
-| GET | `/api/v1/billing/plans` | List available plans | SALON_OWNER |
+| Method | Path | Purpose | Roles | Status |
+|--------|------|---------|-------|--------|
+| GET | `/api/v1/billing/subscription` | Get current subscription | SALON_OWNER | Implemented |
+| POST | `/api/v1/billing/checkout-session` | Create Stripe checkout session | SALON_OWNER | Implemented |
+| POST | `/api/v1/billing/portal` | Create Stripe billing portal session (returns `{ "url": ... }`). No request body | SALON_OWNER | Implemented |
+| GET | `/api/v1/billing/plans` | List available plans | any authenticated user | Implemented |
+| POST | `/api/v1/billing/change-plan` | Upgrade/downgrade plan | SALON_OWNER | **NOT IMPLEMENTED** — planned |
+| POST | `/api/v1/billing/cancel` | Cancel subscription (end of period) | SALON_OWNER | **NOT IMPLEMENTED** — planned |
+
+> The `Status` column exists because this table used to read as a description of reality while
+> listing two endpoints that have never existed in `BillingController`. They are kept as
+> planned work, not deleted. Check the controller before assuming a row is live.
+>
+> `GET /plans` carries **no** `@PreAuthorize` in the controller, so it is reachable by any
+> authenticated principal, not just SALON_OWNER. The table used to claim SALON_OWNER.
 
 ### Internal (PSK required)
 
-| Method | Path | Purpose | Called by |
-|--------|------|---------|----------|
-| POST | `/api/internal/subscriptions` | Create FREE_TRIAL subscription | salon-service (onboarding) |
-| GET | `/api/internal/tenants/{tenantId}/plan-limits` | Get plan limits + current usage flags | appointment-service, staff-service, client-service |
-| GET | `/api/internal/admin/subscriptions/summary` | Subscription statistics | admin-service |
+Base path is `/api/internal/billing` (`BillingInternalController`), not `/api/internal`.
+
+| Method | Path | Purpose | Called by | Status |
+|--------|------|---------|-----------|--------|
+| POST | `/api/internal/billing/subscriptions` | Create FREE_TRIAL subscription | salon-service (onboarding) | Implemented |
+| GET | `/api/internal/billing/tenants/{tenantId}/plan-limits` | Get plan limits + current usage flags | appointment-service, staff-service, client-service | Implemented |
+| PUT | `/api/internal/billing/subscriptions/{tenantId}/status` | Update subscription status | webhook/reconciliation flows | Implemented |
+| GET | `/api/internal/admin/subscriptions/summary` | Subscription statistics | admin-service | **NOT IMPLEMENTED** — planned |
 
 ---
 
@@ -168,6 +179,38 @@ GET /api/internal/tenants/{tenantId}/plan-limits
 3. **Upgrade**: Stripe first (blocking) → local DB → cache invalidation → update Keycloak attribute
 4. FREE_TRIAL is entirely local — no Stripe objects until user chooses a plan
 5. Nightly reconciliation (03:00 CET): Stripe is source of truth if discrepancy found
+
+---
+
+## Testing constraints and known gaps
+
+### `@PreAuthorize` on `/api/v1/billing/**` is NOT covered by any test
+
+`spring-boot-test-autoconfigure-4.0.0.jar` ships exactly two slices, `json` and `jdbc` —
+verified with `unzip -l`. **`@WebMvcTest` and `@AutoConfigureMockMvc` do not exist here**, so
+controller tests use `MockMvcBuilders.standaloneSetup(...)`, which does not install the Spring
+Security filter chain or the method-security interceptor.
+
+Consequence, measured rather than assumed: **deleting the `@PreAuthorize` from
+`BillingController#createPortalSession` leaves the whole suite green.** The same holds for the
+other `/api/v1/billing` handlers. The annotations are load-bearing in production and unguarded
+in CI, so the endpoint table above is the only record of the intended role — keep it accurate,
+and treat any change to an authorization annotation as needing manual verification.
+
+Closing this properly needs a `@SpringBootTest`-based security test (Testcontainers, `@Tag("integration")`,
+excluded from the default surefire run) rather than another standalone slice.
+
+### Response DTO field names must be pinned at the JSON level
+
+`SubscriptionResponseJsonTest` and `PortalResponseJsonTest` (`@JsonTest` + `JacksonTester`,
+Jackson 3 / `tools.jackson.databind`) assert on the **serialized string**, not on record
+accessors. This is deliberate: an accessor assertion is renamed together with the record
+component, so it stays green through a rename that silently changes the wire format. The repo
+already shipped a production bug this way (`active`/`isActive`) — hence the sibling
+`*JsonTest` files in salon-service and staff-service.
+
+Any new field on a response DTO that the frontend or another service reads gets a key-level
+assertion. Adding a field is additive and safe; renaming or retyping one is not.
 
 ---
 

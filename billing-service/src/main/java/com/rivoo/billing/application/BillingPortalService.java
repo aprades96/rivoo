@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 @Slf4j
 @Service
@@ -38,8 +39,11 @@ public class BillingPortalService implements BillingPortalUseCase {
         Subscription subscription = subscriptionPersistencePort.findByTenantId(tenantId)
                 .orElseThrow(() -> new SubscriptionNotFoundException(tenantId));
 
+        // hasText, not != null: stripe_customer_id is VARCHAR(100) NULL, so the column
+        // also permits '' and whitespace. A blank id passes a null check and reaches
+        // Stripe, which rejects it — surfacing as a generic 500 instead of this 422.
         String stripeCustomerId = subscription.getStripeCustomerId();
-        if (stripeCustomerId == null) {
+        if (!StringUtils.hasText(stripeCustomerId)) {
             throw new StripeCustomerNotLinkedException(tenantId);
         }
 
