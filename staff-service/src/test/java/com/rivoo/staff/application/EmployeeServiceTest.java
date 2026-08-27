@@ -94,7 +94,7 @@ class EmployeeServiceTest {
 
         assertThat(response.firstName()).isEqualTo("Maria");
         assertThat(response.lastName()).isEqualTo("Garcia");
-        assertThat(response.active()).isTrue();
+        assertThat(response.isActive()).isTrue();
 
         ArgumentCaptor<Employee> captor = ArgumentCaptor.forClass(Employee.class);
         verify(employeePersistencePort).save(captor.capture());

@@ -18,6 +18,7 @@ public interface EmployeeDtoMapper {
 
     @Mapping(target = "id", source = "externalId")
     @Mapping(target = "role", expression = "java(employee.getRole().name())")
+    @Mapping(target = "isActive", source = "active")
     EmployeeResponse toResponse(Employee employee);
 
     @Mapping(target = "id", source = "employee.externalId")

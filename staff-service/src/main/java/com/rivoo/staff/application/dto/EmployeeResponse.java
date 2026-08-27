@@ -11,7 +11,7 @@ public record EmployeeResponse(
         String jobTitle,
         String colorHex,
         String role,
-        boolean active,
+        boolean isActive,
         Instant createdAt,
         Instant updatedAt
 ) {
