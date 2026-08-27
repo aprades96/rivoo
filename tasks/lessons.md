@@ -457,3 +457,33 @@ de todos los DTO de respuesta** contra los tipos del frontend, de una vez. Un `g
 **Y la causa raiz de que sean invisibles:** `apiFetch<T>` promete un tipo que no verifica. Mientras
 la frontera no valide (zod o equivalente), CUALQUIER divergencia de contrato pasa silenciosa. Es
 tambien lo que convierte un dato corrupto en un crash: ver la leccion sobre `formatCurrency`.
+
+### Un DTO de respuesta puede tener DOS consumidores: el frontend y otro servicio (2026-08-28)
+
+**Patron del error:** renombre `WorkingHoursResponse.open` a `isOpen` en staff-service (commit
+`9b8061b`) para que casara con lo que espera el frontend. Correcto para el frontend. Pero **ese
+mismo DTO se sirve tambien a appointment-service** por `/api/internal/**`, y su consumidor
+`WorkingHoursInternalDto` seguia declarando `open`. Arreglamos un contrato y rompimos el otro en
+el mismo commit.
+
+Consecuencia: Jackson 3 (Boot 4) trae `FAIL_ON_NULL_FOR_PRIMITIVES` **activado por defecto** —al
+contrario que Jackson 2, que habria puesto `false` calladamente— asi que lanza
+`MismatchedInputException`, `StaffServiceAdapter` lo envuelve en `RuntimeException`, y
+`GET /api/v1/appointments/public/availability` devuelve **500**. Justo el endpoint de la feature.
+
+**Y todos los tests pasaban**, porque los de appointment-service mockean `StaffServicePort` y
+construyen el DTO a mano: la deserializacion real no se ejercita en ningun sitio. No existia
+ningun test del adaptador para ese camino.
+
+**Regla:** antes de renombrar un campo de un DTO de respuesta, buscar **todos** sus consumidores,
+no solo el evidente. Dos poblaciones distintas:
+- el frontend, que se encuentra mirando `rivoo-frontend/src/types/`;
+- **otros servicios**, que se encuentran con `grep -rn "<NombreDelDto>\|<nombre-del-endpoint>"` y
+  mirando los `*/infrastructure/adapter/out/rest/dto/` del monorepo.
+El segundo grupo NO aparece en ninguna auditoria de tipos de TypeScript, asi que es invisible para
+el reflejo de "compruebo el frontend".
+
+**Regla de test:** un adaptador REST cuyo unico test mockea el puerto que lo envuelve no prueba la
+deserializacion. Si el contrato viaja por JSON, el doble tiene que ser el **borde HTTP**
+(`MockRestServiceServer`) y el payload tiene que copiarse **de la fuente productora**, no
+escribirse de memoria.
