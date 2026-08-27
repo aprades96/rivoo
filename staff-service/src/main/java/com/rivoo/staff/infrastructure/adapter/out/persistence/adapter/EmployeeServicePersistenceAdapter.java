@@ -8,6 +8,7 @@ import com.rivoo.staff.infrastructure.adapter.out.persistence.repository.Employe
 import com.rivoo.staff.infrastructure.adapter.out.persistence.repository.ServiceOfferingJpaRepository;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -15,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class EmployeeServicePersistenceAdapter implements EmployeeServicePersistencePort {
@@ -36,16 +38,30 @@ public class EmployeeServicePersistenceAdapter implements EmployeeServicePersist
         List<EmployeeServiceAssignment> result = new ArrayList<>();
         for (EmployeeServiceJpaEntity entity : entities) {
             ServiceOfferingJpaEntity svc = serviceMap.get(entity.getServiceId());
+            if (svc == null) {
+                // employee_services.service_id has an ON DELETE CASCADE FK to services(id), and the
+                // application never hard-deletes a service (ServiceOfferingPersistencePort only exposes
+                // save/deactivate). So this row cannot be produced by normal application flow; if it
+                // shows up, referential integrity was bypassed out-of-band (e.g. a manual fix with
+                // foreign_key_checks disabled, or a partial data restore). That is data corruption
+                // worth surfacing, not something to swallow silently.
+                log.atWarn()
+                        .addKeyValue("employeeId", entity.getEmployeeId())
+                        .addKeyValue("serviceId", entity.getServiceId())
+                        .addKeyValue("tenantId", entity.getTenantId())
+                        .log("Skipping orphaned employee_services assignment: referenced service no longer exists");
+                continue;
+            }
             result.add(EmployeeServiceAssignment.builder()
                     .employeeId(entity.getEmployeeId())
                     .serviceId(entity.getServiceId())
                     .tenantId(entity.getTenantId())
                     .customDuration(entity.getCustomDuration())
                     .customPrice(entity.getCustomPrice())
-                    .serviceExternalId(svc != null ? svc.getExternalId() : null)
-                    .serviceName(svc != null ? svc.getName() : null)
-                    .defaultDuration(svc != null ? svc.getDurationMinutes() : 0)
-                    .defaultPrice(svc != null ? svc.getPrice() : null)
+                    .serviceExternalId(svc.getExternalId())
+                    .serviceName(svc.getName())
+                    .defaultDuration(svc.getDurationMinutes())
+                    .defaultPrice(svc.getPrice())
                     .build());
         }
         return result;
