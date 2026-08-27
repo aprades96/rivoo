@@ -1087,3 +1087,35 @@ El bloque más grande; merece plan propio.
 > `react-hooks/set-state-in-effect` en `settings/salon/page.tsx`, `client-form.tsx`, `service-form.tsx`,
 > `employee-form.tsx`, `service-assignment.tsx` y `working-hours-editor.tsx`. Pendiente de dimensionar si
 > son cosmeticos o pueden causar bucles de render / estado desincronizado.
+
+
+## Bloque 0 — FUERA DE LA RESERVA PUBLICA, pero bloquea monetizacion (2026-08-28)
+
+Salieron de la auditoria de contratos backend/frontend. Verificados por mi, no solo reportados.
+**Mas graves que cualquier cosa de la reserva publica**, porque impiden cobrar.
+
+- [ ] **MON.1** La lista de planes de `/settings/billing` sale siempre vacia
+- [ ] **MON.2** El boton "Gestionar suscripcion" no se muestra nunca
+- [ ] **MON.3** La categoria de servicio es una feature de frontend sin backend
+
+> **MON.1.** `billing-service/.../dto/PlanResponse.java` emite
+> `(id, name, displayName, monthlyPrice, trialDays)` — **no lleva `isActive`**. El frontend hace
+> `plans.filter((p) => p.isActive)` en `settings/billing/page.tsx:125`, asi que `p.isActive` es
+> `undefined` para todos y la lista sale vacia: **nadie puede hacer upgrade ni downgrade de plan**.
+> El backend ya filtra server-side (`findAllActive()`), asi que el arreglo correcto es **quitar el
+> filtro fantasma del frontend**, no anadir el campo al backend.
+
+> **MON.2.** `SubscriptionResponse` no emite `stripeCustomerId` ni `stripeSubscriptionId`
+> (`SubscriptionService:154-162`). El frontend condiciona el boton de gestion a
+> `subscription.stripeSubscriptionId` (`settings/billing/page.tsx:101`), asi que **nunca se
+> renderiza**: un cliente de pago no puede llegar al portal de Stripe.
+> Decision de alcance: exponer los ids de Stripe al frontend tiene implicaciones (son
+> identificadores de un tercero); la alternativa es un endpoint que devuelva la URL del portal.
+
+> **MON.3.** La columna `category` **no existe** en `services` (revisada `V2__create_staff_schema.sql`
+> linea a linea), ni en el dominio, ni en la entidad JPA, ni en ningun DTO. El `staff-service/CLAUDE.md`
+> la menciona: la documentacion esta desactualizada respecto al codigo.
+> Mientras tanto el frontend tiene la feature COMPLETA: input en `service-form.tsx`, envio en
+> `CreateServiceRequest`, y pintado en `service-card.tsx` y `service-step.tsx`. El usuario escribe una
+> categoria, se envia, y el backend la descarta en silencio. Arreglarlo bien pide migracion + dominio +
+> persistencia + DTOs + mapeo. Decision de alcance del usuario.
