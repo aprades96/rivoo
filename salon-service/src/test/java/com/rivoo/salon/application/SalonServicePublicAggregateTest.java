@@ -91,8 +91,8 @@ class SalonServicePublicAggregateTest {
 
         assertThat(response.name()).isEqualTo("Demo Salon");
         assertThat(response.slug()).isEqualTo(SLUG);
-        assertThat(response.degraded())
-                .as("both staff-service calls succeeded, the aggregate must not be reported as degraded")
+        assertThat(response.catalogueUnavailable())
+                .as("both staff-service calls succeeded, the catalogue must not be reported as unavailable")
                 .isFalse();
 
         assertThat(response.businessHours()).hasSize(1);
@@ -140,11 +140,11 @@ class SalonServicePublicAggregateTest {
     // ── legitimately empty catalogue vs. staff-service failure ────────────
 
     @Test
-    void getPublicBySlug_staffServiceRespondsWithEmptyLists_isNotDegraded() {
+    void getPublicBySlug_staffServiceRespondsWithEmptyLists_catalogueIsNotUnavailable() {
         // A salon that skipped the optional employees/services onboarding step: both
         // calls succeed (Optional.of(...)) and simply carry empty lists. This is the
         // test that gives the task its purpose: it must be indistinguishable from a
-        // real failure only in the list contents, never in the `degraded` flag.
+        // real failure only in the list contents, never in the `catalogueUnavailable` flag.
         Salon salon = activeSalon();
         when(salonPublicSnapshotLoader.loadActiveSalon(SLUG)).thenReturn(new SalonPublicSnapshot(salon, List.of()));
         when(staffServicePort.getPublicServices(TENANT_ID)).thenReturn(Optional.of(List.of()));
@@ -155,13 +155,13 @@ class SalonServicePublicAggregateTest {
         assertThat(response.services()).isEmpty();
         assertThat(response.employees()).isEmpty();
         assertThat(response.businessHours()).isEmpty();
-        assertThat(response.degraded())
+        assertThat(response.catalogueUnavailable())
                 .as("empty catalogue by onboarding choice is a legitimate state, not a staff-service failure")
                 .isFalse();
     }
 
     @Test
-    void getPublicBySlug_servicesCallFails_isDegradedButEmployeesStillArrive() {
+    void getPublicBySlug_servicesCallFails_catalogueUnavailableButEmployeesStillArrive() {
         Salon salon = activeSalon();
         when(salonPublicSnapshotLoader.loadActiveSalon(SLUG)).thenReturn(new SalonPublicSnapshot(salon, List.of()));
         when(staffServicePort.getPublicServices(TENANT_ID)).thenReturn(Optional.empty());
@@ -171,8 +171,8 @@ class SalonServicePublicAggregateTest {
 
         SalonPublicResponse response = salonService.getPublicBySlug(SLUG);
 
-        assertThat(response.degraded())
-                .as("the services call failed, the aggregate must be flagged as degraded")
+        assertThat(response.catalogueUnavailable())
+                .as("the services call failed, the catalogue must be flagged as unavailable")
                 .isTrue();
         assertThat(response.services()).isEmpty();
         assertThat(response.employees())
@@ -181,11 +181,11 @@ class SalonServicePublicAggregateTest {
     }
 
     @Test
-    void getPublicBySlug_employeesCallFails_isDegradedButServicesStillArrive() {
-        // Mirror of getPublicBySlug_servicesCallFails_isDegradedButEmployeesStillArrive:
-        // `degraded = servicesResult.isEmpty() || employeesResult.isEmpty()` survived
-        // mutation testing on its employees term because no test failed only the
-        // employees call. This closes that gap.
+    void getPublicBySlug_employeesCallFails_catalogueUnavailableButServicesStillArrive() {
+        // Mirror of getPublicBySlug_servicesCallFails_catalogueUnavailableButEmployeesStillArrive:
+        // `catalogueUnavailable = servicesResult.isEmpty() || employeesResult.isEmpty()`
+        // survived mutation testing on its employees term because no test failed only
+        // the employees call. This closes that gap.
         Salon salon = activeSalon();
         when(salonPublicSnapshotLoader.loadActiveSalon(SLUG)).thenReturn(new SalonPublicSnapshot(salon, List.of()));
         when(staffServicePort.getPublicServices(TENANT_ID)).thenReturn(Optional.of(List.of(
@@ -196,8 +196,8 @@ class SalonServicePublicAggregateTest {
 
         SalonPublicResponse response = salonService.getPublicBySlug(SLUG);
 
-        assertThat(response.degraded())
-                .as("the employees call failed, the aggregate must be flagged as degraded")
+        assertThat(response.catalogueUnavailable())
+                .as("the employees call failed, the catalogue must be flagged as unavailable")
                 .isTrue();
         assertThat(response.employees()).isEmpty();
         assertThat(response.services())
@@ -206,7 +206,7 @@ class SalonServicePublicAggregateTest {
     }
 
     @Test
-    void getPublicBySlug_bothStaffServiceCallsFail_isDegradedWithEmptyLists() {
+    void getPublicBySlug_bothStaffServiceCallsFail_catalogueUnavailableWithEmptyLists() {
         Salon salon = activeSalon();
         when(salonPublicSnapshotLoader.loadActiveSalon(SLUG)).thenReturn(new SalonPublicSnapshot(salon, List.of()));
         when(staffServicePort.getPublicServices(TENANT_ID)).thenReturn(Optional.empty());
@@ -214,7 +214,7 @@ class SalonServicePublicAggregateTest {
 
         SalonPublicResponse response = salonService.getPublicBySlug(SLUG);
 
-        assertThat(response.degraded()).isTrue();
+        assertThat(response.catalogueUnavailable()).isTrue();
         assertThat(response.services()).isEmpty();
         assertThat(response.employees()).isEmpty();
     }

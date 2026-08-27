@@ -79,9 +79,9 @@ public class SalonService implements GetSalonUseCase, UpdateSalonUseCase,
         // Optional.empty() means that particular staff-service call failed (see
         // StaffServicePort); a present Optional means it answered normally, even if
         // the wrapped list is empty (a salon that skipped the optional
-        // employees/services onboarding step is not a degraded catalogue). The two
+        // employees/services onboarding step is not an unavailable catalogue). The two
         // calls fail independently: if only one fails, the other's real data still
-        // reaches the response, and `degraded` is true if either failed.
+        // reaches the response, and `catalogueUnavailable` is true if either failed.
         Optional<List<StaffServicePort.ServicePublicInfo>> servicesResult =
                 staffServicePort.getPublicServices(salon.getTenantId());
         Optional<List<StaffServicePort.EmployeePublicInfo>> employeesResult =
@@ -95,9 +95,9 @@ public class SalonService implements GetSalonUseCase, UpdateSalonUseCase,
                 .stream()
                 .map(salonDtoMapper::toEmployeePublicResponse)
                 .toList();
-        boolean degraded = servicesResult.isEmpty() || employeesResult.isEmpty();
+        boolean catalogueUnavailable = servicesResult.isEmpty() || employeesResult.isEmpty();
 
-        return salonDtoMapper.toPublicResponse(salon, businessHours, services, employees, degraded);
+        return salonDtoMapper.toPublicResponse(salon, businessHours, services, employees, catalogueUnavailable);
     }
 
     // ── Update Salon ────────────────────────────────────────────────────

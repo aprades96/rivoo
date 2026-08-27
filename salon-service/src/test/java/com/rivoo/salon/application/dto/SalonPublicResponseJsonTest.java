@@ -37,7 +37,7 @@ class SalonPublicResponseJsonTest {
     private JacksonTester<SalonPublicResponse> json;
 
     @Test
-    void serializesDegradedField() throws Exception {
+    void serializesCatalogueUnavailableField() throws Exception {
         SalonPublicResponse response = new SalonPublicResponse(
                 "Demo Salon", "salon-demo", "+34600000000", "A demo salon", null, null,
                 "Carrer Demo 1", "Barcelona", "08001",
@@ -50,6 +50,6 @@ class SalonPublicResponseJsonTest {
 
         String jsonContent = json.write(response).getJson();
 
-        assertThat(jsonContent).contains("\"degraded\":true");
+        assertThat(jsonContent).contains("\"catalogueUnavailable\":true");
     }
 }
