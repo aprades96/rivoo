@@ -593,17 +593,123 @@ así que el paso 1 sale siempre vacío.
 - [x] **RP.1** DTOs públicos de staff (sin email ni teléfono)
 - [x] **RP.2** Listado de empleados por tenant con filtro explícito por columna
 - [x] **RP.3** Listado de servicios por tenant
-- [ ] **RP.4** Endpoints internos de listado en StaffInternalController
-- [ ] **RP.5** StaffServicePort + StaffServiceAdapter (header X-Tenant-Id explícito)
-- [ ] **RP.6** Agregado público del salón + rechazo de salón no ACTIVE
+- [x] **RP.4** Endpoints internos de listado en StaffInternalController
+- [x] **RP.5** StaffServicePort + StaffServiceAdapter (header X-Tenant-Id explícito)
+- [x] **RP.6** Agregado público del salón + rechazo de salón no ACTIVE
 - [x] **RP.7** Endpoint público de disponibilidad por slug
-- [ ] **RP.8** Regla del gateway para /api/v1/appointments/public/**
+- [x] **RP.8** Regla del gateway para /api/v1/appointments/public/**
 - [x] **RP.9** Tipos y cliente API del frontend
 - [x] **RP.10** Store de 6 pasos
 - [x] **RP.11** Paso Profesional y cableado del flujo
 - [ ] **RP.12** Tests de aislamiento cross-tenant
 - [ ] **RP.13** Que el store acepte ServicePublic (hoy el componente rellena category/isActive a mano)
 - [ ] **RP.14** Filtrar los null de serviceIds (asignación huérfana → EmployeeServicePersistenceAdapter:45)
+- [ ] **RP.15** `getInternal()` ignora su parámetro `tenantId` en empleados y servicios — **fuga cross-tenant en la ruta pública**
+
+> **RP.15, hallazgo del 2026-08-27, no estaba en el plan.**
+> `staff-service/.../application/EmployeeService.java:121-125` recibe `tenantId` y no lo usa:
+> hace `findByExternalId(employeeExternalId)` sin predicado de tenant. Durante un
+> `POST /api/v1/appointments/book` anónimo no hay `TenantContext`, así que
+> `TenantFilterAspect:20,30` tampoco activa el `@Filter` de Hibernate. Resultado: la
+> validación que debe comprobar que el empleado pertenece a ese salón no comprueba nada,
+> y un atacante puede reservar en el salón A citando un empleado del salón B.
+> `ServiceOfferingService.java:97-101` tiene exactamente el mismo defecto: confirmado, no supuesto.
+
+- [ ] **RP.16** El campo `isOpen` de los horarios no cuadra entre backend y frontend
+- [ ] **RP.17** Reformar la URL de los listados internos: `/{tenantId}/public/{employees,services}`
+- [ ] **RP.18** Deuda menor de la review de RP.4/RP.8 (logs, docs, test del gateway)
+- [ ] **RP.19** BLOQUEANTE: `salon-service/application-prod.yml` no declara `staff-service.url`
+- [ ] **RP.20** Deuda de la review de RP.5 (alcance del `catch`, constante del header, log)
+
+> **RP.16, hallazgo del 2026-08-27, no estaba en el plan.**
+> Los records de Java exponen el componente tal cual se llama, y no hay ninguna
+> `PropertyNamingStrategy` de Jackson en el repo. Estado real del contrato:
+>
+> | DTO | JSON que emite/espera el backend | Lo que usa el frontend | |
+> |---|---|---|---|
+> | `salon` `BusinessHoursRequest` | `isOpen` | `isOpen` | OK |
+> | `salon` `BusinessHoursResponse:7` | `open` | `isOpen` | ROTO |
+> | `staff` `WorkingHoursRequest:11` | `open` | `isOpen` | ROTO |
+> | `staff` `WorkingHoursResponse:7` | `open` | `isOpen` | ROTO |
+>
+> Efectos hoy: `working-hours-editor.tsx:35` lee `h.isOpen` → `undefined` → pinta los
+> siete dias como cerrados. `public-service-step.tsx:76` hace `.filter((h) => h.isOpen)`
+> → lista vacia. Y en staff el fallo es bidireccional: al guardar, el frontend manda
+> `isOpen` y Jackson lo descarta, asi que todo dia se guarda cerrado.
+>
+> El lado `salon`/response lo arregla RP.6, porque el agregado publico lleva
+> `businessHours` dentro y sin eso RP.6 nace roto. Los dos de `staff` van aparte:
+> tocan la pantalla autenticada de horarios de empleado, no la reserva publica.
+
+> **RP.17, de la review de RP.4 (2026-08-27). Hacerlo ANTES de escribir mas clientes.**
+> `/{tenantId}/services/{serviceId}` y `/{tenantId}/services/public` comparten posicion en
+> el path. Y ese `{serviceId}` se rellena con input anonimo: `AvailabilityService:88` hace
+> `getService(tenantId, serviceId)` con el `@RequestParam` de `GET /public/availability`,
+> que `d060fe4` acaba de abrir sin JWT (`PublicBookingRequest` solo valida `@NotBlank`,
+> sin patron `svc_`). Un `?serviceId=public` construye
+> `/api/internal/staff/{tenant}/services/public` y cae en el listado completo.
+> Hoy el atacante no ve el dato (Jackson revienta al meter un array en un record y sale 500),
+> pero un parametro anonimo dispara un listado de tabla entera en otro servicio con la PSK
+> de appointment-service: *confused deputy*. Mover el literal a `/{tenantId}/public/employees`
+> y `/{tenantId}/public/services` lo elimina de raiz. Toca el controller de staff, su test,
+> y el `StaffServiceAdapter` de salon-service. Coste cero ahora; crece en cuanto alguien
+> escriba el cliente en appointment-service.
+
+> **RP.18, de la misma review.** Tres cosas menores, ninguna bloqueante:
+> 1. `StaffInternalController:60,66` loguea el literal `GET /api/internal/staff/{tenantId}/...`
+>    — la fluent API de SLF4J no interpola ahi, asi que `{tenantId}` sale tal cual y ademas
+>    no hay campo `tenantId` en el JSON. La convencion de no duplicarlo existe porque lo
+>    inyecta `TenantInterceptor` desde la cabecera, pero en el flujo anonimo esa cabecera no
+>    se propaga: aqui el tenant viene del **path**. O mensaje estatico, o excepcion consciente.
+> 2. `api-gateway` no tiene `src/test`. Es la linea mas sensible del repo y no hay nada que
+>    fije el contrato. Un test que afirme GET publico != 401 y POST mismo path == 401.
+> 3. Docs desalineadas: `staff-service/CLAUDE.md` no lista los dos endpoints internos nuevos,
+>    y `appointment-service/CLAUDE.md` sigue sin `GET /public/availability` en su tabla.
+
+> **Prioridad de RP.15 elevada por la review:** `d060fe4` convierte ese defecto en alcanzable
+> **sin JWT**. Escenario concreto: `?salonSlug=<salon B>&serviceId=<svc_ del salon A>` devuelve
+> el servicio del tenant A y la disponibilidad de B se calcula con la duracion de A. El impacto
+> observable hoy es debil (solo se consume `durationMinutes`), y el `employeeId` si queda acotado
+> porque `getWorkingHoursInternal` (`EmployeeService:198`) si valida el tenant. Aun asi, RP.15
+> debe cerrarse **antes** de que esta rama llegue a produccion, no despues.
+
+> **RP.19, de la review de RP.5 (2026-08-27). BLOQUEANTE.**
+> `salon-service/src/main/resources/application-prod.yml:26-33` declara `auth-service`,
+> `billing-service` y `notification-service` bajo `rivoo.services`, pero NO `staff-service`.
+> `StaffServiceAdapter` es un `@Component` con `@Value("${rivoo.services.staff-service.url}")`
+> **sin default**, asi que con `SPRING_PROFILES_ACTIVE=prod` Spring no resuelve el placeholder
+> al instanciar el bean y **el contexto no levanta**: se cae salon-service entero, no solo la
+> reserva publica. Agravante: el puerto aun no tiene consumidor, o sea que el fallo de arranque
+> llega antes de que la funcionalidad aporte nada.
+> Arreglo: `staff-service: url: ${RIVOO_SERVICES_STAFF_SERVICE_URL}`. Esa variable YA existe en
+> el ecosistema — `api-gateway/application-prod.yml:21` la usa. Solo hay perfiles `local` y
+> `prod` en salon-service, con eso queda cubierto.
+> Causa raiz: mi prompt de despacho enumero `application-local.yml` y no `application-prod.yml`.
+> Leccion registrada en `tasks/lessons.md`.
+
+> **RP.20, de la misma review.** Ninguno bloqueante:
+> 1. `StaffServiceAdapter:29-60,65-87` — el `.stream().map(...)` esta DENTRO del try, asi que un
+>    NPE en la traduccion se loguea como "staff-service no responde" y devuelve lista vacia: el
+>    log miente sobre la causa. Y el `catch (Exception)` no distingue 5xx (degradar) de 4xx
+>    (error de configuracion nuestro). Escenario real: se rota la PSK en staff-service y no en
+>    salon-service → 403 en cada llamada → TODOS los salones muestran "sin servicios"
+>    indefinidamente, con la pagina devolviendo 200 y sin error visible.
+> 2. `StaffServiceAdapter:42,69` y su test usan el literal `"X-Tenant-Id"` en vez de
+>    `RivooHeaders.TENANT_ID`, que `rivoo-common` ya expone y que usa el propio
+>    `InterServiceRestClientConfig:54`. Como el test tambien hardcodea el literal, cambiar la
+>    constante rompe la propagacion **sin que falle ningun test**.
+> 3. `StaffServiceAdapter:57,84` — `.addKeyValue("tenantId", …)` colisiona con la clave MDC.
+>    Aqui NO hay que quitarlo (en flujo anonimo es la unica forma de saber que salon fallo),
+>    pero el valor es semanticamente el tenant DESTINO, no el del contexto. Renombrar a
+>    `targetTenantId`. Es el unico `.addKeyValue("tenantId", …)` de todo el repo.
+> 4. Nota, no accion: el test usa `RestClient.builder()` pelado, asi que no cubre que
+>    `headerPropagationInterceptor` **sobrescribe** la cabecera explicita cuando `TenantContext`
+>    no es null. Es fail-closed (interseccion vacia, sin fuga), pero conviene decirlo en el
+>    comentario porque contradice el "el header es el tenantId del argumento" que promete.
+> 5. Nota, no accion: `CLAUDE.md:250-254` afirma que `InterServiceRestClientConfig` hace
+>    reintentos y circuit breaker. **No los hace.** Con connect=2s + read=3s y dos llamadas
+>    secuenciales, el peor caso de la degradacion son ~10s de espera antes de devolver vacio.
+> Debe quedar cubierto por los tests de RP.12.
 
 ### 2. Onboarding reanudable — PENDIENTE · opción B decidida
 

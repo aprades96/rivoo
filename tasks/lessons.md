@@ -213,3 +213,30 @@ ambigua → Spring no arranca.
 **Regla:** en hexagonal, antes de asignar un método a una clase concreta, ejecutar
 `grep -rln "implements.*<NombreDelPuerto>"` y escribir en el plan la clase que
 salga, no la que suene razonable.
+
+### Un `@Value` nuevo obliga a recorrer TODOS los perfiles, no solo el que estás tocando (2026-08-27)
+
+**Patrón del error:** al despachar RP.5 (nuevo `StaffServiceAdapter` en salon-service)
+le dije al implementador que añadiera `rivoo.services.staff-service.url` a
+`application-local.yml` y que "comprobara si `application.yml` declara URLs de servicios".
+Nunca mencioné `application-prod.yml`, que sí existe y sí declara el bloque
+`rivoo.services`. El implementador hizo exactamente lo que le pedí.
+
+Resultado: `StaffServiceAdapter` es un `@Component` con `@Value` **sin default**, así que
+con `SPRING_PROFILES_ACTIVE=prod` Spring falla al resolver el placeholder durante el
+arranque y **no levanta salon-service entero** — no solo la reserva pública, también toda
+la API autenticada que hoy funciona. Un bean nuevo e inerte tumba el servicio antes de
+aportar nada. Lo cazó el revisor, no el implementador ni yo.
+
+**Regla:** al introducir un `@Value("${...}")` nuevo, listar los perfiles con
+`ls <modulo>/src/main/resources/application*.yml` y nombrarlos TODOS explícitamente en el
+prompt. Y buscar si la variable de entorno ya existe en el ecosistema antes de inventar
+un nombre: `RIVOO_SERVICES_STAFF_SERVICE_URL` ya la usaba
+`api-gateway/application-prod.yml:21`. Alternativa defensiva cuando el valor es opcional:
+dar default (`@Value("${...:}")`) y fallar al usarlo, no al arrancar.
+
+**Corolario sobre el reparto de culpa:** "el implementador hizo lo que le pedí" no es
+excusa del prompt. Un prompt que enumera ficheros concretos convierte la lista en el
+límite del trabajo; si la lista está incompleta, el agente no lo va a descubrir. Enumerar
+ficheros va bien para acotar, pero hay que acompañarlo del criterio ("todos los perfiles",
+"todos los llamantes") para que el agente pueda detectar lo que falta en mi lista.
