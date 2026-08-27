@@ -240,3 +240,39 @@ excusa del prompt. Un prompt que enumera ficheros concretos convierte la lista e
 límite del trabajo; si la lista está incompleta, el agente no lo va a descubrir. Enumerar
 ficheros va bien para acotar, pero hay que acompañarlo del criterio ("todos los perfiles",
 "todos los llamantes") para que el agente pueda detectar lo que falta en mi lista.
+
+### Estrechar un `catch` sin dejar red debajo es una regresión de disponibilidad (2026-08-27)
+
+**Patrón del error:** una review señaló que el `catch (Exception)` de `StaffServiceAdapter`
+era demasiado amplio (trataba igual un 5xx de staff-service que un 4xx de configuración
+nuestra). Al despachar el arreglo pedí sustituirlo por capturas concretas —
+`HttpClientErrorException`, `HttpServerErrorException`, `ResourceAccessException`— para
+distinguir el nivel de log. No pedí ninguna captura de respaldo.
+
+Resultado: quedó fuera `RestClientException`, que es la rama por la que salen los fallos de
+**cuerpo** de respuesta. Tres escenarios reales pasaron de degradar a lista vacía con WARN a
+propagar hasta el `@ExceptionHandler(Exception.class)` de rivoo-common y devolver **500 en la
+pagina publica de reserva**: `200 text/html` de un proxy, JSON truncado por corte a mitad de
+cuerpo, y objeto JSON donde se espera array (skew de despliegue). Lo demostró el revisor
+provocando las tres, no leyendo el código.
+
+**Regla:** al estrechar un `catch` en un punto de integración, las capturas concretas sirven
+para **clasificar** (nivel de log, métrica, decisión), nunca para **sustituir** la red de
+seguridad. La forma correcta es capturas específicas primero y un `catch` amplio al final que
+preserve el comportamiento degradado. Antes de aprobar el estrechamiento, enumerar qué
+excepciones puede lanzar la librería —no de memoria: mirar el jar de la versión resuelta— y
+comprobar que cada una cae en alguna rama.
+
+**Por qué me lo perdí:** asumí que las dos metas de la review (no enmascarar bugs de mapeo /
+distinguir 4xx de 5xx) exigían quitar el `catch` amplio. No era así: el primer problema ya lo
+resolvía sacar el mapeo fuera del `try`. Con el mapeo fuera, un `catch` amplio de respaldo no
+enmascara nada. Cuando dos objetivos parezcan exigir un sacrificio, verificar que el conflicto
+existe antes de pagarlo.
+
+**Corolario, de los otros dos hallazgos de la misma review:** cerrar el hueco de un `@Value`
+en el `application-*.yml` no cierra el problema, solo lo mueve al entorno. Falta comprobar las
+superficies donde ese entorno se define: `infrastructure/railway/README-RAILWAY.md` (el runbook
+que sigue el operador) y `docker-compose.yml`. En ambos faltaba
+`RIVOO_SERVICES_STAFF_SERVICE_URL` para salon-service, asi que el arranque en prod seguia roto
+para quien siguiera la documentacion, y la reserva publica no funciona en el stack de docker.
+Extension de la leccion anterior sobre perfiles: yml, runbook y compose, los tres.

@@ -87,9 +87,15 @@ services:
       RIVOO_SERVICES_AUTH_SERVICE_URL: http://auth-service:8081
       RIVOO_SERVICES_BILLING_SERVICE_URL: http://billing-service:8087
       RIVOO_SERVICES_NOTIFICATION_SERVICE_URL: http://notification-service:8086
+      # Sin esta variable, el perfil `local` deja la URL en http://localhost:8083, que dentro
+      # del contenedor es el propio salon-service: la pagina publica saldria sin empleados ni
+      # servicios y solo quedaria un WARN. El binding relajado de Spring hace que la variable
+      # tenga precedencia sobre el yml de perfil, que es como lo resuelven los demas servicios.
+      RIVOO_SERVICES_STAFF_SERVICE_URL: http://staff-service:8083
     depends_on:
       - auth-service
       - billing-service
+      - staff-service
 
   staff-service:
     build:

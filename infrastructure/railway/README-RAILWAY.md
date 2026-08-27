@@ -113,7 +113,14 @@ SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI=https://{keycloak-url}/rea
 RIVOO_SERVICES_AUTH_SERVICE_URL=http://auth-service.railway.internal:8081
 RIVOO_SERVICES_BILLING_SERVICE_URL=http://billing-service.railway.internal:8087
 RIVOO_SERVICES_NOTIFICATION_SERVICE_URL=http://notification-service.railway.internal:8086
+RIVOO_SERVICES_STAFF_SERVICE_URL=http://staff-service.railway.internal:8083
 ```
+
+> `RIVOO_SERVICES_STAFF_SERVICE_URL` no es opcional: salon-service la lee al construir
+> `StaffServiceAdapter`, que es el puente que trae servicios y empleados a la pagina de
+> reserva publica. El `@Value` no tiene valor por defecto, asi que si falta la variable
+> Spring no resuelve el placeholder y **el contexto no arranca**: no se cae solo la
+> reserva publica, se cae salon-service entero, API autenticada y alta de negocio incluidas.
 
 #### staff-service, client-service, appointment-service, notification-service, billing-service, admin-service
 

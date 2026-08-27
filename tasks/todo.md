@@ -616,10 +616,16 @@ así que el paso 1 sale siempre vacío.
 > `ServiceOfferingService.java:97-101` tiene exactamente el mismo defecto: confirmado, no supuesto.
 
 - [ ] **RP.16** El campo `isOpen` de los horarios no cuadra entre backend y frontend
-- [ ] **RP.17** Reformar la URL de los listados internos: `/{tenantId}/public/{employees,services}`
-- [ ] **RP.18** Deuda menor de la review de RP.4/RP.8 (logs, docs, test del gateway)
-- [ ] **RP.19** BLOQUEANTE: `salon-service/application-prod.yml` no declara `staff-service.url`
 - [ ] **RP.20** Deuda de la review de RP.5 (alcance del `catch`, constante del header, log)
+- [ ] **RP.21** BLOQUEANTE: llamadas HTTP dentro de `@Transactional` en `getPublicBySlug`
+- [ ] **RP.22** Deuda de la review de RP.6 (Jackson del test, orden de advices, nombres de DTO)
+- [x] **RP.17** Reformar la URL de los listados internos: `/{tenantId}/public/{employees,services}`
+- [x] **RP.18** Deuda menor de la review de RP.4/RP.8 (logs, docs, test del gateway)
+- [x] **RP.19** BLOQUEANTE: `salon-service/application-prod.yml` no declara `staff-service.url`
+- [ ] **RP.23** DECISION DE PRODUCTO PENDIENTE: senalizar la degradacion al frontend
+- [ ] **RP.24** BLOQUEANTE: `catch` estrechado de mas en `StaffServiceAdapter` → 500 en la pagina publica
+- [ ] **RP.25** `RIVOO_SERVICES_STAFF_SERVICE_URL` falta en el runbook de Railway y en docker-compose
+- [ ] **RP.26** Menores de la review de RP.17-20 (asercion del gateway, test de targetTenantId, plan)
 
 > **RP.16, hallazgo del 2026-08-27, no estaba en el plan.**
 > Los records de Java exponen el componente tal cual se llama, y no hay ninguna
@@ -710,6 +716,44 @@ así que el paso 1 sale siempre vacío.
 >    reintentos y circuit breaker. **No los hace.** Con connect=2s + read=3s y dos llamadas
 >    secuenciales, el peor caso de la degradacion son ~10s de espera antes de devolver vacio.
 > Debe quedar cubierto por los tests de RP.12.
+
+> **RP.21, de la review de RP.6 (2026-08-27). BLOQUEANTE.**
+> `SalonService.getPublicBySlug` esta anotado `@Transactional(readOnly = true)` y hace DOS
+> llamadas HTTP a staff-service dentro. La conexion JDBC se toma en `findBySlug` y no se
+> suelta hasta retornar, o sea que se sujeta durante toda la red: connect 2s + read 3s por
+> llamada, secuenciales, hasta ~10s.
+> `application-prod.yml:9` fija `maximum-pool-size: 10`. Con 10 visitantes anonimos
+> concurrentes en `/book/{slug}` el pool se agota y cae salon-service ENTERO: tambien
+> `/api/v1/salons/me` autenticado y el `POST /api/v1/salons` del alta de negocio.
+> El rate limit del gateway es 100/min POR IP (`RateLimitingFilter:31-33`), no lo impide.
+> No hace falta ataque: basta con que staff-service vaya lento.
+> Arreglo: cerrar la transaccion antes de las llamadas y componer fuera. Ojo con la
+> autoinvocacion (el proxy de Spring no se aplica) y con `LazyInitializationException`
+> (`open-in-view: false` en prod, no hay red).
+
+> **RP.22, de la misma review.** Tres, ninguno bloqueante:
+> 1. El test de regresion de `isOpen` usa Jackson 2 (`com.fasterxml`), pero el runtime
+>    serializa con Jackson 3 (`tools.jackson`): el classpath tiene ambos y Boot 4 usa el 3.
+>    Hoy los dos emiten `isOpen`, asi que el bug SI esta arreglado — pero el test no guarda
+>    el serializador real. Sintoma: pasa `null` en los cuatro `LocalTime` porque con valores
+>    reales ese mapper lanza `InvalidDefinitionException` (le falta jsr310).
+> 2. Ni `SalonExceptionHandler` ni el `GlobalExceptionHandler` de rivoo-common declaran
+>    `@Order`, y el global tiene un `@ExceptionHandler(Exception.class)` que matchea todo.
+>    Probado: con el local primero sale 404; con el global primero, 500. Hoy funciona por
+>    accidente (autoconfiguracion despues del component-scan). No es fuga —el 404 sigue
+>    siendo indistinguible en ambas ramas— sino contrato y ruido de alertas.
+> 3. Tres records identicos, DOS con el mismo nombre simple (`EmployeePublicDto` en
+>    `application/dto/` y en `infrastructure/adapter/out/rest/dto/`, mas
+>    `StaffServicePort.EmployeePublicInfo`). Importar el equivocado COMPILA en silencio.
+
+> **RP.23 — esto no lo decido yo, es decision de producto.**
+> Si staff-service falla, el agregado devuelve `200` con `services: []` y `employees: []`.
+> Para el visitante, "este salon no tiene servicios" y "no hemos podido cargar el catalogo"
+> se ven exactamente igual: ve una pagina vacia y se va, y el salon pierde la reserva sin
+> que nadie se entere (solo un WARN en logs, y no hay alertado configurado en el repo).
+> Opciones: (a) dejarlo asi, mas simple; (b) un flag `degraded` en la respuesta para que el
+> frontend distinga y reintente. (b) cambia el contrato contra el que el frontend YA esta
+> escrito (`salon.ts:41-63`), asi que no lo aplico sin decidirlo antes.
 
 ### 2. Onboarding reanudable — PENDIENTE · opción B decidida
 
