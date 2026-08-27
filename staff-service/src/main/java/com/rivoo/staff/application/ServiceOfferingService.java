@@ -44,6 +44,7 @@ public class ServiceOfferingService implements ManageServiceOfferingUseCase {
                 .durationMinutes(request.durationMinutes())
                 .price(request.price())
                 .currency(request.currency() != null ? request.currency() : "EUR")
+                .category(request.category())
                 .active(true)
                 .build();
 
@@ -69,6 +70,7 @@ public class ServiceOfferingService implements ManageServiceOfferingUseCase {
         if (request.durationMinutes() != null) service.setDurationMinutes(request.durationMinutes());
         if (request.price() != null) service.setPrice(request.price());
         if (request.currency() != null) service.setCurrency(request.currency());
+        if (request.category() != null) service.setCategory(request.category());
 
         ServiceOffering updated = serviceOfferingPersistencePort.save(service);
         log.atInfo().addKeyValue("externalId", externalId).log("Service offering updated");

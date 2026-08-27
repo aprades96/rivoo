@@ -45,6 +45,9 @@ public class ServiceOfferingJpaEntity extends TenantAwareEntity {
     @Column(name = "currency", length = 3)
     private String currency;
 
+    @Column(name = "category", length = 100)
+    private String category;
+
     @Column(name = "active")
     private boolean active;
 

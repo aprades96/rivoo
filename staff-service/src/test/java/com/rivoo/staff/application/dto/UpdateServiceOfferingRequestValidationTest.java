@@ -37,7 +37,7 @@ class UpdateServiceOfferingRequestValidationTest {
 
     private UpdateServiceOfferingRequest requestWithCurrency(String currency) {
         return new UpdateServiceOfferingRequest("Corte caballero", "Corte y peinado", 30,
-                new BigDecimal("15.00"), currency);
+                new BigDecimal("15.00"), currency, null);
     }
 
     @ParameterizedTest

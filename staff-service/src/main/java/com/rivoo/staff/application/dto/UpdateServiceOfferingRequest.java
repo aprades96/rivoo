@@ -12,6 +12,7 @@ public record UpdateServiceOfferingRequest(
         @Size(max = 2000) String description,
         @Min(1) Integer durationMinutes,
         @DecimalMin("0.00") BigDecimal price,
-        @Pattern(regexp = "^[A-Z]{3}$") String currency
+        @Pattern(regexp = "^[A-Z]{3}$") String currency,
+        @Size(max = 100) String category
 ) {
 }

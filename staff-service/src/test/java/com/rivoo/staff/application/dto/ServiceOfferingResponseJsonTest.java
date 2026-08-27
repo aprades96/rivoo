@@ -33,11 +33,28 @@ class ServiceOfferingResponseJsonTest {
     void serializesIsActiveField_notActive() throws Exception {
         ServiceOfferingResponse response = new ServiceOfferingResponse(
                 "svc_123", "Corte caballero", "Corte y peinado", 30,
-                new BigDecimal("15.00"), "EUR", true, Instant.now(), Instant.now());
+                new BigDecimal("15.00"), "EUR", null, true, Instant.now(), Instant.now());
 
         String jsonContent = json.write(response).getJson();
 
         assertThat(jsonContent).contains("\"isActive\"");
         assertThat(jsonContent).doesNotContain("\"active\":");
+    }
+
+    /**
+     * Contract with the frontend: {@code rivoo-frontend/src/types/service.ts} declares
+     * {@code category: string | null} on {@code ServiceOffering} and renders it in
+     * {@code service-card.tsx} and the appointment wizard, so the JSON key must be exactly
+     * {@code category}.
+     */
+    @Test
+    void serializesCategoryUnderTheKeyTheFrontendReads() throws Exception {
+        ServiceOfferingResponse response = new ServiceOfferingResponse(
+                "svc_123", "Corte caballero", "Corte y peinado", 30,
+                new BigDecimal("15.00"), "EUR", "Cortes", true, Instant.now(), Instant.now());
+
+        String jsonContent = json.write(response).getJson();
+
+        assertThat(jsonContent).contains("\"category\":\"Cortes\"");
     }
 }

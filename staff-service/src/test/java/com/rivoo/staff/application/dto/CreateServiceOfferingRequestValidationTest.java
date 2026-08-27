@@ -41,7 +41,7 @@ class CreateServiceOfferingRequestValidationTest {
 
     private CreateServiceOfferingRequest requestWithCurrency(String currency) {
         return new CreateServiceOfferingRequest("Corte caballero", "Corte y peinado", 30,
-                new BigDecimal("15.00"), currency);
+                new BigDecimal("15.00"), currency, null);
     }
 
     @ParameterizedTest

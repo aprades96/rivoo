@@ -24,6 +24,7 @@ public class ServiceOffering {
     private int durationMinutes;
     private BigDecimal price;
     private String currency;
+    private String category;
     private boolean active;
     private Instant createdAt;
     private Instant updatedAt;
