@@ -15,13 +15,23 @@ import java.net.URI;
 import java.time.Instant;
 
 // Explicit LOWEST_PRECEDENCE (same numeric value Spring already assigns by
-// default to an advice bean that declares no @Order) so that any per-service
-// @RestControllerAdvice is guaranteed to be considered before this one,
-// without relying on the unspecified tie-break Spring's
-// AnnotationAwareOrderComparator applies between two beans that are both
-// implicitly LOWEST_PRECEDENCE. This declaration does not change today's
-// runtime behavior in any service (the value is identical to the previous
-// default); it only makes the guarantee explicit instead of implicit.
+// default to an advice bean that declares no @Order): this pins this handler
+// to the floor, so any per-service @RestControllerAdvice that DOES declare a
+// lower @Order value is guaranteed to be considered first. It does NOT by
+// itself guarantee anything about a per-service advice that declares no
+// @Order of its own — two beans both implicitly/explicitly at
+// LOWEST_PRECEDENCE are still a tie, and Spring's
+// AnnotationAwareOrderComparator does not specify a deterministic tie-break
+// in that case. As of this comment, auth-service's AuthExceptionHandler,
+// salon-service's SalonExceptionHandler, staff-service's
+// StaffExceptionHandler, appointment-service's AppointmentExceptionHandler,
+// billing-service's BillingExceptionHandler and client-service's
+// ClientExceptionHandler all declare @Order(0) precisely to win that tie
+// deterministically against this handler's generic
+// @ExceptionHandler(Exception.class) catch-all. This declaration does not
+// change today's runtime behavior in any service (the value is identical to
+// the previous default); it only makes the floor explicit instead of
+// implicit.
 @Slf4j
 @RestControllerAdvice
 @Order(Ordered.LOWEST_PRECEDENCE)

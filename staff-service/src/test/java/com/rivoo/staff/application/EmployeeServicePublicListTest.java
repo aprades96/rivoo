@@ -2,6 +2,7 @@ package com.rivoo.staff.application;
 
 import com.rivoo.staff.application.dto.EmployeeInternalResponse;
 import com.rivoo.staff.application.dto.EmployeePublicResponse;
+import com.rivoo.staff.application.dto.WorkingHoursResponse;
 import com.rivoo.staff.domain.exception.EmployeeNotFoundException;
 import com.rivoo.staff.domain.model.Employee;
 import com.rivoo.staff.domain.model.EmployeeRole;
@@ -159,6 +160,32 @@ class EmployeeServicePublicListTest {
                 .isInstanceOf(IllegalArgumentException.class);
 
         verifyNoInteractions(employeePersistencePort);
+    }
+
+    // ── getWorkingHoursInternal: cross-tenant regression, same pattern as
+    //    getInternal (b412690) but was left without a test of its own ────────
+
+    @Test
+    void getWorkingHoursInternal_employeeBelongsToDifferentTenant_throwsNotFound_neverExposesIt() {
+        Employee employeeOfTenantB = buildEmployee("emp_from_b", TENANT_B);
+        when(employeePersistencePort.findByExternalId("emp_from_b")).thenReturn(java.util.Optional.of(employeeOfTenantB));
+
+        assertThatThrownBy(() -> employeeService.getWorkingHoursInternal(TENANT_A, "emp_from_b"))
+                .isInstanceOf(EmployeeNotFoundException.class);
+
+        verifyNoInteractions(workingHoursPersistencePort);
+    }
+
+    @Test
+    void getWorkingHoursInternal_sameTenant_returnsResponse() {
+        Employee employeeOfTenantA = buildEmployee("emp_from_a", TENANT_A);
+        when(employeePersistencePort.findByExternalId("emp_from_a")).thenReturn(java.util.Optional.of(employeeOfTenantA));
+        when(workingHoursPersistencePort.findByEmployeeId(employeeOfTenantA.getId())).thenReturn(List.of());
+
+        List<WorkingHoursResponse> response = employeeService.getWorkingHoursInternal(TENANT_A, "emp_from_a");
+
+        assertThat(response).isEmpty();
+        verify(workingHoursPersistencePort).findByEmployeeId(employeeOfTenantA.getId());
     }
 
     // ── helpers ────────────────────────────────────────────────────────

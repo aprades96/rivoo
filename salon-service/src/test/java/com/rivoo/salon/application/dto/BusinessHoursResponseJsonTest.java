@@ -25,25 +25,39 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>
  * {@code @JsonTest} boots the actual Boot-autoconfigured {@link JacksonTester}
  * (backed by {@code tools.jackson.databind.json.JsonMapper}), so this test
- * fails if the {@code isOpen}/{@code open} bug is reintroduced at the level
- * this slice actually exercises: the record itself (e.g. reverting the
- * {@code @JsonProperty("isOpen")} annotation) or a {@code @JsonComponent} /
- * Jackson module registered on the classpath, both of which {@code @JsonTest}
- * auto-configures.
+ * fails if the {@code isOpen}/{@code open} naming is reintroduced at the
+ * level this slice actually exercises. {@link BusinessHoursResponse} is a
+ * bare record with no Jackson annotations ({@code grep -rn "JsonProperty"
+ * salon-service/src/main} returns nothing) — its component name
+ * ({@code isOpen}) is what Jackson 3 uses as the property name by default.
+ * What could still rename it is a Jackson {@code Module} bean registered on
+ * the context (e.g. a {@code SimpleModule} installing a mixin), and
+ * {@code @JsonTest} DOES auto-configure {@code Module} beans: verified by
+ * temporarily registering exactly such a {@code SimpleModule} bean (renaming
+ * {@code isOpen} to {@code open} via a mixin annotation) and confirming this
+ * test's assertions failed while it was active.
  * <p>
- * What this test does NOT cover: {@code @JsonTest} only auto-configures
- * {@code @JsonComponent} beans, serializers and modules — it does NOT load
- * arbitrary {@code @Configuration} classes. This was verified directly: a
- * {@code @Configuration} declaring a {@code JsonMapperBuilderCustomizer}
- * that applies {@code SNAKE_CASE} naming (which the real HTTP pipeline would
- * pick up via component scan, and which would serialize this field as
- * {@code is_open}) is invisible to this slice — the test kept passing while
- * that customizer was active. A regression introduced through a
- * {@code @Configuration}-based {@code JsonMapperBuilderCustomizer} or
- * {@code PropertyNamingStrategy} would therefore NOT be caught here; only a
- * full {@code @SpringBootTest} hitting the real endpoint (or an equivalent
- * MockMvc-based web slice — currently unavailable in this project, see
- * module notes) would close that gap.
+ * What this test does NOT cover: {@code @JsonTest} does not perform a full
+ * component scan of arbitrary {@code @Configuration} classes elsewhere in
+ * the codebase. Verified directly: a standalone {@code @Configuration}
+ * class (in the same package the real Jackson config lives in) declaring a
+ * {@code JsonMapperBuilderCustomizer} that applies {@code SNAKE_CASE} naming
+ * (which the real HTTP pipeline WOULD pick up via component scan, and which
+ * would serialize this field as {@code is_open}) is invisible to this
+ * slice — the test kept passing while that class was on the classpath. A
+ * regression introduced through a {@code @Configuration}-declared
+ * {@code JsonMapperBuilderCustomizer} or {@code PropertyNamingStrategy}
+ * would therefore NOT be caught here; only a full {@code @SpringBootTest}
+ * hitting the real endpoint (or an equivalent MockMvc-based web slice —
+ * currently unavailable in this project, see module notes) would close that
+ * gap.
+ * <p>
+ * Note: {@code org.springframework.boot.jackson.JsonComponent} does not
+ * exist on this module's classpath in Spring Boot 4.0.3 — the annotation was
+ * renamed to {@code @JacksonComponent} (package
+ * {@code org.springframework.boot.jackson}). A {@code @JacksonComponent}
+ * would presumably be auto-configured the same way {@code Module} beans are,
+ * but that was not exercised here and is intentionally not claimed above.
  */
 @JsonTest
 class BusinessHoursResponseJsonTest {
