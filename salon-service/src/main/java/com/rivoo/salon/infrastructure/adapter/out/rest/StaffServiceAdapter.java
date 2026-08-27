@@ -12,6 +12,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 import java.util.List;
 
@@ -67,6 +68,20 @@ public class StaffServiceAdapter implements StaffServicePort {
                     .addKeyValue("targetTenantId", tenantId)
                     .log("staff-service rejected public employees request with a client error, returning empty list");
             return List.of();
+        } catch (RestClientException e) {
+            // Backstop for a 2xx response whose body we cannot use: wrong Content-Type
+            // (UnknownContentTypeException, e.g. an edge/proxy error page), a body cut
+            // short mid-stream, or a shape mismatch (object where an array is expected).
+            // The last one is the classic symptom of a rolling deploy where staff-service
+            // shipped a DTO change before salon-service did. This is not a clean HTTP
+            // status we can classify with certainty as "us" vs "them", so it is treated
+            // like the 5xx/network case: log and degrade instead of taking down the
+            // public booking page over what is normally a transient version-skew window.
+            log.atWarn()
+                    .setCause(e)
+                    .addKeyValue("targetTenantId", tenantId)
+                    .log("Could not read public employees response body from staff-service, returning empty list");
+            return List.of();
         }
 
         if (employees == null) {
@@ -101,6 +116,15 @@ public class StaffServiceAdapter implements StaffServicePort {
                     .setCause(e)
                     .addKeyValue("targetTenantId", tenantId)
                     .log("staff-service rejected public services request with a client error, returning empty list");
+            return List.of();
+        } catch (RestClientException e) {
+            // See getPublicEmployees for why a body we cannot read (bad Content-Type,
+            // truncated body, or object/array shape mismatch from a rolling deploy) is
+            // treated as a WARN-level degradation rather than propagated as a 500.
+            log.atWarn()
+                    .setCause(e)
+                    .addKeyValue("targetTenantId", tenantId)
+                    .log("Could not read public services response body from staff-service, returning empty list");
             return List.of();
         }
 

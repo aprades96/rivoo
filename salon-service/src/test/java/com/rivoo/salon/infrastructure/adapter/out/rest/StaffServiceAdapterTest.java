@@ -10,12 +10,14 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
+import org.slf4j.event.KeyValuePair;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
@@ -53,6 +55,11 @@ class StaffServiceAdapterTest {
 
     private static Logger adapterLogger() {
         return (Logger) LoggerFactory.getLogger(StaffServiceAdapter.class);
+    }
+
+    private static boolean hasTargetTenantId(ILoggingEvent event, String tenantId) {
+        return event.getKeyValuePairs() != null && event.getKeyValuePairs().stream()
+                .anyMatch(kvp -> "targetTenantId".equals(kvp.key) && Objects.equals(tenantId, kvp.value));
     }
 
     @Test
@@ -118,6 +125,9 @@ class StaffServiceAdapterTest {
                 .as("a 5xx from staff-service must degrade quietly (WARN), not raise an alert")
                 .anySatisfy(event -> assertThat(event.getLevel()).isEqualTo(Level.WARN));
         assertThat(logAppender.list).noneMatch(event -> event.getLevel() == Level.ERROR);
+        assertThat(logAppender.list)
+                .as("the log event must carry the target tenant id for traceability")
+                .anySatisfy(event -> assertThat(hasTargetTenantId(event, tenantId)).isTrue());
     }
 
     @Test
@@ -134,6 +144,9 @@ class StaffServiceAdapterTest {
                 .as("a 5xx from staff-service must degrade quietly (WARN), not raise an alert")
                 .anySatisfy(event -> assertThat(event.getLevel()).isEqualTo(Level.WARN));
         assertThat(logAppender.list).noneMatch(event -> event.getLevel() == Level.ERROR);
+        assertThat(logAppender.list)
+                .as("the log event must carry the target tenant id for traceability")
+                .anySatisfy(event -> assertThat(hasTargetTenantId(event, tenantId)).isTrue());
     }
 
     @Test
@@ -152,6 +165,9 @@ class StaffServiceAdapterTest {
                 .as("a 4xx is our own misconfiguration (e.g. a rotated internal-service-key) and must page someone, not be silently degraded like a 5xx")
                 .anySatisfy(event -> assertThat(event.getLevel()).isEqualTo(Level.ERROR));
         assertThat(logAppender.list).noneMatch(event -> event.getLevel() == Level.WARN);
+        assertThat(logAppender.list)
+                .as("the log event must carry the target tenant id for traceability")
+                .anySatisfy(event -> assertThat(hasTargetTenantId(event, tenantId)).isTrue());
     }
 
     @Test
@@ -170,5 +186,73 @@ class StaffServiceAdapterTest {
                 .as("a 4xx is our own misconfiguration (e.g. a rotated internal-service-key) and must page someone, not be silently degraded like a 5xx")
                 .anySatisfy(event -> assertThat(event.getLevel()).isEqualTo(Level.ERROR));
         assertThat(logAppender.list).noneMatch(event -> event.getLevel() == Level.WARN);
+        assertThat(logAppender.list)
+                .as("the log event must carry the target tenant id for traceability")
+                .anySatisfy(event -> assertThat(hasTargetTenantId(event, tenantId)).isTrue());
+    }
+
+    @Test
+    void getPublicEmployees_returnsEmptyListWhenStaffServiceRespondsWithUnexpectedContentType() {
+        String tenantId = "sal_A";
+        server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/public/employees"))
+                .andExpect(method(GET))
+                .andRespond(withSuccess("<html><body>502 Bad Gateway</body></html>", MediaType.TEXT_HTML));
+
+        List<StaffServicePort.EmployeePublicInfo> result = adapter.getPublicEmployees(tenantId);
+
+        assertThat(result)
+                .as("a 200 with an HTML body (e.g. a proxy/edge error page) must degrade, not propagate as a 500")
+                .isEmpty();
+        assertThat(logAppender.list)
+                .as("an unreadable response body is a transient/deployment issue, not our own misconfiguration, so it must be WARN")
+                .anySatisfy(event -> assertThat(event.getLevel()).isEqualTo(Level.WARN));
+        assertThat(logAppender.list).noneMatch(event -> event.getLevel() == Level.ERROR);
+        assertThat(logAppender.list)
+                .anySatisfy(event -> assertThat(hasTargetTenantId(event, tenantId)).isTrue());
+    }
+
+    @Test
+    void getPublicEmployees_returnsEmptyListWhenStaffServiceRespondsWithTruncatedJson() {
+        String tenantId = "sal_A";
+        server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/public/employees"))
+                .andExpect(method(GET))
+                .andRespond(withSuccess("""
+                        [
+                          {"id":"emp_1","firstName":"Ana","lastName":"Lop
+                        """, MediaType.APPLICATION_JSON));
+
+        List<StaffServicePort.EmployeePublicInfo> result = adapter.getPublicEmployees(tenantId);
+
+        assertThat(result)
+                .as("a 200 with a body cut short mid-stream must degrade, not propagate as a 500")
+                .isEmpty();
+        assertThat(logAppender.list)
+                .as("a truncated body is a transient/network issue, not our own misconfiguration, so it must be WARN")
+                .anySatisfy(event -> assertThat(event.getLevel()).isEqualTo(Level.WARN));
+        assertThat(logAppender.list).noneMatch(event -> event.getLevel() == Level.ERROR);
+        assertThat(logAppender.list)
+                .anySatisfy(event -> assertThat(hasTargetTenantId(event, tenantId)).isTrue());
+    }
+
+    @Test
+    void getPublicEmployees_returnsEmptyListWhenStaffServiceRespondsWithObjectInsteadOfArray() {
+        String tenantId = "sal_A";
+        server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/public/employees"))
+                .andExpect(method(GET))
+                .andRespond(withSuccess("""
+                        {"id":"emp_1","firstName":"Ana","lastName":"Lopez","jobTitle":"Stylist","serviceIds":["svc_1"]}
+                        """, MediaType.APPLICATION_JSON));
+
+        List<StaffServicePort.EmployeePublicInfo> result = adapter.getPublicEmployees(tenantId);
+
+        assertThat(result)
+                .as("a 200 with an object where an array is expected (deploy skew) must degrade, not propagate as a 500")
+                .isEmpty();
+        assertThat(logAppender.list)
+                .as("a shape mismatch from a rolling deploy is treated as a transient degradation, so it must be WARN")
+                .anySatisfy(event -> assertThat(event.getLevel()).isEqualTo(Level.WARN));
+        assertThat(logAppender.list).noneMatch(event -> event.getLevel() == Level.ERROR);
+        assertThat(logAppender.list)
+                .anySatisfy(event -> assertThat(hasTargetTenantId(event, tenantId)).isTrue());
     }
 }
