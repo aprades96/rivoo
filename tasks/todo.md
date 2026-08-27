@@ -886,10 +886,11 @@ El bloque más grande; merece plan propio.
 - [x] **RP.30** `AuthServiceException` de staff-service: mismo defecto que RP.27
 - [x] **RP.32** SEGURIDAD: oraculo de enumeracion de salones en los endpoints anonimos de citas
 - [x] **RP.33** Rehacer `b62a2d7`: el javadoc corregido sigue mintiendo, y el `@Order` de 4 advices
-- [ ] **RP.34** Cuerpo `null` declarado no-degradado: contradice el contrato y deja vivo el bug
-- [ ] **RP.35** `BillingServiceException` sin handler → 500 determinista en el alta de negocio
-- [ ] **RP.36** Huecos de cobertura y nombre del flag (F1, F3, F4, F5 de la review de RP.29)
-- [ ] **RP.31** Consumir `degraded` en el frontend de la pagina de reserva
+- [x] **RP.34** Cuerpo `null` declarado no-degradado: contradice el contrato y deja vivo el bug
+- [x] **RP.35** `BillingServiceException` sin handler → 500 determinista en el alta de negocio
+- [x] **RP.36** Huecos de cobertura y nombre del flag (F1, F3, F4, F5 de la review de RP.29)
+- [ ] **RP.37** Paridad de logging para `BillingServiceException` (atError + stack trace)
+- [ ] **RP.31** Consumir `catalogueUnavailable` en el frontend de la pagina de reserva
 
 > **RP.29 — por que se hace.** El argumento decisivo no es la caida de staff-service, es que
 > **una lista vacia de servicios es tambien un estado legitimo y frecuente**: por la decision
@@ -914,7 +915,7 @@ El bloque más grande; merece plan propio.
 > Mismo patron que `39ee0dc`, un solo fichero.
 
 
-> **RP.31 — la otra mitad de RP.29.** El backend ya distingue "este salon no ha cargado su
+> **RP.31 — la otra mitad de RP.29.** (El campo se llama ya `catalogueUnavailable`, no `degraded`.) El backend ya distingue "este salon no ha cargado su
 > catalogo" de "no hemos podido hablar con staff-service": `SalonPublicResponse` lleva
 > `degraded`. Falta que la pagina lo use: hoy los dos casos pintan la misma pantalla vacia.
 > Compatibilidad verificada: el frontend **no** usa Zod ni validacion de esquema en runtime
@@ -1007,3 +1008,13 @@ El bloque más grande; merece plan propio.
 > 6. El revisor deja constancia de que NO hay que omitir el campo cuando es falso: "ausente"
 >    significaria a la vez "servidor viejo" y "no degradado" — el mismo colapso de dos significados
 >    que este commit existe para eliminar.
+
+
+> **RP.37, decision mia tras la review de RP.34-36.** `BillingServiceException` ya da 502 en vez de
+> 500, pero se quedo con el logging generico de `handleRivooException` (`atWarn`, **sin** causa),
+> mientras que `AuthServiceException` de salon-service si tiene handler dedicado con `atError` y
+> stack trace. Es la misma clase de fallo —dependencia externa caida durante el alta de negocio— y
+> `BillingServiceException` si lleva causa (se lanza desde `BillingServiceAdapter:41` envolviendo la
+> excepcion original). Perder el stack trace ahi deja el diagnostico de una caida de billing en una
+> linea de WARN sin causa: exactamente el hueco contra el que `fb90062` acaba de escribir un test
+> para el caso de auth. Darle paridad.
