@@ -181,6 +181,31 @@ class SalonServicePublicAggregateTest {
     }
 
     @Test
+    void getPublicBySlug_employeesCallFails_isDegradedButServicesStillArrive() {
+        // Mirror of getPublicBySlug_servicesCallFails_isDegradedButEmployeesStillArrive:
+        // `degraded = servicesResult.isEmpty() || employeesResult.isEmpty()` survived
+        // mutation testing on its employees term because no test failed only the
+        // employees call. This closes that gap.
+        Salon salon = activeSalon();
+        when(salonPublicSnapshotLoader.loadActiveSalon(SLUG)).thenReturn(new SalonPublicSnapshot(salon, List.of()));
+        when(staffServicePort.getPublicServices(TENANT_ID)).thenReturn(Optional.of(List.of(
+                new StaffServicePort.ServicePublicInfo("svc_1", "Haircut", "Basic haircut", 30,
+                        new BigDecimal("25.00"), "EUR")
+        )));
+        when(staffServicePort.getPublicEmployees(TENANT_ID)).thenReturn(Optional.empty());
+
+        SalonPublicResponse response = salonService.getPublicBySlug(SLUG);
+
+        assertThat(response.degraded())
+                .as("the employees call failed, the aggregate must be flagged as degraded")
+                .isTrue();
+        assertThat(response.employees()).isEmpty();
+        assertThat(response.services())
+                .as("a failure on the employees call must not empty out the services that DID load successfully")
+                .hasSize(1);
+    }
+
+    @Test
     void getPublicBySlug_bothStaffServiceCallsFail_isDegradedWithEmptyLists() {
         Salon salon = activeSalon();
         when(salonPublicSnapshotLoader.loadActiveSalon(SLUG)).thenReturn(new SalonPublicSnapshot(salon, List.of()));

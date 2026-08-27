@@ -398,4 +398,30 @@ class StaffServiceAdapterTest {
         assertThat(logAppender.list)
                 .anySatisfy(event -> assertThat(hasTargetTenantId(event, tenantId)).isTrue());
     }
+
+    @Test
+    void getPublicServices_returnsEmptyOptionalWhenStaffServiceRespondsWithObjectInsteadOfArray() {
+        // Mirrors getPublicEmployees_returnsEmptyOptionalWhenStaffServiceRespondsWithObjectInsteadOfArray:
+        // this is the only branch (catch (RestClientException e) in getPublicServices)
+        // that survived mutation testing with zero coverage. It is the rolling-deploy
+        // regression this catch block was added to fix, so it must be protected.
+        String tenantId = "sal_A";
+        server.expect(requestTo(STAFF_SERVICE_URL + "/api/internal/staff/sal_A/public/services"))
+                .andExpect(method(GET))
+                .andRespond(withSuccess("""
+                        {"id":"svc_1","name":"Haircut","description":"Basic haircut","durationMinutes":30,"price":25.00,"currency":"EUR"}
+                        """, MediaType.APPLICATION_JSON));
+
+        Optional<List<StaffServicePort.ServicePublicInfo>> result = adapter.getPublicServices(tenantId);
+
+        assertThat(result)
+                .as("a 200 with an object where an array is expected (deploy skew) must degrade, not propagate as a 500")
+                .isEmpty();
+        assertThat(logAppender.list)
+                .as("a shape mismatch from a rolling deploy is treated as a transient degradation, so it must be WARN")
+                .anySatisfy(event -> assertThat(event.getLevel()).isEqualTo(Level.WARN));
+        assertThat(logAppender.list).noneMatch(event -> event.getLevel() == Level.ERROR);
+        assertThat(logAppender.list)
+                .anySatisfy(event -> assertThat(hasTargetTenantId(event, tenantId)).isTrue());
+    }
 }

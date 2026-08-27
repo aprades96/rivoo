@@ -1,5 +1,9 @@
 package com.rivoo.staff.infrastructure.adapter.in.web;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.rivoo.common.web.GlobalExceptionHandler;
 import com.rivoo.staff.domain.exception.AuthServiceException;
 import com.rivoo.staff.domain.port.in.CreateEmployeeUseCase;
@@ -8,11 +12,14 @@ import com.rivoo.staff.domain.port.in.GetEmployeeUseCase;
 import com.rivoo.staff.domain.port.in.ManageEmployeeServicesUseCase;
 import com.rivoo.staff.domain.port.in.ManageEmployeeWorkingHoursUseCase;
 import com.rivoo.staff.domain.port.in.UpdateEmployeeUseCase;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -50,6 +57,7 @@ class StaffExceptionHandlerOrderTest {
 
     private GetEmployeeUseCase getEmployeeUseCase;
     private MockMvc mockMvc;
+    private ListAppender<ILoggingEvent> logAppender;
 
     @BeforeEach
     void setUp() {
@@ -65,6 +73,19 @@ class StaffExceptionHandlerOrderTest {
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler(), new StaffExceptionHandler())
                 .build();
+
+        logAppender = new ListAppender<>();
+        logAppender.start();
+        staffExceptionHandlerLogger().addAppender(logAppender);
+    }
+
+    @AfterEach
+    void tearDown() {
+        staffExceptionHandlerLogger().detachAppender(logAppender);
+    }
+
+    private static Logger staffExceptionHandlerLogger() {
+        return (Logger) LoggerFactory.getLogger(StaffExceptionHandler.class);
     }
 
     @Test
@@ -78,5 +99,33 @@ class StaffExceptionHandlerOrderTest {
                 .andExpect(jsonPath("$.detail").value("Failed to register employee in auth-service for tenant: sal_A"))
                 .andExpect(jsonPath("$.title").value("Auth Service Error"))
                 .andExpect(jsonPath("$.type").value("https://rivoo.com/errors/auth-service-error"));
+    }
+
+    @Test
+    void getById_authServiceUnreachable_logsThroughLocalHandlerWithStackTrace() throws Exception {
+        // Verifies the guarantee the @Order(0) javadoc on StaffExceptionHandler
+        // claims: with both advices registered, StaffExceptionHandler.handleAuthServiceError
+        // (atError + setCause, giving a stack trace) is the one that runs — not
+        // GlobalExceptionHandler.handleRivooException (atWarn, no setCause, message
+        // "Rivoo exception"), which would silently drop the stack trace on an
+        // auth-service outage.
+        when(getEmployeeUseCase.getByExternalId(eq("emp_1")))
+                .thenThrow(new AuthServiceException("Failed to register employee in auth-service for tenant: sal_A"));
+
+        mockMvc.perform(get("/api/v1/staff/employees/emp_1"))
+                .andExpect(status().isBadGateway());
+
+        assertThat(logAppender.list)
+                .as("the local handler's specific log line must be the one produced")
+                .anySatisfy(event -> {
+                    assertThat(event.getLevel()).isEqualTo(Level.ERROR);
+                    assertThat(event.getFormattedMessage()).isEqualTo("Auth service error");
+                    assertThat(event.getThrowableProxy())
+                            .as("atError().setCause(ex) must attach the exception, giving a stack trace")
+                            .isNotNull();
+                });
+        assertThat(logAppender.list)
+                .as("GlobalExceptionHandler.handleRivooException must NOT be the one that ran")
+                .noneMatch(event -> "Rivoo exception".equals(event.getFormattedMessage()));
     }
 }
