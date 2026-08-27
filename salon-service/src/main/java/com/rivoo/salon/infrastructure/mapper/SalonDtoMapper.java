@@ -18,5 +18,6 @@ public interface SalonDtoMapper {
 
     SalonPublicResponse toPublicResponse(Salon salon);
 
+    @Mapping(target = "isOpen", source = "open")
     BusinessHoursResponse toBusinessHoursResponse(SalonBusinessHours hours);
 }

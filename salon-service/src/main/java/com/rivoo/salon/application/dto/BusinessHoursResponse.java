@@ -4,7 +4,7 @@ import java.time.LocalTime;
 
 public record BusinessHoursResponse(
         int dayOfWeek,
-        boolean open,
+        boolean isOpen,
         LocalTime openTime,
         LocalTime closeTime,
         LocalTime breakStartTime,
