@@ -886,6 +886,9 @@ El bloque más grande; merece plan propio.
 - [x] **RP.30** `AuthServiceException` de staff-service: mismo defecto que RP.27
 - [ ] **RP.32** SEGURIDAD: oraculo de enumeracion de salones en los endpoints anonimos de citas
 - [ ] **RP.33** Rehacer `b62a2d7`: el javadoc corregido sigue mintiendo, y el `@Order` de 4 advices
+- [ ] **RP.34** Cuerpo `null` declarado no-degradado: contradice el contrato y deja vivo el bug
+- [ ] **RP.35** `BillingServiceException` sin handler → 500 determinista en el alta de negocio
+- [ ] **RP.36** Huecos de cobertura y nombre del flag (F1, F3, F4, F5 de la review de RP.29)
 - [ ] **RP.31** Consumir `degraded` en el frontend de la pagina de reserva
 
 > **RP.29 — por que se hace.** El argumento decisivo no es la caida de staff-service, es que
@@ -960,3 +963,47 @@ El bloque más grande; merece plan propio.
 > 5. `SalonExceptionHandler:36-74` — tres de los cuatro handlers producen ya un ProblemDetail
 >    identico al de `handleRivooException` (verificado). Solo el de `AuthServiceException` aporta
 >    el `atError`+stack trace. Envejecera mal: un cambio en un sitio los desincroniza sin test.
+
+
+> **RP.34, de la review de RP.29-30 (2026-08-27). HACER ANTES QUE RP.31.**
+> `StaffServiceAdapter:88-90` y `:132-134` hacen `if (employees == null) return Optional.of(List.of())`,
+> es decir declaran **no degradado** un cuerpo ausente. Pero el javadoc del propio puerto
+> (`StaffServicePort:15-16`) dice que `Optional.empty()` significa "network error, 5xx,
+> **unreadable body**". Un 200 sin cuerpo ES un cuerpo ilegible: codigo y contrato se contradicen.
+> Comprobado empiricamente por el revisor con `MockRestServiceServer`: `200` con cuerpo vacio,
+> `200` con JSON `null` y `204 No Content` dan los tres `PRESENT size=0`, o sea no degradado.
+> Efecto: un proxy que devuelva 200 vacio hace que la pagina diga "este salon no tiene servicios"
+> en vez de senalar el error — **el bug original, vivo por esa entrada**.
+> Hay que decidirlo y fijarlo con test: o `null` → `Optional.empty()` (coherente con el texto), o
+> se corrige el javadoc y se documenta la decision contraria. Hoy ningun test cubre el caso, asi
+> que los dos mutantes sobreviven.
+> **Antes de RP.31**: si el frontend va a elegir mensaje segun `degraded`, este agujero pinta la
+> pantalla equivocada.
+
+> **RP.35, de la misma review. PREEXISTENTE y peor que lo que arreglamos.**
+> `salon-service/.../domain/exception/BillingServiceException.java:3` extiende `RuntimeException`
+> pelado, se lanza en `BillingServiceAdapter:41` (alta de salon, ruta HTTP real) y **no tiene
+> `@ExceptionHandler` en ningun sitio** (verificado: cero resultados). Cae siempre en el catch-all
+> → **500 "An unexpected error occurred"** en vez de 502. A diferencia de los casos de RP.27/RP.30,
+> aqui no es una carrera entre advices: es determinista.
+
+> **RP.36, menores de la misma review.**
+> 1. (F1) `StaffServiceAdapter:129` — la rama `RestClientException` de `getPublicServices` es el
+>    **unico mutante que sobrevivio** de los 12: no tiene ningun test. `getPublicEmployees` tiene
+>    tres para esa misma rama. Y es justo la rama que se anadio para reparar la regresion de RP.24.
+> 2. (F3) `SalonService:98` — no hay test para "falla solo employees" (si lo hay para services).
+>    El mutante que elimina ese termino del OR sobrevive.
+> 3. (F4) `degraded` no tiene test de serializacion JSON, habiendo precedente en el repo
+>    (`BusinessHoursResponseJsonTest`, creado tras el incidente de `isOpen`, para esta misma clase
+>    de fallo silencioso).
+> 4. (F5) El comentario del `@Order(0)` de `StaffExceptionHandler` justifica la correa diciendo que
+>    garantiza que gane su logging (`atError` + stack trace). Al quitarlo todo sigue verde mientras
+>    el diagnostico se degrada en silencio a `handleRivooException`, que loguea `atWarn` **sin**
+>    `setCause`. La garantia esta declarada, no verificada.
+> 5. **Nombre del flag.** `degraded` dice "algo va mal" pero no que solo afecta al catalogo de staff
+>    (horarios y datos del salon siguen siendo fiables). `catalogueUnavailable` o
+>    `staffCatalogueDegraded` se explican solos. La ventana barata se cierra en cuanto RP.31 lo
+>    consuma. **Decision mia: renombrar ahora.**
+> 6. El revisor deja constancia de que NO hay que omitir el campo cuando es falso: "ausente"
+>    significaria a la vez "servidor viejo" y "no degradado" — el mismo colapso de dos significados
+>    que este commit existe para eliminar.
