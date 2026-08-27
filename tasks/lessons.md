@@ -358,3 +358,31 @@ classpath tenga ambos.
 hay que contrastarlo con el jar de la version resuelta, no con la memoria de Boot 3. Ya ha causado
 dos defectos aqui: un test de regresion escrito contra el `ObjectMapper` equivocado, y un javadoc
 que citaba una anotacion inexistente.
+
+### Un test que mockea POR ENCIMA de la capa arreglada no prueba nada del arreglo (2026-08-27)
+
+**Patron del error:** al cerrar el oraculo de enumeracion de salones se escribio
+`AppointmentPublicEndpointsEnumerationTest`, cuyo nombre afirma la propiedad de seguridad
+("unknownSlugAndSuspendedSalon_produceIdenticalResponseBodies"). Sus dos escenarios stubean **el
+mismo mock** (`checkAvailabilityUseCase`) con **la misma** `new SalonNotFoundException(slug)`, y
+el comentario dice "same slug, different underlying cause" cuando no hay ninguna causa distinta:
+es el mismo `throw`. Compara una respuesta consigo misma.
+
+El mock esta a nivel de **caso de uso**, o sea por encima de todo lo que el arreglo toco (el
+manejo del 404 en `SalonServiceAdapter` y la comprobacion de estado en los dos servicios), asi
+que los puentea. Prueba dura del revisor: **revirtiendo el arreglo al 100%, ese test pasa 2/2**
+mientras fallan otros cinco. Lo mismo en `SalonExceptionHandlerOrderTest:114-145`.
+
+**Regla:** antes de dar por cubierta una propiedad, localizar **en que capa vive el codigo que la
+implementa** y comprobar que el mock esta POR DEBAJO de esa capa. Si el arreglo esta en un
+adaptador REST, el doble tiene que ser el borde HTTP (`MockRestServiceServer`), no el puerto que
+lo envuelve. Un test cuyo mock esta por encima del arreglo solo prueba el cableado que ya
+funcionaba.
+
+**Como detectarlo barato:** revertir el arreglo y ejecutar el test. Si sigue verde, no cubre el
+arreglo, por muy convincente que sea su nombre. Es la misma mutacion que ya aplicamos al codigo;
+hay que aplicarsela tambien a los tests que afirman propiedades de seguridad.
+
+**Y el nombre agrava el dano:** un test llamado como la propiedad hace que el siguiente lector la
+de por cubierta sin mirar. Si el test no la ejercita, o se arregla o se renombra a lo que de
+verdad comprueba — nunca se deja el nombre optimista.
