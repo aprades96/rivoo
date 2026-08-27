@@ -578,21 +578,73 @@
 
 ---
 
-## Reserva pública — en ejecución (plan: `docs/specs/reserva-publica/IMPLEMENTATION_PLAN.md`)
+## Hoja de ruta — frontend + backend (repriorizada 2026-08-27)
 
-> La fase 9 estaba marcada OK y no lo está: servicios, empleados y disponibilidad
-> no tienen endpoint público, y `SalonPublicResponse` no devuelve ni horarios ni
-> servicios ni empleados. El paso 1 del flujo siempre sale vacío.
+Orden por gravedad: primero lo que está **roto en producción**, luego lo que muestra
+**datos equivocados**, y al final lo cosmético. Cada bloque no trivial lleva su plan
+en `docs/specs/<slug>/IMPLEMENTATION_PLAN.md`; los artboards de `rivoo-frontend/design/`
+son la especificación visual.
 
-- [ ] **RP.1** DTOs públicos de staff (sin email ni teléfono)
-- [ ] **RP.2** Listado de empleados por tenant con filtro explícito por columna
-- [ ] **RP.3** Listado de servicios por tenant
+### 1. Reserva pública — EN CURSO · plan: `docs/specs/reserva-publica/`
+
+Roto en producción: no hay endpoint público de servicios, empleados ni disponibilidad,
+así que el paso 1 sale siempre vacío.
+
+- [x] **RP.1** DTOs públicos de staff (sin email ni teléfono)
+- [x] **RP.2** Listado de empleados por tenant con filtro explícito por columna
+- [x] **RP.3** Listado de servicios por tenant
 - [ ] **RP.4** Endpoints internos de listado en StaffInternalController
-- [ ] **RP.5** StaffServicePort + StaffServiceAdapter en salon-service (header X-Tenant-Id explícito)
-- [ ] **RP.6** Agregado público del salón (horarios + servicios + empleados, y rechazo de salón no ACTIVE)
-- [ ] **RP.7** Endpoint público de disponibilidad por slug
+- [ ] **RP.5** StaffServicePort + StaffServiceAdapter (header X-Tenant-Id explícito)
+- [ ] **RP.6** Agregado público del salón + rechazo de salón no ACTIVE
+- [x] **RP.7** Endpoint público de disponibilidad por slug
 - [ ] **RP.8** Regla del gateway para /api/v1/appointments/public/**
-- [ ] **RP.9** Tipos y cliente API del frontend
-- [ ] **RP.10** Store de 6 pasos
-- [ ] **RP.11** Paso Profesional y cableado del flujo
+- [x] **RP.9** Tipos y cliente API del frontend
+- [x] **RP.10** Store de 6 pasos
+- [x] **RP.11** Paso Profesional y cableado del flujo
 - [ ] **RP.12** Tests de aislamiento cross-tenant
+- [ ] **RP.13** Que el store acepte ServicePublic (hoy el componente rellena category/isActive a mano)
+- [ ] **RP.14** Filtrar los null de serviceIds (asignación huérfana → EmployeeServicePersistenceAdapter:45)
+
+### 2. Onboarding reanudable — PENDIENTE · opción B decidida
+
+También roto en producción, para usuarios nuevos: `onboarding-gate.tsx:41` deduce el
+estado contando empleados y servicios, y si faltan te manda a `/welcome`. Como los pasos
+3 y 4 tienen "Omitir", **quien omite entra en bucle y no llega nunca a la app**.
+Además guarda en cada paso pero reempieza en el 1: la única combinación sin defensa.
+
+No sirve mirar `status` (la saga deja el salón ACTIVE ya en el registro) ni "¿tiene
+horarios?" (la saga crea horarios por defecto en el paso 4 del registro).
+
+- [ ] **ON.1** Campo `onboarding_completed_at` en salón + migración Flyway
+- [ ] **ON.2** Endpoint para marcarlo, y exponerlo en SalonResponse
+- [ ] **ON.3** El gate mira solo ese flag; fuera la lógica de contar empleados/servicios
+- [ ] **ON.4** "Ir al dashboard" y "Omitir" marcan el flag
+- [ ] **ON.5** El paso de horarios precarga los que ya existen
+- [ ] **ON.6** Estados vacíos: "Hoy" sin servicios, y página pública "aún no acepta reservas"
+- [ ] **ON.7** Decidir qué se hace con `salon-setup` (huérfana, se numera como paso 2)
+- [ ] **ON.8** Pantallas ya dibujadas: página "Alta de negocio" del canvas (12 artboards)
+
+### 3. Detalle de cita — PENDIENTE
+
+`appointments/[id]` es un placeholder de 10 líneas: pinchar una cita no lleva a nada.
+Dibujado en móvil (hoja inferior) y escritorio (panel lateral sobre el calendario).
+
+### 4. Pantalla "Hoy" — PENDIENTE
+
+Muestra **una** próxima cita para un salón con N empleados. Sustituir por el bloque
+"Ahora mismo" con una fila por empleado.
+
+### 5. Navegación — PENDIENTE
+
+Clientes fuera del bottom-nav y dentro de "Más"; quitar Empleados/Servicios duplicados
+de Ajustes.
+
+### 6. Shell de escritorio — PENDIENTE
+
+Hoy `(app)/layout.tsx` es solo una columna centrada. Sidebar 248px + topbar 72px.
+El bloque más grande; merece plan propio.
+
+### Deuda técnica suelta
+
+- [ ] Renombrar `middleware.ts` → `proxy.ts` (deprecado en Next 16.2)
+- [ ] `/clients` es una pantalla huérfana: nadie enlaza a ella
