@@ -486,68 +486,113 @@
 ## Fase 13: Frontend — React + Next.js (Post-backend)
 
 > Repositorio separado: `rivoo-frontend`. NO es un módulo Maven.
+>
+> **Estado real (revisado 2026-08-27, verificado contra el código; último commit del repo frontend: `70ca8d5`, 2026-03-23).**
+> Stack final implementado: **Next.js 16 (App Router) + TypeScript + Tailwind v4 + Shadcn/UI + React Query + Zustand + NextAuth v5 (provider Keycloak) + Vitest**.
+> Diseño **mobile-first**: navegación por bottom-nav + FAB, no sidebar de escritorio.
 
 ### 13A — Setup + Auth
-- [ ] **13A.1** Crear proyecto Next.js (App Router, TypeScript, Tailwind CSS, Shadcn/UI)
-- [ ] **13A.2** Integración Keycloak OIDC (PKCE flow con client `salon-frontend`)
-- [ ] **13A.3** Auth context: login, logout, refresh token, protección de rutas
-- [ ] **13A.4** Layout base: sidebar, header con usuario, tenant context
+- [x] **13A.1** Crear proyecto Next.js (App Router, TypeScript, Tailwind CSS, Shadcn/UI) — commit `f689764`
+- [x] **13A.2** Integración Keycloak OIDC (PKCE flow con client `salon-frontend`) — commit `c422ead`
+- [x] **13A.3** Auth context: login, logout, refresh token, protección de rutas — `src/auth.ts` (refresco automático 60s antes de expirar) + `src/middleware.ts` (rutas públicas: `/login`, `/register`, `/book`, `/api/auth`)
+- [x] **13A.4** Layout base: header con usuario, tenant context — `src/components/layout/` (`app-header`, `bottom-nav`, `fab-button`, `onboarding-gate`). **Desviación**: bottom-nav móvil en lugar de sidebar
 
 ### 13B — Dashboard del salón
-- [ ] **13B.1** Página "Mi Salón" (GET/PUT /api/v1/salons/me)
-- [ ] **13B.2** Horarios del salón (GET/PUT business hours)
-- [ ] **13B.3** Página pública del salón (SSR/SSG con slug)
+- [x] **13B.1** Página "Mi Salón" (GET/PUT /api/v1/salons/me) — `/(app)/settings/salon`
+- [x] **13B.2** Horarios del salón (GET/PUT business hours) — `/(app)/settings/business-hours`
+- [x] **13B.3** Página pública del salón con slug — `/book/[slug]` consume `GET /api/v1/salons/public/{slug}`. **Desviación**: es CSR (`"use client"`), no SSR/SSG → pendiente si se quiere SEO
 
 ### 13C — Staff + Servicios
-- [ ] **13C.1** CRUD empleados (tabla + formularios)
-- [ ] **13C.2** Horarios de empleados
-- [ ] **13C.3** CRUD catálogo de servicios
-- [ ] **13C.4** Asignación servicios ↔ empleados
+- [x] **13C.1** CRUD empleados (tabla + formularios) — `/(app)/staff` + `employee-card`, `employee-form`
+- [x] **13C.2** Horarios de empleados — `components/staff/working-hours-editor.tsx`
+- [x] **13C.3** CRUD catálogo de servicios — tab Servicios (commit `c8f46c9`)
+- [x] **13C.4** Asignación servicios ↔ empleados — `components/staff/service-assignment.tsx`
 
 ### 13D — Clientes
-- [ ] **13D.1** CRUD clientes (tabla paginada + búsqueda)
-- [ ] **13D.2** Detalle cliente (historial de visitas, notas)
-- [ ] **13D.3** Acciones GDPR (anonimizar, exportar datos)
+- [x] **13D.1** CRUD clientes (tabla paginada + búsqueda) — `/(app)/clients`
+- [x] **13D.2** Detalle cliente (historial de visitas, notas) — `/(app)/clients/[id]`
+- [x] **13D.3** Acciones GDPR (anonimizar, exportar datos) — commit `8c9fa6b`
 
 ### 13E — Citas (core UI)
-- [ ] **13E.1** Vista calendario (día/semana) con FullCalendar
-- [ ] **13E.2** Crear cita (seleccionar empleado → servicio → slot → cliente)
-- [ ] **13E.3** Gestión de estados (confirmar, completar, cancelar, no-show)
-- [ ] **13E.4** Vista de disponibilidad
+- [x] **13E.1** Vista calendario **día** — `/(app)/calendar` con `time-grid`, `appointment-block`, `date-navigator`, `employee-filter`. **Desviación**: implementación propia, NO FullCalendar
+- [ ] **13E.1b** Vista calendario **semana** — no implementada
+- [x] **13E.2** Crear cita (empleado → servicio → slot → cliente) — wizard de 5 pasos en `/(app)/appointments/new`
+- [x] **13E.3** Gestión de estados (confirmar, completar, cancelar con motivo, no-show) — `appointment-detail-sheet` con updates optimistas
+- [x] **13E.4** Vista de disponibilidad — `GET /api/v1/appointments/availability` consumido en el wizard y en booking público
+- [x] **13E.5** Vista "Hoy" (fuera del plan original) — `/(app)/today`, commit `c942f2b`
+- [ ] **13E.6** Página de detalle de cita `/(app)/appointments/[id]` — **placeholder de 10 líneas ("En desarrollo")**, commit `62df0e5`
 
 ### 13F — Booking público
-- [ ] **13F.1** Página pública de reserva (`/salon/{slug}/book`)
-- [ ] **13F.2** Flujo: elegir servicio → empleado → fecha/hora → datos personales → confirmar
-- [ ] **13F.3** Sin autenticación, rate limiting, honeypot
+- [x] **13F.1** Página pública de reserva — **desviación de ruta**: `/book/{slug}`, no `/salon/{slug}/book`
+- [x] **13F.2** Flujo: servicio → fecha/hora → datos personales → confirmar → éxito (5 componentes en `components/booking/`)
+- [x] **13F.3** Sin autenticación, honeypot + consentimiento GDPR — commit `5757a7c` (rate limiting lo aplica el gateway: 10 req/min)
 
 ### 13G — Billing + Admin
-- [ ] **13G.1** Página de suscripción actual + upgrade (Stripe Checkout redirect)
-- [ ] **13G.2** Panel admin (solo PLATFORM_ADMIN): listado salones, stats, suspend/activate
+- [x] **13G.1** Página de suscripción actual + upgrade — `/(app)/settings/billing`, redirige a `checkoutUrl`. **Ojo**: el backend Stripe sigue siendo stub (ver 7.13)
+- [ ] **13G.2** Panel admin (solo PLATFORM_ADMIN): listado salones, stats, suspend/activate — **NO EXISTE en el frontend**. El backend `admin-service` (:8088) sí está listo y validado E2E (Fase 9B)
+
+### 13H — Fuera del plan original (implementado)
+- [x] **13H.1** Flujo de registro de salón — `/(auth)/register`, commit `70ca8d5`
+- [x] **13H.2** Wizard de onboarding de 6 pasos — `/(onboarding)/{welcome,salon-setup,business-hours,add-employee,add-service,complete}` + `onboarding-gate`, commit `2ccb5ab`
+- [x] **13H.3** Settings completos: perfil salón, horarios, billing, booking, cuenta — commit `596a3cf`
+- [x] **13H.4** Tests con Vitest — 14 ficheros de test (`npm run test`)
+- [x] **13H.5** `DEV.md` con instrucciones de arranque local y usuarios de test — commit `c791948`
+
+### 🐞 Deuda técnica detectada en el frontend
+- [ ] **13X.1** `(onboarding)/salon-setup/page.tsx:34` — TODO explícito: el onboarding post-login usa el endpoint de *register* en vez de `PUT /api/v1/salons/me`
+- [ ] **13X.2** `(app)/settings/booking/page.tsx:31` — comentario "This is a placeholder; the actual API may differ": integración sin confirmar contra el backend
+- [ ] **13X.3** `(auth)/layout.tsx:20` — texto "placeholder" visible en el layout de auth
+- [ ] **13X.4** `README.md` del frontend sigue siendo el de `create-next-app` (la doc útil está en `DEV.md`)
 
 ### ✅ Verificación Fase 13
-- [ ] Login/logout Keycloak funcional (PKCE)
-- [ ] CRUD completo de salon/staff/clients/services via UI
-- [ ] Calendario de citas funcional
-- [ ] Booking público E2E sin autenticación
-- [ ] Responsive (mobile-first para el dueño del salón)
+- [x] Login/logout Keycloak funcional (PKCE + refresh automático)
+- [x] CRUD completo de salon/staff/clients/services via UI
+- [x] Calendario de citas funcional (vista día)
+- [ ] Booking público E2E sin autenticación → **ROTO**: no hay endpoint público de servicios, empleados ni disponibilidad. Ver `docs/specs/reserva-publica/`
+- [x] Responsive (mobile-first para el dueño del salón)
+- [ ] Panel admin PLATFORM_ADMIN (13G.2)
 
 ---
 
 ## Resumen de Fases
 
-| Fase | Foco | Semana |
-|------|------|--------|
-| 0 | Prerequisitos (Java, Maven, MySQL, Keycloak, Git) | Pre |
-| 1 | Esqueleto Maven + rivoo-common + MySQL + Keycloak | 1 |
-| 2 | auth-service (Keycloak Admin API wrapper) | 2 |
-| 3 | salon-service + multi-tenant + gateway básico | 3 |
-| 4 | staff-service + client-service (+ GDPR) | 4 |
-| 5 | appointment-service (core del producto) | 5 |
-| 6 | Gateway completo + integración E2E | 6-7 |
-| 7 | billing-service + Stripe | 8 |
-| 8 | notification-service + crons | 9 |
-| 9 | Booking público + admin-service | 10 |
-| 10 | Seguridad + hardening | 11 |
-| 11 | Testing final | 12 |
-| 12 | Preparación deploy + documentación | 13 |
-| **13** | **Frontend — React + Next.js (repo separado)** | **Post-backend** |
+> Estado revisado 2026-08-27. Fases 1-12 (backend) cerradas y validadas E2E. Fase 13 (frontend) al ~90%.
+
+| Fase | Foco | Semana | Estado |
+|------|------|--------|--------|
+| 0 | Prerequisitos (Java, Maven, MySQL, Keycloak, Git) | Pre | OK |
+| 1 | Esqueleto Maven + rivoo-common + MySQL + Keycloak | 1 | OK |
+| 2 | auth-service (Keycloak Admin API wrapper) | 2 | OK |
+| 3 | salon-service + multi-tenant + gateway básico | 3 | OK |
+| 4 | staff-service + client-service (+ GDPR) | 4 | OK |
+| 5 | appointment-service (core del producto) | 5 | OK |
+| 6 | Gateway completo + integración E2E | 6-7 | OK |
+| 7 | billing-service + Stripe | 8 | OK (Stripe stub) |
+| 8 | notification-service + crons | 9 | OK |
+| 9 | Booking público + admin-service | 10 | ROTO — ver docs/specs/reserva-publica |
+| 10 | Seguridad + hardening | 11 | OK |
+| 11 | Testing final | 12 | OK |
+| 12 | Preparación deploy + documentación | 13 | OK |
+| **13** | **Frontend — React + Next.js (repo separado)** | **Post-backend** | ~90% (falta panel admin) |
+
+
+---
+
+## Reserva pública — en ejecución (plan: `docs/specs/reserva-publica/IMPLEMENTATION_PLAN.md`)
+
+> La fase 9 estaba marcada OK y no lo está: servicios, empleados y disponibilidad
+> no tienen endpoint público, y `SalonPublicResponse` no devuelve ni horarios ni
+> servicios ni empleados. El paso 1 del flujo siempre sale vacío.
+
+- [ ] **RP.1** DTOs públicos de staff (sin email ni teléfono)
+- [ ] **RP.2** Listado de empleados por tenant con filtro explícito por columna
+- [ ] **RP.3** Listado de servicios por tenant
+- [ ] **RP.4** Endpoints internos de listado en StaffInternalController
+- [ ] **RP.5** StaffServicePort + StaffServiceAdapter en salon-service (header X-Tenant-Id explícito)
+- [ ] **RP.6** Agregado público del salón (horarios + servicios + empleados, y rechazo de salón no ACTIVE)
+- [ ] **RP.7** Endpoint público de disponibilidad por slug
+- [ ] **RP.8** Regla del gateway para /api/v1/appointments/public/**
+- [ ] **RP.9** Tipos y cliente API del frontend
+- [ ] **RP.10** Store de 6 pasos
+- [ ] **RP.11** Paso Profesional y cableado del flujo
+- [ ] **RP.12** Tests de aislamiento cross-tenant
