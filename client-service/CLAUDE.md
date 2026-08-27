@@ -65,14 +65,20 @@ Endpoint `GET /api/v1/clients/{id}/export` returns JSON with:
 
 ---
 
-## Plan Limits Validation
+## Plan Limits Validation — NOT IMPLEMENTED
 
-Before adding a client, check billing-service:
+client-service does **not** call billing-service today. Its only outbound REST adapter is
+`AppointmentServiceAdapter`; a grep for billing/plan-limits/subscription across
+`client-service/src` returns nothing. Planned shape, if it is ever built:
 
 ```
-GET /api/internal/tenants/{tenantId}/plan-limits
+GET /api/internal/billing/tenants/{tenantId}/plan-limits
 → No specific client limit in current plan structure, but validate subscription is active
 ```
+
+> Note the base path: `/api/internal/billing` (`BillingInternalController:26`), not
+> `/api/internal`. This section previously documented the call as if it existed, which is
+> how `billing-service/CLAUDE.md` came to list client-service among the plan-limits callers.
 
 ---
 

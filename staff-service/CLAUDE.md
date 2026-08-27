@@ -67,7 +67,7 @@ PK: `(employee_id, service_id)`
 Before adding an employee, staff-service calls billing-service to check:
 
 ```
-GET /api/internal/tenants/{tenantId}/plan-limits
+GET /api/internal/billing/tenants/{tenantId}/plan-limits
 → Check maxEmployees against current count
 → MUST bypass cache (forWriteOperation=true)
 ```
