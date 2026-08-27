@@ -1,6 +1,7 @@
 package com.rivoo.salon.infrastructure.adapter.in.web;
 
 import com.rivoo.salon.domain.exception.AuthServiceException;
+import com.rivoo.salon.domain.exception.BillingServiceException;
 import com.rivoo.salon.domain.exception.EmailAlreadyInUseException;
 import com.rivoo.salon.domain.exception.SalonNotFoundException;
 import com.rivoo.salon.domain.exception.SlugAlreadyExistsException;
@@ -15,7 +16,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.net.URI;
 import java.time.Instant;
 
-// Redundant since the four exceptions below now extend RivooException:
+// Redundant since the five exceptions below now extend RivooException:
 // GlobalExceptionHandler.handleRivooException(RivooException) matches them
 // at depth 1 regardless of which advice bean Spring visits first, so the
 // old failure mode (falling through to the generic
@@ -59,6 +60,21 @@ public class SalonExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY, ex.getMessage());
         problem.setType(URI.create("https://rivoo.com/errors/auth-service-error"));
         problem.setTitle("Auth Service Error");
+        enrichProblemDetail(problem);
+        return problem;
+    }
+
+    @ExceptionHandler(BillingServiceException.class)
+    public ProblemDetail handleBillingServiceError(BillingServiceException ex) {
+        // Same class of failure as AuthServiceException above (an external dependency down
+        // during salon onboarding) and it DOES carry a cause (see BillingServiceAdapter,
+        // which wraps the original exception) — GlobalExceptionHandler.handleRivooException's
+        // generic atWarn (no setCause) would silently drop that stack trace, leaving a
+        // billing-service outage diagnosable only from a one-line WARN with no cause chain.
+        log.atError().setCause(ex).log("Billing service error");
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY, ex.getMessage());
+        problem.setType(URI.create("https://rivoo.com/errors/billing-service-error"));
+        problem.setTitle("Billing Service Error");
         enrichProblemDetail(problem);
         return problem;
     }
