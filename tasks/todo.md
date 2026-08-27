@@ -889,7 +889,8 @@ El bloque más grande; merece plan propio.
 - [x] **RP.34** Cuerpo `null` declarado no-degradado: contradice el contrato y deja vivo el bug
 - [x] **RP.35** `BillingServiceException` sin handler → 500 determinista en el alta de negocio
 - [x] **RP.36** Huecos de cobertura y nombre del flag (F1, F3, F4, F5 de la review de RP.29)
-- [ ] **RP.37** Paridad de logging para `BillingServiceException` (atError + stack trace)
+- [x] **RP.37** Paridad de logging para `BillingServiceException` (atError + stack trace)
+- [x] **RP.38** Tests anti-enumeracion que ejercitan la propiedad de verdad
 - [ ] **RP.31** Consumir `catalogueUnavailable` en el frontend de la pagina de reserva
 
 > **RP.29 — por que se hace.** El argumento decisivo no es la caida de staff-service, es que
@@ -1020,7 +1021,7 @@ El bloque más grande; merece plan propio.
 > para el caso de auth. Darle paridad.
 
 
-- [ ] **RP.39** Desdoblar el flag: `servicesUnavailable` / `employeesUnavailable`
+- [x] **RP.39** Desdoblar el flag: `servicesUnavailable` / `employeesUnavailable`
 - [ ] **RP.40** `BillingServiceAdapter` convierte 4xx de negocio en 502
 - [ ] **RP.41** DECISION: el `detail` de las excepciones de dependencia filtra topologia interna
 
