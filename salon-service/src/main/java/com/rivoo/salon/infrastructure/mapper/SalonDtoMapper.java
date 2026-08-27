@@ -24,7 +24,8 @@ public interface SalonDtoMapper {
     SalonPublicResponse toPublicResponse(Salon salon, List<BusinessHoursResponse> businessHours,
                                           List<ServicePublicResponse> services,
                                           List<EmployeePublicResponse> employees,
-                                          boolean catalogueUnavailable);
+                                          boolean servicesUnavailable,
+                                          boolean employeesUnavailable);
 
     @Mapping(target = "isOpen", source = "open")
     BusinessHoursResponse toBusinessHoursResponse(SalonBusinessHours hours);

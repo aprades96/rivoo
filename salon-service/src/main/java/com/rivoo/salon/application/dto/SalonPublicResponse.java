@@ -15,16 +15,19 @@ public record SalonPublicResponse(
         List<BusinessHoursResponse> businessHours,
         List<ServicePublicResponse> services,
         List<EmployeePublicResponse> employees,
-        // True if either the services or the employees catalogue could not be loaded
-        // from staff-service (network error, 5xx, unreadable body...), so the empty/
-        // partial lists above are NOT a reliable signal of "this salon has no
-        // services/employees" — the frontend should show a transient-error state
-        // instead of an empty-catalogue one. Scoped to the catalogue only: the salon
-        // profile, business hours and address fields above are unaffected and always
-        // reliable, regardless of this flag (named accordingly, instead of a bare
-        // "degraded" that could be misread as covering the whole response). Additive
-        // field: absent in older clients parsing this response, so it does not break
-        // rivoo-frontend/src/types/salon.ts, which does not declare it yet.
-        boolean catalogueUnavailable
+        // True if the services list above could not be loaded from staff-service
+        // (network error, 5xx, unreadable body...), so an empty `services` list is
+        // NOT a reliable signal of "this salon has no services" — the frontend's
+        // public-service-step should show a transient-error state instead of an
+        // empty-catalogue one. Derived ONLY from the services call: independent of
+        // employeesUnavailable below, because the two staff-service calls
+        // (services, employees) fail independently and each backs a separate
+        // reservation step (public-service-step / public-employee-step). Additive
+        // field: absent in older clients parsing this response, so it does not
+        // break rivoo-frontend/src/types/salon.ts, which does not declare it yet.
+        boolean servicesUnavailable,
+        // Mirror of servicesUnavailable, for the employees list and the
+        // public-employee-step. Derived ONLY from the employees call.
+        boolean employeesUnavailable
 ) {
 }

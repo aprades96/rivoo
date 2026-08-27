@@ -91,8 +91,11 @@ class SalonServicePublicAggregateTest {
 
         assertThat(response.name()).isEqualTo("Demo Salon");
         assertThat(response.slug()).isEqualTo(SLUG);
-        assertThat(response.catalogueUnavailable())
-                .as("both staff-service calls succeeded, the catalogue must not be reported as unavailable")
+        assertThat(response.servicesUnavailable())
+                .as("the services call succeeded, it must not be reported as unavailable")
+                .isFalse();
+        assertThat(response.employeesUnavailable())
+                .as("the employees call succeeded, it must not be reported as unavailable")
                 .isFalse();
 
         assertThat(response.businessHours()).hasSize(1);
@@ -140,11 +143,11 @@ class SalonServicePublicAggregateTest {
     // ── legitimately empty catalogue vs. staff-service failure ────────────
 
     @Test
-    void getPublicBySlug_staffServiceRespondsWithEmptyLists_catalogueIsNotUnavailable() {
+    void getPublicBySlug_staffServiceRespondsWithEmptyLists_neitherFlagIsUnavailable() {
         // A salon that skipped the optional employees/services onboarding step: both
         // calls succeed (Optional.of(...)) and simply carry empty lists. This is the
         // test that gives the task its purpose: it must be indistinguishable from a
-        // real failure only in the list contents, never in the `catalogueUnavailable` flag.
+        // real failure only in the list contents, never in either "unavailable" flag.
         Salon salon = activeSalon();
         when(salonPublicSnapshotLoader.loadActiveSalon(SLUG)).thenReturn(new SalonPublicSnapshot(salon, List.of()));
         when(staffServicePort.getPublicServices(TENANT_ID)).thenReturn(Optional.of(List.of()));
@@ -155,13 +158,16 @@ class SalonServicePublicAggregateTest {
         assertThat(response.services()).isEmpty();
         assertThat(response.employees()).isEmpty();
         assertThat(response.businessHours()).isEmpty();
-        assertThat(response.catalogueUnavailable())
-                .as("empty catalogue by onboarding choice is a legitimate state, not a staff-service failure")
+        assertThat(response.servicesUnavailable())
+                .as("empty services by onboarding choice is a legitimate state, not a staff-service failure")
+                .isFalse();
+        assertThat(response.employeesUnavailable())
+                .as("empty employees by onboarding choice is a legitimate state, not a staff-service failure")
                 .isFalse();
     }
 
     @Test
-    void getPublicBySlug_servicesCallFails_catalogueUnavailableButEmployeesStillArrive() {
+    void getPublicBySlug_servicesCallFails_onlyServicesUnavailableAndEmployeesStillArrive() {
         Salon salon = activeSalon();
         when(salonPublicSnapshotLoader.loadActiveSalon(SLUG)).thenReturn(new SalonPublicSnapshot(salon, List.of()));
         when(staffServicePort.getPublicServices(TENANT_ID)).thenReturn(Optional.empty());
@@ -171,9 +177,12 @@ class SalonServicePublicAggregateTest {
 
         SalonPublicResponse response = salonService.getPublicBySlug(SLUG);
 
-        assertThat(response.catalogueUnavailable())
-                .as("the services call failed, the catalogue must be flagged as unavailable")
+        assertThat(response.servicesUnavailable())
+                .as("the services call failed, it must be flagged as unavailable")
                 .isTrue();
+        assertThat(response.employeesUnavailable())
+                .as("the employees call succeeded on its own, it must stay available")
+                .isFalse();
         assertThat(response.services()).isEmpty();
         assertThat(response.employees())
                 .as("a failure on the services call must not empty out the employees that DID load successfully")
@@ -181,11 +190,13 @@ class SalonServicePublicAggregateTest {
     }
 
     @Test
-    void getPublicBySlug_employeesCallFails_catalogueUnavailableButServicesStillArrive() {
-        // Mirror of getPublicBySlug_servicesCallFails_catalogueUnavailableButEmployeesStillArrive:
-        // `catalogueUnavailable = servicesResult.isEmpty() || employeesResult.isEmpty()`
-        // survived mutation testing on its employees term because no test failed only
-        // the employees call. This closes that gap.
+    void getPublicBySlug_employeesCallFails_onlyEmployeesUnavailableAndServicesStillArriveWithRealData() {
+        // Mirror of getPublicBySlug_servicesCallFails_onlyServicesUnavailableAndEmployeesStillArrive.
+        // This is the partial-failure case the whole split exists for: before the
+        // split, `catalogueUnavailable = servicesResult.isEmpty() || employeesResult.isEmpty()`
+        // would report `true` here even though `services` below carries real,
+        // non-empty data — a partial failure reported as if the whole catalogue
+        // were gone.
         Salon salon = activeSalon();
         when(salonPublicSnapshotLoader.loadActiveSalon(SLUG)).thenReturn(new SalonPublicSnapshot(salon, List.of()));
         when(staffServicePort.getPublicServices(TENANT_ID)).thenReturn(Optional.of(List.of(
@@ -196,17 +207,22 @@ class SalonServicePublicAggregateTest {
 
         SalonPublicResponse response = salonService.getPublicBySlug(SLUG);
 
-        assertThat(response.catalogueUnavailable())
-                .as("the employees call failed, the catalogue must be flagged as unavailable")
+        assertThat(response.employeesUnavailable())
+                .as("the employees call failed, it must be flagged as unavailable")
                 .isTrue();
+        assertThat(response.servicesUnavailable())
+                .as("the services call succeeded on its own, it must stay available")
+                .isFalse();
         assertThat(response.employees()).isEmpty();
         assertThat(response.services())
                 .as("a failure on the employees call must not empty out the services that DID load successfully")
                 .hasSize(1);
+        assertThat(response.services().get(0).id()).isEqualTo("svc_1");
+        assertThat(response.services().get(0).name()).isEqualTo("Haircut");
     }
 
     @Test
-    void getPublicBySlug_bothStaffServiceCallsFail_catalogueUnavailableWithEmptyLists() {
+    void getPublicBySlug_bothStaffServiceCallsFail_bothFlagsUnavailableWithEmptyLists() {
         Salon salon = activeSalon();
         when(salonPublicSnapshotLoader.loadActiveSalon(SLUG)).thenReturn(new SalonPublicSnapshot(salon, List.of()));
         when(staffServicePort.getPublicServices(TENANT_ID)).thenReturn(Optional.empty());
@@ -214,7 +230,8 @@ class SalonServicePublicAggregateTest {
 
         SalonPublicResponse response = salonService.getPublicBySlug(SLUG);
 
-        assertThat(response.catalogueUnavailable()).isTrue();
+        assertThat(response.servicesUnavailable()).isTrue();
+        assertThat(response.employeesUnavailable()).isTrue();
         assertThat(response.services()).isEmpty();
         assertThat(response.employees()).isEmpty();
     }

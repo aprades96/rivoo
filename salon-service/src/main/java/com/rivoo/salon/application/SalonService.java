@@ -81,7 +81,10 @@ public class SalonService implements GetSalonUseCase, UpdateSalonUseCase,
         // the wrapped list is empty (a salon that skipped the optional
         // employees/services onboarding step is not an unavailable catalogue). The two
         // calls fail independently: if only one fails, the other's real data still
-        // reaches the response, and `catalogueUnavailable` is true if either failed.
+        // reaches the response, and each flag below is derived ONLY from its own
+        // call, never combined, so a partial failure stays partial for the two
+        // reservation steps that each consume one list (public-service-step /
+        // public-employee-step).
         Optional<List<StaffServicePort.ServicePublicInfo>> servicesResult =
                 staffServicePort.getPublicServices(salon.getTenantId());
         Optional<List<StaffServicePort.EmployeePublicInfo>> employeesResult =
@@ -95,9 +98,11 @@ public class SalonService implements GetSalonUseCase, UpdateSalonUseCase,
                 .stream()
                 .map(salonDtoMapper::toEmployeePublicResponse)
                 .toList();
-        boolean catalogueUnavailable = servicesResult.isEmpty() || employeesResult.isEmpty();
+        boolean servicesUnavailable = servicesResult.isEmpty();
+        boolean employeesUnavailable = employeesResult.isEmpty();
 
-        return salonDtoMapper.toPublicResponse(salon, businessHours, services, employees, catalogueUnavailable);
+        return salonDtoMapper.toPublicResponse(salon, businessHours, services, employees,
+                servicesUnavailable, employeesUnavailable);
     }
 
     // ── Update Salon ────────────────────────────────────────────────────
