@@ -10,6 +10,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Optional;
 
 @Component
@@ -39,5 +40,12 @@ public class ServiceOfferingPersistenceAdapter implements ServiceOfferingPersist
     @Override
     public boolean existsByNameAndTenantId(String name, String tenantId) {
         return repository.existsByNameAndTenantId(name, tenantId);
+    }
+
+    @Override
+    public List<ServiceOffering> findAllActiveByTenantId(String tenantId) {
+        return repository.findByTenantIdAndActiveTrue(tenantId).stream()
+                .map(mapper::toDomain)
+                .toList();
     }
 }

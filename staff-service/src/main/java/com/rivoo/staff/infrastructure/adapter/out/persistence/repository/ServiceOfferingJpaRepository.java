@@ -5,6 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface ServiceOfferingJpaRepository extends JpaRepository<ServiceOfferingJpaEntity, Long> {
@@ -14,4 +15,6 @@ public interface ServiceOfferingJpaRepository extends JpaRepository<ServiceOffer
     Page<ServiceOfferingJpaEntity> findByActiveTrue(Pageable pageable);
 
     boolean existsByNameAndTenantId(String name, String tenantId);
+
+    List<ServiceOfferingJpaEntity> findByTenantIdAndActiveTrue(String tenantId);
 }

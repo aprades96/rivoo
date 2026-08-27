@@ -2,6 +2,7 @@ package com.rivoo.staff.application;
 
 import com.rivoo.staff.application.dto.CreateServiceOfferingRequest;
 import com.rivoo.staff.application.dto.ServiceOfferingInternalResponse;
+import com.rivoo.staff.application.dto.ServiceOfferingPublicResponse;
 import com.rivoo.staff.application.dto.ServiceOfferingResponse;
 import com.rivoo.staff.application.dto.UpdateServiceOfferingRequest;
 import com.rivoo.staff.domain.exception.DuplicateServiceNameException;
@@ -17,6 +18,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Slf4j
 @Service
@@ -95,5 +98,17 @@ public class ServiceOfferingService implements ManageServiceOfferingUseCase {
         ServiceOffering service = serviceOfferingPersistencePort.findByExternalId(serviceExternalId)
                 .orElseThrow(() -> new ServiceOfferingNotFoundException(serviceExternalId));
         return mapper.toInternalResponse(service);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ServiceOfferingPublicResponse> listPublicByTenant(String tenantId) {
+        if (tenantId == null || tenantId.isBlank()) {
+            throw new IllegalArgumentException("tenantId must not be blank");
+        }
+
+        return serviceOfferingPersistencePort.findAllActiveByTenantId(tenantId).stream()
+                .map(mapper::toPublicResponse)
+                .toList();
     }
 }
