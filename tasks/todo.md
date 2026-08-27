@@ -882,8 +882,9 @@ El bloque más grande; merece plan propio.
 > Se asume: un `git bisect` que caiga justo ahi fallaria. Desaparece solo si la rama se integra
 > con squash merge. La leccion que lo previene esta en `tasks/lessons.md`.
 
-- [ ] **RP.29** Flag `degraded` en el agregado publico (decidido 2026-08-27)
-- [ ] **RP.30** `AuthServiceException` de staff-service: mismo defecto que RP.27
+- [x] **RP.29** Flag `degraded` en el agregado publico (decidido 2026-08-27)
+- [x] **RP.30** `AuthServiceException` de staff-service: mismo defecto que RP.27
+- [ ] **RP.31** Consumir `degraded` en el frontend de la pagina de reserva
 
 > **RP.29 — por que se hace.** El argumento decisivo no es la caida de staff-service, es que
 > **una lista vacia de servicios es tambien un estado legitimo y frecuente**: por la decision
@@ -906,3 +907,14 @@ El bloque más grande; merece plan propio.
 > de forma no determinista y sin ningun test que lo cubra.
 > Las otras cuatro excepciones de staff-service ya extienden subclases de `RivooException`.
 > Mismo patron que `39ee0dc`, un solo fichero.
+
+
+> **RP.31 — la otra mitad de RP.29.** El backend ya distingue "este salon no ha cargado su
+> catalogo" de "no hemos podido hablar con staff-service": `SalonPublicResponse` lleva
+> `degraded`. Falta que la pagina lo use: hoy los dos casos pintan la misma pantalla vacia.
+> Compatibilidad verificada: el frontend **no** usa Zod ni validacion de esquema en runtime
+> —`apiFetch<SalonPublic>` es un generico de TS sobre `response.json()`, borrado en ejecucion—
+> asi que el campo extra se ignora sin romper nada hasta que se consuma.
+> Al hacerlo, cuidado con el mensaje: con `degraded=false` y listas vacias el texto correcto es
+> "este negocio aun no ha publicado sus servicios" (estado legitimo por la opcion B del
+> onboarding); con `degraded=true`, "no hemos podido cargar el catalogo" y ofrecer reintentar.
