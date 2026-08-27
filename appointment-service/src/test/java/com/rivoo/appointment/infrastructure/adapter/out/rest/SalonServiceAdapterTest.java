@@ -1,12 +1,16 @@
 package com.rivoo.appointment.infrastructure.adapter.out.rest;
 
 import com.rivoo.appointment.domain.exception.SalonNotFoundException;
+import com.rivoo.appointment.domain.exception.SalonServiceUnavailableException;
 import com.rivoo.appointment.domain.port.out.SalonServicePort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
+
+import java.io.IOException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -19,12 +23,22 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 /**
- * Verifies that {@link SalonServiceAdapter#getSalonBySlug(String)} maps a
- * legitimate 404 from salon-service to {@link SalonNotFoundException} (a
- * domain "not found", not an opaque server error) so the two anonymous
- * public flows can turn it into the same response they give for a salon
- * that exists but is not ACTIVE — see {@code AvailabilityService} and
- * {@code AppointmentService#book}.
+ * Verifies that {@link SalonServiceAdapter#getSalonBySlug(String)} correctly classifies every
+ * failure mode of the call to salon-service:
+ * <ul>
+ *   <li>a 404 carrying the marker salon-service's own {@code SalonExceptionHandler} sets on a
+ *       genuine "no salon for this slug" response → {@link SalonNotFoundException} (a domain
+ *       "not found", not an opaque server error), so the two anonymous public flows can turn it
+ *       into the same response they give for a salon that exists but is not ACTIVE — see
+ *       {@code AvailabilityService} and {@code AppointmentService#book};</li>
+ *   <li>a 404 WITHOUT that marker (e.g. a misconfigured {@code rivoo.services.salon-service.url},
+ *       a renamed route, or an unrelated gateway 404) → a plain {@code RuntimeException} (a 500),
+ *       never {@link SalonNotFoundException} — treating every 404 as "unknown salon" would turn a
+ *       broken booking funnel into a silent, alert-free outage;</li>
+ *   <li>a genuine upstream failure — salon-service responding with a 5xx, or being unreachable
+ *       altogether — → {@link SalonServiceUnavailableException} (502/503), which tells the caller
+ *       the failure is salon-service's, not ours, and that a retry may help.</li>
+ * </ul>
  */
 class SalonServiceAdapterTest {
 
@@ -56,10 +70,13 @@ class SalonServiceAdapterTest {
     }
 
     @Test
-    void getSalonBySlug_throwsSalonNotFoundException_whenSalonServiceRespondsWith404() {
+    void getSalonBySlug_throwsSalonNotFoundException_when404CarriesTheGenuineNotFoundMarker() {
         server.expect(requestTo(SALON_SERVICE_URL + "/api/internal/salons/by-slug/ghost-slug"))
                 .andExpect(method(GET))
-                .andRespond(withStatus(NOT_FOUND));
+                .andRespond(withStatus(NOT_FOUND).contentType(MediaType.APPLICATION_PROBLEM_JSON).body("""
+                        {"type":"https://rivoo.com/errors/salon-not-found","title":"Salon Not Found",
+                         "status":404,"detail":"Salon not found: ghost-slug"}
+                        """));
 
         // Must be the domain "not found" exception, not the generic RuntimeException that
         // used to blanket-wrap every failure (which surfaced as a 500 via the catch-all
@@ -69,15 +86,64 @@ class SalonServiceAdapterTest {
     }
 
     @Test
-    void getSalonBySlug_stillThrowsRuntimeException_whenSalonServiceIsDown() {
+    void getSalonBySlug_throwsRuntimeException_when404IsMissingTheGenuineNotFoundMarker() {
+        // A 404 that does NOT come from salon-service's own SalonExceptionHandler — e.g. a
+        // misconfigured URL, a renamed path, or a gateway/proxy 404 — must NOT be read as
+        // "the slug doesn't exist": that would silently turn an operability incident into
+        // 404s for every anonymous request, with no 5xx to alert anyone.
+        server.expect(requestTo(SALON_SERVICE_URL + "/api/internal/salons/by-slug/bella-vista"))
+                .andExpect(method(GET))
+                .andRespond(withStatus(NOT_FOUND).contentType(MediaType.APPLICATION_JSON).body("""
+                        {"error":"Not Found"}
+                        """));
+
+        assertThatThrownBy(() -> adapter.getSalonBySlug("bella-vista"))
+                .isInstanceOf(RuntimeException.class)
+                .isNotInstanceOf(SalonNotFoundException.class)
+                .isNotInstanceOf(SalonServiceUnavailableException.class);
+    }
+
+    @Test
+    void getSalonBySlug_throwsRuntimeException_when404HasNoBodyAtAll() {
+        // Same operability concern as above, for the simplest possible case: no body to even
+        // look for a marker in.
+        server.expect(requestTo(SALON_SERVICE_URL + "/api/internal/salons/by-slug/bella-vista"))
+                .andExpect(method(GET))
+                .andRespond(withStatus(NOT_FOUND));
+
+        assertThatThrownBy(() -> adapter.getSalonBySlug("bella-vista"))
+                .isInstanceOf(RuntimeException.class)
+                .isNotInstanceOf(SalonNotFoundException.class)
+                .isNotInstanceOf(SalonServiceUnavailableException.class);
+    }
+
+    @Test
+    void getSalonBySlug_throwsSalonServiceUnavailableWith502_whenSalonServiceRespondsWithServerError() {
         server.expect(requestTo(SALON_SERVICE_URL + "/api/internal/salons/by-slug/bella-vista"))
                 .andExpect(method(GET))
                 .andRespond(withStatus(INTERNAL_SERVER_ERROR));
 
-        // An actual upstream failure (not a "the slug doesn't exist" case) is still
-        // reported as an unexpected error — this must not regress into a silent 404.
+        // An actual upstream failure (not a "the slug doesn't exist" case) must be reported as
+        // salon-service's problem (502), not silently folded into "unknown salon", and not as
+        // a plain 500 that hides that the failure is a downstream dependency.
         assertThatThrownBy(() -> adapter.getSalonBySlug("bella-vista"))
-                .isInstanceOf(RuntimeException.class)
-                .isNotInstanceOf(SalonNotFoundException.class);
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.type(SalonServiceUnavailableException.class))
+                .isNotInstanceOf(SalonNotFoundException.class)
+                .extracting(SalonServiceUnavailableException::getHttpStatus)
+                .isEqualTo(HttpStatus.BAD_GATEWAY);
+    }
+
+    @Test
+    void getSalonBySlug_throwsSalonServiceUnavailableWith503_whenSalonServiceIsUnreachable() {
+        server.expect(requestTo(SALON_SERVICE_URL + "/api/internal/salons/by-slug/bella-vista"))
+                .andExpect(method(GET))
+                .andRespond(request -> {
+                    throw new IOException("Connection refused");
+                });
+
+        assertThatThrownBy(() -> adapter.getSalonBySlug("bella-vista"))
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.type(SalonServiceUnavailableException.class))
+                .extracting(SalonServiceUnavailableException::getHttpStatus)
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
     }
 }

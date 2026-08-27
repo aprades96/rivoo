@@ -117,7 +117,13 @@ class AppointmentPublicEndpointsEnumerationTest {
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo(SALON_SERVICE_URL + "/api/internal/salons/by-slug/" + slug))
                 .andExpect(method(GET))
-                .andRespond(withStatus(NOT_FOUND));
+                // The exact body salon-service's own SalonExceptionHandler produces for a
+                // genuine SalonNotFoundException — SalonServiceAdapter only trusts a 404 as
+                // "unknown salon" when it carries this marker (see Bloque 2).
+                .andRespond(withStatus(NOT_FOUND).contentType(MediaType.APPLICATION_PROBLEM_JSON).body("""
+                        {"type":"https://rivoo.com/errors/salon-not-found","title":"Salon Not Found",
+                         "status":404,"detail":"Salon not found: %s"}
+                        """.formatted(slug)));
         return buildMockMvc(builder);
     }
 
