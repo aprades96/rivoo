@@ -15,15 +15,19 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.net.URI;
 import java.time.Instant;
 
-// Explicit order so this handler is consulted before rivoo-common's
-// GlobalExceptionHandler (which declares no @Order and therefore defaults to
-// Ordered.LOWEST_PRECEDENCE). Without this, GlobalExceptionHandler's
-// catch-all @ExceptionHandler(Exception.class) would non-deterministically
-// win the tie and turn a SalonNotFoundException into a 500, since Spring only
-// guarantees @ControllerAdvice registration order relative to declared
-// @Order values, not relative to component-scan vs. autoconfiguration
-// registration. Matches the convention already used in
-// auth-service's AuthExceptionHandler.
+// Redundant since the four exceptions below now extend RivooException:
+// GlobalExceptionHandler.handleRivooException(RivooException) matches them
+// at depth 1 regardless of which advice bean Spring visits first, so the
+// old failure mode (falling through to the generic
+// @ExceptionHandler(Exception.class) catch-all and returning a 500) can no
+// longer happen even without this @Order. Kept anyway as a belt: it
+// guarantees this handler's specific ProblemDetail bodies/logging (e.g. the
+// atError+stack-trace log for AuthServiceException) are always the ones
+// produced, deterministically, instead of depending on which advice bean
+// Spring's ExceptionHandlerExceptionResolver happens to visit first.
+// Verified by SalonExceptionHandlerOrderTest, which stays green even with
+// this annotation removed (see the class extending RivooException). Matches
+// the convention already used in auth-service's AuthExceptionHandler.
 @Slf4j
 @RestControllerAdvice
 @Order(0)
