@@ -1,10 +1,10 @@
 package com.rivoo.salon.infrastructure.mapper;
 
 import com.rivoo.salon.application.dto.BusinessHoursResponse;
-import com.rivoo.salon.application.dto.EmployeePublicResponseDto;
+import com.rivoo.salon.application.dto.EmployeePublicResponse;
 import com.rivoo.salon.application.dto.SalonPublicResponse;
 import com.rivoo.salon.application.dto.SalonResponse;
-import com.rivoo.salon.application.dto.ServicePublicResponseDto;
+import com.rivoo.salon.application.dto.ServicePublicResponse;
 import com.rivoo.salon.domain.model.Salon;
 import com.rivoo.salon.domain.model.SalonBusinessHours;
 import com.rivoo.salon.domain.port.out.StaffServicePort;
@@ -22,13 +22,13 @@ public interface SalonDtoMapper {
     SalonResponse toResponse(Salon salon);
 
     SalonPublicResponse toPublicResponse(Salon salon, List<BusinessHoursResponse> businessHours,
-                                          List<ServicePublicResponseDto> services,
-                                          List<EmployeePublicResponseDto> employees);
+                                          List<ServicePublicResponse> services,
+                                          List<EmployeePublicResponse> employees);
 
     @Mapping(target = "isOpen", source = "open")
     BusinessHoursResponse toBusinessHoursResponse(SalonBusinessHours hours);
 
-    ServicePublicResponseDto toServicePublicDto(StaffServicePort.ServicePublicInfo info);
+    ServicePublicResponse toServicePublicResponse(StaffServicePort.ServicePublicInfo info);
 
-    EmployeePublicResponseDto toEmployeePublicDto(StaffServicePort.EmployeePublicInfo info);
+    EmployeePublicResponse toEmployeePublicResponse(StaffServicePort.EmployeePublicInfo info);
 }

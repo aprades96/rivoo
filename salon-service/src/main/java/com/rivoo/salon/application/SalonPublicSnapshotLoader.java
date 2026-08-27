@@ -7,7 +7,7 @@ import com.rivoo.salon.domain.model.SalonStatus;
 import com.rivoo.salon.domain.port.out.BusinessHoursPersistencePort;
 import com.rivoo.salon.domain.port.out.SalonPersistencePort;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -23,7 +23,7 @@ import java.util.List;
  * nothing. Going through a distinct bean guarantees the proxy — and therefore
  * the transaction boundary — is actually applied.
  */
-@Component
+@Service
 @RequiredArgsConstructor
 class SalonPublicSnapshotLoader {
 

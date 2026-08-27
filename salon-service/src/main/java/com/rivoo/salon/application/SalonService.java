@@ -2,10 +2,10 @@ package com.rivoo.salon.application;
 
 import com.rivoo.salon.application.dto.BusinessHoursRequest;
 import com.rivoo.salon.application.dto.BusinessHoursResponse;
-import com.rivoo.salon.application.dto.EmployeePublicResponseDto;
+import com.rivoo.salon.application.dto.EmployeePublicResponse;
 import com.rivoo.salon.application.dto.SalonPublicResponse;
 import com.rivoo.salon.application.dto.SalonResponse;
-import com.rivoo.salon.application.dto.ServicePublicResponseDto;
+import com.rivoo.salon.application.dto.ServicePublicResponse;
 import com.rivoo.salon.application.dto.UpdateSalonRequest;
 import com.rivoo.salon.domain.exception.SalonNotFoundException;
 import com.rivoo.salon.domain.model.Salon;
@@ -75,13 +75,13 @@ public class SalonService implements GetSalonUseCase, UpdateSalonUseCase,
                 .toList();
 
         // externalId == tenantId for a salon (the salon IS the tenant).
-        List<ServicePublicResponseDto> services = staffServicePort.getPublicServices(salon.getTenantId())
+        List<ServicePublicResponse> services = staffServicePort.getPublicServices(salon.getTenantId())
                 .stream()
-                .map(salonDtoMapper::toServicePublicDto)
+                .map(salonDtoMapper::toServicePublicResponse)
                 .toList();
-        List<EmployeePublicResponseDto> employees = staffServicePort.getPublicEmployees(salon.getTenantId())
+        List<EmployeePublicResponse> employees = staffServicePort.getPublicEmployees(salon.getTenantId())
                 .stream()
-                .map(salonDtoMapper::toEmployeePublicDto)
+                .map(salonDtoMapper::toEmployeePublicResponse)
                 .toList();
 
         return salonDtoMapper.toPublicResponse(salon, businessHours, services, employees);

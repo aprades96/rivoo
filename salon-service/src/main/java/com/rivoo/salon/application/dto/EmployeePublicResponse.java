@@ -2,7 +2,7 @@ package com.rivoo.salon.application.dto;
 
 import java.util.List;
 
-public record EmployeePublicResponseDto(
+public record EmployeePublicResponse(
         String id,
         String firstName,
         String lastName,

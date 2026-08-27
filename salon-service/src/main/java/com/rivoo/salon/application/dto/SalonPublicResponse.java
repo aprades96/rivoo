@@ -13,7 +13,7 @@ public record SalonPublicResponse(
         String addressCity,
         String addressPostalCode,
         List<BusinessHoursResponse> businessHours,
-        List<ServicePublicResponseDto> services,
-        List<EmployeePublicResponseDto> employees
+        List<ServicePublicResponse> services,
+        List<EmployeePublicResponse> employees
 ) {
 }

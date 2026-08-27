@@ -25,9 +25,25 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>
  * {@code @JsonTest} boots the actual Boot-autoconfigured {@link JacksonTester}
  * (backed by {@code tools.jackson.databind.json.JsonMapper}), so this test
- * fails if a future customization of that mapper (e.g. a
- * {@code PropertyNamingStrategy} or a {@code JsonMapperBuilderCustomizer})
- * reintroduces the bug.
+ * fails if the {@code isOpen}/{@code open} bug is reintroduced at the level
+ * this slice actually exercises: the record itself (e.g. reverting the
+ * {@code @JsonProperty("isOpen")} annotation) or a {@code @JsonComponent} /
+ * Jackson module registered on the classpath, both of which {@code @JsonTest}
+ * auto-configures.
+ * <p>
+ * What this test does NOT cover: {@code @JsonTest} only auto-configures
+ * {@code @JsonComponent} beans, serializers and modules — it does NOT load
+ * arbitrary {@code @Configuration} classes. This was verified directly: a
+ * {@code @Configuration} declaring a {@code JsonMapperBuilderCustomizer}
+ * that applies {@code SNAKE_CASE} naming (which the real HTTP pipeline would
+ * pick up via component scan, and which would serialize this field as
+ * {@code is_open}) is invisible to this slice — the test kept passing while
+ * that customizer was active. A regression introduced through a
+ * {@code @Configuration}-based {@code JsonMapperBuilderCustomizer} or
+ * {@code PropertyNamingStrategy} would therefore NOT be caught here; only a
+ * full {@code @SpringBootTest} hitting the real endpoint (or an equivalent
+ * MockMvc-based web slice — currently unavailable in this project, see
+ * module notes) would close that gap.
  */
 @JsonTest
 class BusinessHoursResponseJsonTest {
