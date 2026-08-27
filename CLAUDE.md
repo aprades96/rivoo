@@ -321,6 +321,8 @@ log.info("Owner registered: email={}, userId={}", email, userId);
 | `tenantId` | TenantInterceptor |
 | `userId` | JWT `sub` claim |
 
+**Deliberate exception — `targetTenantId`**: in an anonymous public-booking flow there is no JWT, so `X-Tenant-Id` is never propagated and `TenantInterceptor` never populates the MDC `tenantId`; the tenant is instead resolved from the **path** (e.g. `StaffServiceAdapter` calling staff-service for a given slug/tenant). In that case the tenant is logged explicitly as `targetTenantId` (the destination tenant), a distinct key chosen precisely so it does not collide with the reserved `tenantId` MDC key.
+
 ---
 
 ## Caching

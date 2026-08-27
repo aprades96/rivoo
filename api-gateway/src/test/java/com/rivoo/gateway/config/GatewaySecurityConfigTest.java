@@ -42,10 +42,16 @@ class GatewaySecurityConfigTest {
                 .getStatus()
                 .value();
 
-        // No live appointment-service is wired for this test, so the request
-        // will not necessarily succeed end to end, but the point being asserted
-        // here is exclusively that security does not reject it as unauthenticated.
-        assertThat(statusCode).isNotEqualTo(HttpStatus.UNAUTHORIZED.value());
+        // No route to appointment-service is wired in application-test.yml
+        // (only application-local.yml / application-prod.yml define routes), so
+        // this GET never leaves the security layer to reach a real downstream —
+        // it is expected to resolve as 404 (no matching Gateway route) precisely
+        // because it passed security. The point being asserted here is that
+        // security itself let it through: not 401 (permitAll removed, the main
+        // regression this test guards against) and not 403 (permitAll swapped
+        // for denyAll, which a bare isNotEqualTo(401) would miss).
+        assertThat(statusCode)
+                .isNotIn(HttpStatus.UNAUTHORIZED.value(), HttpStatus.FORBIDDEN.value());
     }
 
     @Test

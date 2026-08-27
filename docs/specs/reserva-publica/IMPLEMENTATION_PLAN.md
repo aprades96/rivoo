@@ -71,7 +71,7 @@ Esto no es teórico: es el comportamiento por defecto del stack. **La Task 3 y l
 | `staff-service/.../port/out/ServiceOfferingPersistencePort.java` **(modificar)** | ídem |
 | `staff-service/.../application/EmployeeService.java` **(modificar)** | Implementa `listPublicByTenant`, valida `tenantId` no vacío |
 | `staff-service/.../application/ServiceOfferingService.java` **(modificar)** | ídem |
-| `staff-service/.../in/web/StaffInternalController.java` **(modificar)** | `+ GET /{tenantId}/employees/public`, `+ GET /{tenantId}/services/public` |
+| `staff-service/.../in/web/StaffInternalController.java` **(modificar)** | `+ GET /{tenantId}/public/employees`, `+ GET /{tenantId}/public/services` |
 | `salon-service/.../port/out/StaffServicePort.java` **(crear)** | Puerto de salida hacia staff-service |
 | `salon-service/.../adapter/out/rest/StaffServiceAdapter.java` **(crear)** | Adaptador REST. **Pone `X-Tenant-Id` explícito** |
 | `salon-service/.../adapter/out/rest/dto/EmployeePublicDto.java` **(crear)** | DTO de transporte |
@@ -372,20 +372,20 @@ git commit -am "feat(staff): list active employees by explicit tenantId for publ
 - Modify: `staff-service/src/main/java/com/rivoo/staff/infrastructure/adapter/in/web/StaffInternalController.java`
 - Test: `staff-service/src/test/java/com/rivoo/staff/infrastructure/adapter/in/web/StaffInternalControllerTest.java`
 
-- [ ] **Step 1: Test de contrato** — `GET /api/internal/staff/{tenantId}/employees/public` devuelve 200 y un JSON sin `email` ni `phone`.
+- [ ] **Step 1: Test de contrato** — `GET /api/internal/staff/{tenantId}/public/employees` devuelve 200 y un JSON sin `email` ni `phone`.
 - [ ] **Step 2: Verificar que falla** (404).
 - [ ] **Step 3: Implementar**
 
 ```java
-@GetMapping("/{tenantId}/employees/public")
+@GetMapping("/{tenantId}/public/employees")
 public ResponseEntity<List<EmployeePublicResponse>> listPublicEmployees(@PathVariable String tenantId) {
-    log.atInfo().log("GET /api/internal/staff/{tenantId}/employees/public");
+    log.atInfo().log("GET /api/internal/staff/{tenantId}/public/employees");
     return ResponseEntity.ok(getEmployeeUseCase.listPublicByTenant(tenantId));
 }
 
-@GetMapping("/{tenantId}/services/public")
+@GetMapping("/{tenantId}/public/services")
 public ResponseEntity<List<ServiceOfferingPublicResponse>> listPublicServices(@PathVariable String tenantId) {
-    log.atInfo().log("GET /api/internal/staff/{tenantId}/services/public");
+    log.atInfo().log("GET /api/internal/staff/{tenantId}/public/services");
     return ResponseEntity.ok(manageServiceOfferingUseCase.listPublicByTenant(tenantId));
 }
 ```
@@ -414,12 +414,12 @@ public ResponseEntity<List<ServiceOfferingPublicResponse>> listPublicServices(@P
 ```java
 @Test
 void getPublicEmployees_sendsExplicitTenantIdHeader() {
-    stubFor(get(urlEqualTo("/api/internal/staff/sal_A/employees/public"))
+    stubFor(get(urlEqualTo("/api/internal/staff/sal_A/public/employees"))
             .willReturn(okJson("[{\"id\":\"emp_1\",\"firstName\":\"Laura\",\"lastName\":\"Martinez\",\"jobTitle\":\"Estilista\",\"serviceIds\":[\"svc_1\"]}]")));
 
     adapter.getPublicEmployees("sal_A");
 
-    verify(getRequestedFor(urlEqualTo("/api/internal/staff/sal_A/employees/public"))
+    verify(getRequestedFor(urlEqualTo("/api/internal/staff/sal_A/public/employees"))
             .withHeader("X-Tenant-Id", equalTo("sal_A")));
 }
 
@@ -471,7 +471,7 @@ public class StaffServiceAdapter implements StaffServicePort {
     public List<EmployeePublicInfo> getPublicEmployees(String tenantId) {
         try {
             List<EmployeePublicDto> dtos = restClient.get()
-                    .uri("/api/internal/staff/{tenantId}/employees/public", tenantId)
+                    .uri("/api/internal/staff/{tenantId}/public/employees", tenantId)
                     // DIFERENCIA 1: header explicito. La peticion publica no tiene
                     // TenantContext, asi que InterServiceRestClientConfig no puede
                     // propagarlo. Sin esto, staff-service consulta SIN filtro de tenant.
@@ -746,7 +746,7 @@ getPublicAvailability: (params: {
 - Test: `salon-service/src/test/java/com/rivoo/salon/PublicAggregateIsolationIT.java`
 
 - [ ] **Step 1: Integración con Testcontainers** — sembrar dos tenants (`sal_A`, `sal_B`) con empleados y servicios cada uno.
-- [ ] **Step 2: Test** — `GET /api/internal/staff/sal_A/employees/public` devuelve **solo** los de `sal_A`. Repetir sin el header `X-Tenant-Id`: debe seguir devolviendo solo los de `sal_A`, porque el filtro es por columna, no ambiental.
+- [ ] **Step 2: Test** — `GET /api/internal/staff/sal_A/public/employees` devuelve **solo** los de `sal_A`. Repetir sin el header `X-Tenant-Id`: debe seguir devolviendo solo los de `sal_A`, porque el filtro es por columna, no ambiental.
 - [ ] **Step 3: Test del agregado** — `GET /api/v1/salons/public/bella-vista` no contiene ningún `external_id` de `sal_B`.
 - [ ] **Step 4: Test de PII** — la respuesta pública no contiene ninguna cadena con `@` ni ningún teléfono de la semilla.
 - [ ] **Step 5: Ejecutar.** Run: `./mvnw -pl staff-service,salon-service verify`
