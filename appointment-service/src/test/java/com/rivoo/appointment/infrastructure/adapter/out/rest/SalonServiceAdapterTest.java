@@ -3,18 +3,22 @@ package com.rivoo.appointment.infrastructure.adapter.out.rest;
 import com.rivoo.appointment.domain.exception.SalonNotFoundException;
 import com.rivoo.appointment.domain.exception.SalonServiceUnavailableException;
 import com.rivoo.appointment.domain.port.out.SalonServicePort;
+import com.rivoo.common.web.GlobalExceptionHandler;
 import com.rivoo.common.web.RivooErrorTypes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ProblemDetail;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import java.io.IOException;
+import java.net.URI;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.springframework.http.HttpMethod.GET;
 import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
@@ -127,11 +131,12 @@ class SalonServiceAdapterTest {
         // An actual upstream failure (not a "the slug doesn't exist" case) must be reported as
         // salon-service's problem (502), not silently folded into "unknown salon", and not as
         // a plain 500 that hides that the failure is a downstream dependency.
-        assertThatThrownBy(() -> adapter.getSalonBySlug("bella-vista"))
-                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.type(SalonServiceUnavailableException.class))
-                .isNotInstanceOf(SalonNotFoundException.class)
-                .extracting(SalonServiceUnavailableException::getHttpStatus)
-                .isEqualTo(HttpStatus.BAD_GATEWAY);
+        SalonServiceUnavailableException exception = catchThrowableOfType(
+                () -> adapter.getSalonBySlug("bella-vista"), SalonServiceUnavailableException.class);
+
+        assertThat(exception).isNotInstanceOf(SalonNotFoundException.class);
+        assertThat(exception.getHttpStatus()).isEqualTo(HttpStatus.BAD_GATEWAY);
+        assertBodyPinnedToSlug(exception, "salon-service returned a server error for slug: bella-vista");
     }
 
     @Test
@@ -142,9 +147,55 @@ class SalonServiceAdapterTest {
                     throw new IOException("Connection refused");
                 });
 
-        assertThatThrownBy(() -> adapter.getSalonBySlug("bella-vista"))
-                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.type(SalonServiceUnavailableException.class))
-                .extracting(SalonServiceUnavailableException::getHttpStatus)
-                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        SalonServiceUnavailableException exception = catchThrowableOfType(
+                () -> adapter.getSalonBySlug("bella-vista"), SalonServiceUnavailableException.class);
+
+        assertThat(exception.getHttpStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertBodyPinnedToSlug(exception, "salon-service is unreachable for slug: bella-vista");
+    }
+
+    @Test
+    void serverError_sameBodyShapeForAnySlug_onlyDetailEchoesTheRequestedSlug() {
+        // Pins the actual invariant SalonServiceUnavailableException's javadoc documents: status,
+        // type and title never vary with the slug. detail DOES include the slug — but it must be
+        // EXACTLY "... for slug: <slug>", nothing more: an exact match here (not merely checking
+        // getHttpStatus(), as this test class used to) is what would catch a future regression
+        // that enriches the message with the salon's internal state.
+        // Both expectations must be registered before either request fires: MockRestServiceServer
+        // rejects new expectations once a request has already been made against it.
+        server.expect(requestTo(SALON_SERVICE_URL + "/api/internal/salons/by-slug/salon-a"))
+                .andExpect(method(GET))
+                .andRespond(withStatus(INTERNAL_SERVER_ERROR));
+        server.expect(requestTo(SALON_SERVICE_URL + "/api/internal/salons/by-slug/salon-b"))
+                .andExpect(method(GET))
+                .andRespond(withStatus(INTERNAL_SERVER_ERROR));
+
+        SalonServiceUnavailableException exceptionA = catchThrowableOfType(
+                () -> adapter.getSalonBySlug("salon-a"), SalonServiceUnavailableException.class);
+        SalonServiceUnavailableException exceptionB = catchThrowableOfType(
+                () -> adapter.getSalonBySlug("salon-b"), SalonServiceUnavailableException.class);
+
+        ProblemDetail problemA = new GlobalExceptionHandler().handleRivooException(exceptionA);
+        ProblemDetail problemB = new GlobalExceptionHandler().handleRivooException(exceptionB);
+
+        assertThat(problemA.getStatus()).isEqualTo(problemB.getStatus());
+        assertThat(problemA.getType()).isEqualTo(problemB.getType());
+        assertThat(problemA.getTitle()).isEqualTo(problemB.getTitle());
+        assertThat(problemA.getDetail()).isEqualTo("salon-service returned a server error for slug: salon-a");
+        assertThat(problemB.getDetail()).isEqualTo("salon-service returned a server error for slug: salon-b");
+    }
+
+    /**
+     * Builds the exact {@link ProblemDetail} an anonymous caller would receive (via
+     * {@link GlobalExceptionHandler#handleRivooException}) and pins every field, including the
+     * full, exact {@code detail} — not just {@link SalonServiceUnavailableException#getHttpStatus()}.
+     */
+    private static void assertBodyPinnedToSlug(SalonServiceUnavailableException exception, String expectedDetail) {
+        ProblemDetail problem = new GlobalExceptionHandler().handleRivooException(exception);
+
+        assertThat(problem.getStatus()).isEqualTo(exception.getHttpStatus().value());
+        assertThat(problem.getType()).isEqualTo(URI.create("https://rivoo.com/errors/" + exception.getErrorType()));
+        assertThat(problem.getTitle()).isEqualTo("Salon Service Unavailable");
+        assertThat(problem.getDetail()).isEqualTo(expectedDetail);
     }
 }

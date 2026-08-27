@@ -11,9 +11,13 @@ import org.springframework.http.HttpStatus;
  * Unlike the generic {@code RuntimeException} this replaces, this maps (via
  * {@code GlobalExceptionHandler.handleRivooException}) to 502/503 instead of a blanket 500:
  * a dependency being down or misbehaving is not "our bug", and 502/503 tells the caller it
- * may be worth retrying. This does not reopen the anti-enumeration oracle: the status and
- * body are the same regardless of which slug was requested, only the failure mode of
- * salon-service itself decides between 502 and 503.
+ * may be worth retrying. This does not reopen the anti-enumeration oracle: the status and the
+ * body's shape (type, title, and the set of fields present) are the same for any slug — only
+ * the failure mode of salon-service itself decides between 502 and 503, never which salon was
+ * requested. The {@code detail} field IS slug-specific (see {@code SalonServiceAdapter}, which
+ * builds the message as "... for slug: " + slug), but that leaks nothing: it only ever echoes
+ * back the exact slug the anonymous caller itself supplied, never anything about whether that
+ * salon exists or its status.
  */
 public class SalonServiceUnavailableException extends RivooException {
 
