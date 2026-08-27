@@ -386,3 +386,26 @@ hay que aplicarsela tambien a los tests que afirman propiedades de seguridad.
 **Y el nombre agrava el dano:** un test llamado como la propiedad hace que el siguiente lector la
 de por cubierta sin mirar. Si el test no la ejercita, o se arregla o se renombra a lo que de
 verdad comprueba — nunca se deja el nombre optimista.
+
+### Al renombrar un campo, comprobar que el nombre nuevo no afirma mas de lo que el valor garantiza (2026-08-27)
+
+**Patron del error:** una review objeto que `degraded` no decia QUE estaba degradado. Decidi
+renombrarlo a `catalogueUnavailable`. La review siguiente encontro que el nombre nuevo es **peor**:
+el flag se calcula como `services.isEmpty() || employees.isEmpty()`, asi que puede valer `true`
+mientras la respuesta lleva un array `services` real y con datos. "Unavailable" afirma una
+totalidad que el propio payload contradice. `degraded`, mas vago, al menos no mentia.
+
+El sintoma estaba a la vista y no lo mire: el test se llama
+`getPublicBySlug_employeesCallFails_catalogueUnavailableButServicesStillArrive` — "unavailable
+**pero** siguen llegando". Un nombre de test con un "pero" que contradice el campo es la senal.
+
+**Regla:** antes de fijar el nombre de un campo de contrato, leer **como se calcula su valor** y
+comprobar que el nombre es cierto en TODOS los casos que ese calculo admite. Un `||` entre dos
+condiciones casi siempre significa que el estado es **parcial**, y un nombre en absoluto
+("unavailable", "failed", "empty") sera falso en la mitad de las ramas. Si el estado es parcial,
+o el nombre lo dice (`Incomplete`, `Partial`) o hay que desdoblar el campo.
+
+**Corolario:** cuando el consumidor tiene una pantalla por cada parte —aqui `public-service-step`
+y `public-employee-step` son pasos distintos del flujo— un solo flag obliga a las dos a mostrar
+error aunque solo una haya fallado. Ahi desdoblar no es sobreingenieria: es lo que el consumidor
+necesita para no tirar datos buenos.
