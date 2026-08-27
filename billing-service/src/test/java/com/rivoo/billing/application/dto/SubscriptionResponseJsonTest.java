@@ -34,11 +34,16 @@ import static org.assertj.core.api.Assertions.assertThat;
  * ({@code tools.jackson.databind}). {@code @JsonTest} boots the actual
  * Boot-autoconfigured {@link JacksonTester}, backed by
  * {@code tools.jackson.databind.json.JsonMapper}, so this exercises the same
- * mapper the controller uses. {@code @JsonTest} is available here:
- * {@code spring-boot-test-autoconfigure-4.0.0.jar} ships exactly two slices,
- * {@code json} and {@code jdbc} — verified with {@code unzip -l}. {@code @WebMvcTest}
- * and {@code @AutoConfigureMockMvc} are NOT in that jar, which is why the
- * controller tests use {@code MockMvcBuilders.standaloneSetup}.
+ * autoconfigured mapper the controller uses, minus any application-level
+ * {@code @Configuration} customization — of which this module currently has none.
+ * (The slice does not load application {@code @Configuration} beans, so a
+ * customizer bean would go unnoticed here; {@code spring.jackson.*} properties
+ * from {@code application.yml} are picked up.) {@code @JsonTest} is available
+ * here: {@code spring-boot-test-autoconfigure-4.0.3.jar} — the version the build
+ * resolves, not a {@code .m2} directory listing — ships exactly two slices,
+ * {@code json} and {@code jdbc}, verified with {@code unzip -l} on that jar.
+ * {@code @WebMvcTest} and {@code @AutoConfigureMockMvc} are NOT in it, which is
+ * why the controller tests use {@code MockMvcBuilders.standaloneSetup}.
  * <p>
  * {@link SubscriptionResponse} is a bare record with no Jackson annotations —
  * {@code grep -rn "JsonProperty" billing-service/src/main} returns nothing — so

@@ -121,7 +121,7 @@ On every plan change, billing-service calls auth-service to update `subscription
 Plan limits are cached with Caffeine (TTL 5min). **Write operations MUST bypass cache**:
 
 ```
-GET /api/internal/tenants/{tenantId}/plan-limits
+GET /api/internal/billing/tenants/{tenantId}/plan-limits
 → Callers specify forWriteOperation=true to bypass
 ```
 
@@ -140,6 +140,7 @@ GET /api/internal/tenants/{tenantId}/plan-limits
 | Method | Path | Purpose |
 |--------|------|---------|
 | POST | `/api/webhooks/stripe` | Stripe webhook handler |
+| GET | `/api/v1/billing/plans` | List available plans (pricing page, pre-signup) |
 
 ### Authenticated (JWT required)
 
@@ -148,7 +149,6 @@ GET /api/internal/tenants/{tenantId}/plan-limits
 | GET | `/api/v1/billing/subscription` | Get current subscription | SALON_OWNER | Implemented |
 | POST | `/api/v1/billing/checkout-session` | Create Stripe checkout session | SALON_OWNER | Implemented |
 | POST | `/api/v1/billing/portal` | Create Stripe billing portal session (returns `{ "url": ... }`). No request body | SALON_OWNER | Implemented |
-| GET | `/api/v1/billing/plans` | List available plans | any authenticated user | Implemented |
 | POST | `/api/v1/billing/change-plan` | Upgrade/downgrade plan | SALON_OWNER | **NOT IMPLEMENTED** — planned |
 | POST | `/api/v1/billing/cancel` | Cancel subscription (end of period) | SALON_OWNER | **NOT IMPLEMENTED** — planned |
 
@@ -156,8 +156,18 @@ GET /api/internal/tenants/{tenantId}/plan-limits
 > listing two endpoints that have never existed in `BillingController`. They are kept as
 > planned work, not deleted. Check the controller before assuming a row is live.
 >
-> `GET /plans` carries **no** `@PreAuthorize` in the controller, so it is reachable by any
-> authenticated principal, not just SALON_OWNER. The table used to claim SALON_OWNER.
+> `GET /plans` is **anonymous**, not authenticated. Evidence:
+> `BillingSecurityConfig.java:38` (`requestMatchers(HttpMethod.GET, "/api/v1/billing/plans").permitAll()`)
+> and `api-gateway` `GatewaySecurityConfig.java:25` (`pathMatchers(HttpMethod.GET, "/api/v1/billing/plans").permitAll()`),
+> so no JWT is ever required end to end. The frontend agrees: `getPlans()` in
+> `rivoo-frontend/src/lib/api/billing.ts:13` is the only call in that file that takes no `token`.
+> This table previously listed the endpoint as authenticated, arguing from the absence of
+> `@PreAuthorize` on the handler.
+>
+> **General rule for this stack**: the auth level of an endpoint is determined by
+> `authorizeHttpRequests` in the service's security config plus the gateway's `authorizeExchange`.
+> `@PreAuthorize` only *narrows* what those already allow. The absence of `@PreAuthorize` proves
+> nothing about the auth level — always read the security config first.
 
 ### Internal (PSK required)
 
@@ -166,7 +176,7 @@ Base path is `/api/internal/billing` (`BillingInternalController`), not `/api/in
 | Method | Path | Purpose | Called by | Status |
 |--------|------|---------|-----------|--------|
 | POST | `/api/internal/billing/subscriptions` | Create FREE_TRIAL subscription | salon-service (onboarding) | Implemented |
-| GET | `/api/internal/billing/tenants/{tenantId}/plan-limits` | Get plan limits + current usage flags | appointment-service, staff-service, client-service | Implemented |
+| GET | `/api/internal/billing/tenants/{tenantId}/plan-limits` | Get plan limits + current usage flags | appointment-service, staff-service | Implemented |
 | PUT | `/api/internal/billing/subscriptions/{tenantId}/status` | Update subscription status | webhook/reconciliation flows | Implemented |
 | GET | `/api/internal/admin/subscriptions/summary` | Subscription statistics | admin-service | **NOT IMPLEMENTED** — planned |
 
@@ -186,8 +196,18 @@ Base path is `/api/internal/billing` (`BillingInternalController`), not `/api/in
 
 ### `@PreAuthorize` on `/api/v1/billing/**` is NOT covered by any test
 
-`spring-boot-test-autoconfigure-4.0.0.jar` ships exactly two slices, `json` and `jdbc` —
-verified with `unzip -l`. **`@WebMvcTest` and `@AutoConfigureMockMvc` do not exist here**, so
+`spring-boot-test-autoconfigure-4.0.3.jar` ships exactly two slices, `json` and `jdbc`.
+The version is the one the build resolves (root `pom.xml` pins `spring-boot-starter-parent`
+4.0.3); several versions sit in the local `.m2`, so read the resolved classpath, not a
+directory listing:
+
+```
+mvn -o -pl billing-service dependency:build-classpath -Dmdep.outputFile=cp.txt
+unzip -l ~/.m2/repository/org/springframework/boot/spring-boot-test-autoconfigure/4.0.3/spring-boot-test-autoconfigure-4.0.3.jar \
+  | grep "org/springframework/boot/test/autoconfigure/"
+```
+
+**`@WebMvcTest` and `@AutoConfigureMockMvc` do not exist here**, so
 controller tests use `MockMvcBuilders.standaloneSetup(...)`, which does not install the Spring
 Security filter chain or the method-security interceptor.
 
@@ -218,5 +238,5 @@ assertion. Adding a field is additive and safe; renaming or retyping one is not.
 
 - **rivoo-common** (security, tenant, observability)
 - **Calls**: salon-service (suspend on payment failure), auth-service (disable users on cancellation, update plan attribute), notification-service (payment failure alerts)
-- **Called by**: salon-service (create subscription), appointment-service (plan limits), staff-service (plan limits), client-service (plan limits), admin-service (stats)
+- **Called by**: salon-service (create subscription), appointment-service (plan limits), staff-service (plan limits), admin-service (stats)
 - **External**: Stripe API
