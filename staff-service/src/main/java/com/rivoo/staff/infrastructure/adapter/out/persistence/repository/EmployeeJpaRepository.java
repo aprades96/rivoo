@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface EmployeeJpaRepository extends JpaRepository<EmployeeJpaEntity, Long> {
@@ -19,4 +20,6 @@ public interface EmployeeJpaRepository extends JpaRepository<EmployeeJpaEntity, 
 
     @Query("SELECT COUNT(e) FROM EmployeeJpaEntity e WHERE e.tenantId = :tenantId AND e.active = true")
     long countActiveByTenantId(@Param("tenantId") String tenantId);
+
+    List<EmployeeJpaEntity> findByTenantIdAndActiveTrue(String tenantId);
 }

@@ -3,6 +3,7 @@ package com.rivoo.staff.application;
 import com.rivoo.staff.application.dto.AssignServicesRequest;
 import com.rivoo.staff.application.dto.CreateEmployeeRequest;
 import com.rivoo.staff.application.dto.EmployeeInternalResponse;
+import com.rivoo.staff.application.dto.EmployeePublicResponse;
 import com.rivoo.staff.application.dto.EmployeeResponse;
 import com.rivoo.staff.application.dto.EmployeeServiceResponse;
 import com.rivoo.staff.application.dto.UpdateEmployeeRequest;
@@ -121,6 +122,25 @@ public class EmployeeService implements CreateEmployeeUseCase, GetEmployeeUseCas
         Employee employee = employeePersistencePort.findByExternalId(employeeExternalId)
                 .orElseThrow(() -> new EmployeeNotFoundException(employeeExternalId));
         return mapper.toInternalResponse(employee);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<EmployeePublicResponse> listPublicByTenant(String tenantId) {
+        if (tenantId == null || tenantId.isBlank()) {
+            throw new IllegalArgumentException("tenantId must not be blank");
+        }
+
+        List<Employee> employees = employeePersistencePort.findAllActiveByTenantId(tenantId);
+        return employees.stream()
+                .map(employee -> {
+                    List<String> serviceIds = employeeServicePersistencePort.findByEmployeeId(employee.getId())
+                            .stream()
+                            .map(EmployeeServiceAssignment::getServiceExternalId)
+                            .toList();
+                    return mapper.toPublicResponse(employee, serviceIds);
+                })
+                .toList();
     }
 
     // ── Update Employee ─────────────────────────────────────────────────

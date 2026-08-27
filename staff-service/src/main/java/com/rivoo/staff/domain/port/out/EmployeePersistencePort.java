@@ -4,6 +4,7 @@ import com.rivoo.staff.domain.model.Employee;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface EmployeePersistencePort {
@@ -17,4 +18,6 @@ public interface EmployeePersistencePort {
     Page<Employee> findAllActive(Pageable pageable);
 
     long countActiveByTenantId(String tenantId);
+
+    List<Employee> findAllActiveByTenantId(String tenantId);
 }
