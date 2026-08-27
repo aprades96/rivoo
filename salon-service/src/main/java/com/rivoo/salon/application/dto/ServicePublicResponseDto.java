@@ -2,7 +2,7 @@ package com.rivoo.salon.application.dto;
 
 import java.math.BigDecimal;
 
-public record ServicePublicDto(
+public record ServicePublicResponseDto(
         String id,
         String name,
         String description,
