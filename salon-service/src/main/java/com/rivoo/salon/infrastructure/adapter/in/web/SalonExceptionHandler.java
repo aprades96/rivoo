@@ -6,6 +6,7 @@ import com.rivoo.salon.domain.exception.SalonNotFoundException;
 import com.rivoo.salon.domain.exception.SlugAlreadyExistsException;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -14,8 +15,18 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.net.URI;
 import java.time.Instant;
 
+// Explicit order so this handler is consulted before rivoo-common's
+// GlobalExceptionHandler (which declares no @Order and therefore defaults to
+// Ordered.LOWEST_PRECEDENCE). Without this, GlobalExceptionHandler's
+// catch-all @ExceptionHandler(Exception.class) would non-deterministically
+// win the tie and turn a SalonNotFoundException into a 500, since Spring only
+// guarantees @ControllerAdvice registration order relative to declared
+// @Order values, not relative to component-scan vs. autoconfiguration
+// registration. Matches the convention already used in
+// auth-service's AuthExceptionHandler.
 @Slf4j
 @RestControllerAdvice
+@Order(0)
 public class SalonExceptionHandler {
 
     @ExceptionHandler(SalonNotFoundException.class)
