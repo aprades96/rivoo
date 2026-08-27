@@ -1,7 +1,9 @@
 package com.rivoo.staff.infrastructure.adapter.in.web;
 
 import com.rivoo.staff.application.dto.EmployeeInternalResponse;
+import com.rivoo.staff.application.dto.EmployeePublicResponse;
 import com.rivoo.staff.application.dto.ServiceOfferingInternalResponse;
+import com.rivoo.staff.application.dto.ServiceOfferingPublicResponse;
 import com.rivoo.staff.application.dto.WorkingHoursResponse;
 import com.rivoo.staff.domain.port.in.GetEmployeeUseCase;
 import com.rivoo.staff.domain.port.in.ManageEmployeeWorkingHoursUseCase;
@@ -51,5 +53,17 @@ public class StaffInternalController {
         log.atInfo().addKeyValue("employeeId", employeeId).log("GET /api/internal/staff/employees/working-hours");
         List<WorkingHoursResponse> response = manageWorkingHoursUseCase.getWorkingHoursInternal(tenantId, employeeId);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{tenantId}/employees/public")
+    public ResponseEntity<List<EmployeePublicResponse>> listPublicEmployees(@PathVariable String tenantId) {
+        log.atInfo().log("GET /api/internal/staff/{tenantId}/employees/public");
+        return ResponseEntity.ok(getEmployeeUseCase.listPublicByTenant(tenantId));
+    }
+
+    @GetMapping("/{tenantId}/services/public")
+    public ResponseEntity<List<ServiceOfferingPublicResponse>> listPublicServices(@PathVariable String tenantId) {
+        log.atInfo().log("GET /api/internal/staff/{tenantId}/services/public");
+        return ResponseEntity.ok(manageServiceOfferingUseCase.listPublicByTenant(tenantId));
     }
 }
