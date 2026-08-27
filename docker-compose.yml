@@ -187,6 +187,10 @@ services:
       RIVOO_SECURITY_INTERNAL_SERVICE_KEY: rivoo-dev-internal-key-2026
       RIVOO_SERVICES_AUTH_SERVICE_URL: http://auth-service:8081
       RIVOO_SERVICES_SALON_SERVICE_URL: http://salon-service:8082
+      # URL a la que Stripe devuelve al usuario al salir del portal de facturacion.
+      # El navegador es quien la abre, no el contenedor: por eso apunta a localhost:3000
+      # (el frontend en la maquina del desarrollador) y no a un host de la red de compose.
+      RIVOO_BILLING_PORTAL_RETURN_URL: http://localhost:3000/settings/billing
     depends_on:
       mysql:
         condition: service_healthy

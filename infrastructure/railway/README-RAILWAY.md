@@ -128,6 +128,23 @@ Mismo patron: DATASOURCE apuntando a su BD, JWKS URI a Keycloak, y URLs internas
 
 **IMPORTANTE**: En Railway, los servicios se comunican internamente via `{nombre-servicio}.railway.internal:{puerto}`. No necesitan dominio publico.
 
+#### billing-service — variables adicionales
+
+```
+STRIPE_API_KEY=(secret de Stripe)
+STRIPE_WEBHOOK_SECRET=(signing secret del endpoint de webhook)
+RIVOO_BILLING_PORTAL_RETURN_URL=https://tu-dominio.vercel.app/settings/billing
+```
+
+> `RIVOO_BILLING_PORTAL_RETURN_URL` es la URL a la que Stripe devuelve al usuario cuando
+> sale del portal de facturacion (`POST /api/v1/billing/portal`). A diferencia de
+> `RIVOO_SERVICES_*`, **no es una URL interna**: la abre el navegador, asi que tiene que ser
+> el dominio publico del frontend en Vercel, no `*.railway.internal`.
+> A diferencia de `RIVOO_SERVICES_STAFF_SERVICE_URL` en salon-service, esta si tiene valor
+> por defecto (`http://localhost:3000/settings/billing`) tanto en el `@Value` como en el yml
+> de `prod`, asi que si falta **el servicio arranca igual**; el sintoma no es una caida, es
+> que al salir del portal el usuario acaba en `localhost:3000` en vez de en el frontend real.
+
 ### 6. Frontend (Vercel)
 
 1. Ve a https://vercel.com

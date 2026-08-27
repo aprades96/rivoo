@@ -157,6 +157,7 @@ public class SubscriptionService implements CreateSubscriptionUseCase, GetSubscr
                 sub.getExternalId(), sub.getTenantId(),
                 plan.getName().name(), plan.getDisplayName(), plan.getMonthlyPrice(),
                 sub.getStatus().name(),
+                sub.getStripeCustomerId(), sub.getStripeSubscriptionId(),
                 sub.getTrialStart(), sub.getTrialEnd(),
                 sub.getCurrentPeriodStart(), sub.getCurrentPeriodEnd(),
                 sub.isCancelAtPeriodEnd(), sub.getCreatedAt());

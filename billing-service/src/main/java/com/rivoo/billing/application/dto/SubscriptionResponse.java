@@ -10,6 +10,8 @@ public record SubscriptionResponse(
         String planDisplayName,
         BigDecimal monthlyPrice,
         String status,
+        String stripeCustomerId,
+        String stripeSubscriptionId,
         Instant trialStart,
         Instant trialEnd,
         Instant currentPeriodStart,

@@ -3,7 +3,9 @@ package com.rivoo.billing.infrastructure.adapter.in.web;
 import com.rivoo.billing.application.dto.CheckoutRequest;
 import com.rivoo.billing.application.dto.CheckoutResponse;
 import com.rivoo.billing.application.dto.PlanResponse;
+import com.rivoo.billing.application.dto.PortalResponse;
 import com.rivoo.billing.application.dto.SubscriptionResponse;
+import com.rivoo.billing.domain.port.in.BillingPortalUseCase;
 import com.rivoo.billing.domain.port.in.CheckoutUseCase;
 import com.rivoo.billing.domain.port.in.GetSubscriptionUseCase;
 import com.rivoo.billing.domain.port.in.ListPlansUseCase;
@@ -30,6 +32,7 @@ public class BillingController {
     private final GetSubscriptionUseCase getSubscriptionUseCase;
     private final CheckoutUseCase checkoutUseCase;
     private final ListPlansUseCase listPlansUseCase;
+    private final BillingPortalUseCase billingPortalUseCase;
 
     @GetMapping("/subscription")
     @PreAuthorize("hasRole('SALON_OWNER')")
@@ -46,6 +49,15 @@ public class BillingController {
         String tenantId = TenantContext.getCurrentTenantId();
         log.atInfo().addKeyValue("planName", request.planName()).log("POST /api/v1/billing/checkout-session");
         CheckoutResponse response = checkoutUseCase.createCheckoutSession(tenantId, request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/portal")
+    @PreAuthorize("hasRole('SALON_OWNER')")
+    public ResponseEntity<PortalResponse> createPortalSession() {
+        String tenantId = TenantContext.getCurrentTenantId();
+        log.atInfo().log("POST /api/v1/billing/portal");
+        PortalResponse response = billingPortalUseCase.createPortalSession(tenantId);
         return ResponseEntity.ok(response);
     }
 

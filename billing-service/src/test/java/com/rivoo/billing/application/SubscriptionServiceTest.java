@@ -59,6 +59,7 @@ class SubscriptionServiceTest {
     private static final String OWNER_EMAIL = "owner@salon.com";
     private static final String SALON_NAME = "Barberia Norte";
     private static final String STRIPE_CUSTOMER_ID = "cus_stripe123";
+    private static final String STRIPE_SUBSCRIPTION_ID = "sub_stripe456";
 
     @BeforeEach
     void setUp() {
@@ -83,6 +84,9 @@ class SubscriptionServiceTest {
         assertThat(response.status()).isEqualTo(SubscriptionStatus.TRIALING.name());
         assertThat(response.tenantId()).isEqualTo(TENANT_ID);
         assertThat(response.planName()).isEqualTo(PlanName.FREE_TRIAL.name());
+        // FREE_TRIAL has a Stripe Customer but no Stripe Subscription yet
+        assertThat(response.stripeCustomerId()).isEqualTo(STRIPE_CUSTOMER_ID);
+        assertThat(response.stripeSubscriptionId()).isNull();
 
         // trialEnd must be 14 days after trialStart
         assertThat(response.trialEnd()).isAfter(response.trialStart());
@@ -117,6 +121,23 @@ class SubscriptionServiceTest {
         assertThat(saved.getStripeCustomerId()).isEqualTo(STRIPE_CUSTOMER_ID);
         assertThat(saved.getExternalId()).startsWith("sub_");
         assertThat(saved.getTenantId()).isEqualTo(TENANT_ID);
+    }
+
+    // ── getByTenantId: exposes the Stripe identifiers the frontend gates on ─
+
+    @Test
+    void getByTenantId_exposesStripeCustomerIdAndStripeSubscriptionId() {
+        Subscription existing = buildSubscription(SubscriptionStatus.ACTIVE, PlanName.PREMIUM, 2L);
+        existing.setStripeSubscriptionId(STRIPE_SUBSCRIPTION_ID);
+        when(subscriptionPersistencePort.findByTenantId(TENANT_ID)).thenReturn(Optional.of(existing));
+        when(planPersistencePort.findById(2L)).thenReturn(Optional.of(buildPlan(2L, PlanName.PREMIUM)));
+
+        SubscriptionResponse response = subscriptionService.getByTenantId(TENANT_ID);
+
+        // The billing settings page renders the "Gestionar suscripcion" button only when
+        // stripeSubscriptionId is present, so both identifiers must survive the mapping.
+        assertThat(response.stripeCustomerId()).isEqualTo(STRIPE_CUSTOMER_ID);
+        assertThat(response.stripeSubscriptionId()).isEqualTo(STRIPE_SUBSCRIPTION_ID);
     }
 
     // ── create: duplicate tenant → throws ───────────────────────────────

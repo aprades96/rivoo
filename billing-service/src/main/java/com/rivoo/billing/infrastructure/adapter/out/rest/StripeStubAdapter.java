@@ -44,6 +44,17 @@ public class StripeStubAdapter implements StripePort {
     }
 
     @Override
+    public String createBillingPortalSession(String stripeCustomerId, String returnUrl) {
+        String portalUrl = "https://billing.stripe.com/mock-portal/" + UUID.randomUUID();
+        log.atInfo()
+                .addKeyValue("stripeCustomerId", stripeCustomerId)
+                .addKeyValue("returnUrl", returnUrl)
+                .addKeyValue("portalUrl", portalUrl)
+                .log("Stripe stub: created mock billing portal session");
+        return portalUrl;
+    }
+
+    @Override
     public StripeWebhookEvent constructEvent(String payload, String signatureHeader) {
         // Stub: parse known fields from a simple JSON payload.
         // Expected payload format:

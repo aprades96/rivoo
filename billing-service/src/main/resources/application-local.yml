@@ -25,3 +25,5 @@ rivoo:
       url: http://localhost:8081
     salon-service:
       url: http://localhost:8082
+  billing:
+    portal-return-url: http://localhost:3000/settings/billing

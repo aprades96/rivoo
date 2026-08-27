@@ -29,6 +29,11 @@ rivoo:
       url: ${RIVOO_SERVICES_AUTH_SERVICE_URL}
     salon-service:
       url: ${RIVOO_SERVICES_SALON_SERVICE_URL}
+  billing:
+    # Debe apuntar al dominio real del frontend en produccion. El default solo
+    # existe para que un despliegue sin la variable arranque igualmente (el usuario
+    # volveria a localhost al salir del portal, pero el servicio no se cae).
+    portal-return-url: ${RIVOO_BILLING_PORTAL_RETURN_URL:http://localhost:3000/settings/billing}
   stripe:
     api-key: ${STRIPE_API_KEY}
     webhook-secret: ${STRIPE_WEBHOOK_SECRET}

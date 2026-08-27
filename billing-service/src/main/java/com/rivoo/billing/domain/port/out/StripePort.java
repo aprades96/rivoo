@@ -7,6 +7,12 @@ public interface StripePort {
     String createCheckoutSession(String stripeCustomerId, String stripePriceId, String successUrl, String cancelUrl);
 
     /**
+     * Creates a Stripe Billing Portal session for an existing customer and returns its URL.
+     * The customer is sent back to returnUrl when they leave the portal.
+     */
+    String createBillingPortalSession(String stripeCustomerId, String returnUrl);
+
+    /**
      * Constructs and validates a Stripe webhook event from the raw payload and signature header.
      * Returns null if the signature is invalid.
      */
