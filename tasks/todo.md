@@ -884,8 +884,8 @@ El bloque más grande; merece plan propio.
 
 - [x] **RP.29** Flag `degraded` en el agregado publico (decidido 2026-08-27)
 - [x] **RP.30** `AuthServiceException` de staff-service: mismo defecto que RP.27
-- [ ] **RP.32** SEGURIDAD: oraculo de enumeracion de salones en los endpoints anonimos de citas
-- [ ] **RP.33** Rehacer `b62a2d7`: el javadoc corregido sigue mintiendo, y el `@Order` de 4 advices
+- [x] **RP.32** SEGURIDAD: oraculo de enumeracion de salones en los endpoints anonimos de citas
+- [x] **RP.33** Rehacer `b62a2d7`: el javadoc corregido sigue mintiendo, y el `@Order` de 4 advices
 - [ ] **RP.34** Cuerpo `null` declarado no-degradado: contradice el contrato y deja vivo el bug
 - [ ] **RP.35** `BillingServiceException` sin handler → 500 determinista en el alta de negocio
 - [ ] **RP.36** Huecos de cobertura y nombre del flag (F1, F3, F4, F5 de la review de RP.29)

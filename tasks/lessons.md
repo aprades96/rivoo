@@ -346,3 +346,15 @@ completa**. Al declararla, enumerar TODOS los endpoints `permitAll` (leer
 uno. Y ojo con las conversiones de excepcion entre servicios: aqui el 404 legitimo de
 salon-service se convertia en `RuntimeException` dentro del adaptador de appointment-service y
 salia como 500, creando la diferencia observable.
+
+### En Spring Boot 4 la anotacion es `@JacksonComponent`, no `@JsonComponent` (2026-08-27)
+
+**Dato verificado** listando `spring-boot-jackson-4.0.3.jar`: `org.springframework.boot.jackson.JsonComponent`
+**ya no existe**; se llama `@JacksonComponent`. Encaja con el resto del cambio de Boot 4: el runtime
+serializa con Jackson 3 (`tools.jackson.databind`), no con Jackson 2 (`com.fasterxml`), aunque el
+classpath tenga ambos.
+
+**Regla:** en este proyecto, cualquier codigo o comentario que mencione la integracion de Jackson
+hay que contrastarlo con el jar de la version resuelta, no con la memoria de Boot 3. Ya ha causado
+dos defectos aqui: un test de regresion escrito contra el `ObjectMapper` equivocado, y un javadoc
+que citaba una anotacion inexistente.
