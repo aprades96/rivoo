@@ -601,7 +601,7 @@ así que el paso 1 sale siempre vacío.
 - [x] **RP.9** Tipos y cliente API del frontend
 - [x] **RP.10** Store de 6 pasos
 - [x] **RP.11** Paso Profesional y cableado del flujo
-- [ ] **RP.12** Tests de aislamiento cross-tenant — **BLOQUEADO: no hay Docker ni CI**
+- [~] **RP.12** Tests de aislamiento cross-tenant — **NO SE HACE (decision del usuario, 2026-08-27)**
 - [ ] **RP.13** Que el store acepte ServicePublic (hoy el componente rellena category/isActive a mano)
 - [ ] **RP.14** Filtrar los null de serviceIds (asignación huérfana → EmployeeServicePersistenceAdapter:45)
 - [x] **RP.15** `getInternal()` ignora su parámetro `tenantId` en empleados y servicios — **fuga cross-tenant en la ruta pública**
@@ -867,3 +867,30 @@ El bloque más grande; merece plan propio.
 > van por endpoints autenticados con JWT, asi que `TenantContext` esta poblado y el `@Filter`
 > de Hibernate SI se activa y acota la consulta. Es una brecha de defensa en profundidad
 > (dependen de una sola capa en vez de dos), no una fuga viva. Tarea aparte si se decide.
+
+
+> **RP.12 — decidido: no se hace.** El usuario confirma que no va a haber Docker por ahora.
+> **Brecha asumida, escrita aqui para que nadie la descubra por sorpresa:** nadie ha verificado
+> contra MySQL real que, con `TenantContext` vacio (peticion anonima), el `@Filter` de Hibernate
+> quede desactivado y sea el filtrado por columna explicita el unico que acota la consulta.
+> Lo que SI esta verificado y corriendo: los tests unitarios de RP.15 (se vieron en rojo, 4
+> fallos, antes del arreglo) cubren el scoping por tenant en la capa de aplicacion.
+> Si algun dia entra Docker o CI en el proyecto, esta es la primera tarea que recuperar.
+
+> **Historial — decidido: se queda.** El commit `6eb273f` no compila aislado (se llevo dos
+> `git mv` ajenos por usar `git add` + `git commit` sobre un indice compartido). HEAD si compila.
+> Se asume: un `git bisect` que caiga justo ahi fallaria. Desaparece solo si la rama se integra
+> con squash merge. La leccion que lo previene esta en `tasks/lessons.md`.
+
+- [ ] **RP.29** Flag `degraded` en el agregado publico (decidido 2026-08-27)
+
+> **RP.29 — por que se hace.** El argumento decisivo no es la caida de staff-service, es que
+> **una lista vacia de servicios es tambien un estado legitimo y frecuente**: por la decision
+> del onboarding (opcion B), empleados y servicios son OPCIONALES, asi que un salon recien dado
+> de alta que se salto esos pasos tiene cero servicios con toda normalidad. Sin el flag, "este
+> negocio aun no ha cargado su catalogo" y "no hemos podido hablar con staff-service" colapsan
+> en la misma pantalla, y el primero va a ser comun.
+> Es un campo **aditivo**: `degraded?: boolean` no rompe el `SalonPublic` actual y el frontend
+> puede ignorarlo hasta que se toque esa pantalla. Backend ahora; consumo en frontend, aparte.
+> Lo que NO resuelve: el dueno del salon sigue sin enterarse. Eso es alertado, no API, y este
+> repo no tiene ninguno configurado.
