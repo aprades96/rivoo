@@ -617,15 +617,17 @@ así que el paso 1 sale siempre vacío.
 
 - [ ] **RP.16** El campo `isOpen` de los horarios no cuadra entre backend y frontend
 - [ ] **RP.20** Deuda de la review de RP.5 (alcance del `catch`, constante del header, log)
-- [ ] **RP.21** BLOQUEANTE: llamadas HTTP dentro de `@Transactional` en `getPublicBySlug`
-- [ ] **RP.22** Deuda de la review de RP.6 (Jackson del test, orden de advices, nombres de DTO)
 - [x] **RP.17** Reformar la URL de los listados internos: `/{tenantId}/public/{employees,services}`
 - [x] **RP.18** Deuda menor de la review de RP.4/RP.8 (logs, docs, test del gateway)
 - [x] **RP.19** BLOQUEANTE: `salon-service/application-prod.yml` no declara `staff-service.url`
 - [ ] **RP.23** DECISION DE PRODUCTO PENDIENTE: senalizar la degradacion al frontend
-- [ ] **RP.24** BLOQUEANTE: `catch` estrechado de mas en `StaffServiceAdapter` → 500 en la pagina publica
-- [ ] **RP.25** `RIVOO_SERVICES_STAFF_SERVICE_URL` falta en el runbook de Railway y en docker-compose
-- [ ] **RP.26** Menores de la review de RP.17-20 (asercion del gateway, test de targetTenantId, plan)
+- [x] **RP.24** BLOQUEANTE: `catch` estrechado de mas en `StaffServiceAdapter` → 500 en la pagina publica
+- [x] **RP.25** `RIVOO_SERVICES_STAFF_SERVICE_URL` falta en el runbook de Railway y en docker-compose
+- [x] **RP.26** Menores de la review de RP.17-20 (asercion del gateway, test de targetTenantId, plan)
+- [x] **RP.21** BLOQUEANTE: llamadas HTTP dentro de `@Transactional` en `getPublicBySlug`
+- [x] **RP.22** Deuda de la review de RP.6 (Jackson del test, orden de advices, nombres de DTO)
+- [ ] **RP.27** Las excepciones de salon-service no extienden `RivooException` (causa raiz del `@Order`)
+- [ ] **RP.28** Menores de la review de RP.21-22 (javadoc enganoso, sufijo Dto, Jackson 2 en staff)
 
 > **RP.16, hallazgo del 2026-08-27, no estaba en el plan.**
 > Los records de Java exponen el componente tal cual se llama, y no hay ninguna
@@ -798,3 +800,47 @@ El bloque más grande; merece plan propio.
 
 - [ ] Renombrar `middleware.ts` → `proxy.ts` (deprecado en Next 16.2)
 - [ ] `/clients` es una pantalla huérfana: nadie enlaza a ella
+
+
+> **RP.27, de la review de RP.21-22 (2026-08-27). Causa raiz, no sintoma.**
+> `@Order(0)` en `SalonExceptionHandler` arregla el caso concreto, pero el problema de fondo
+> es que las CUATRO excepciones de salon-service (`SalonNotFoundException`,
+> `EmailAlreadyInUseException`, `AuthServiceException`, `SlugAlreadyExistsException`)
+> extienden `RuntimeException` pelado. Las de appointment-service extienden `RivooException`,
+> y POR ESO aquel servicio no esta roto pese a no declarar `@Order`: las resuelve
+> `GlobalExceptionHandler.handleRivooException` dentro del MISMO advice, donde gana la
+> especificidad del metodo y el orden entre advices es irrelevante.
+> Consecuencia hoy: cualquier excepcion nueva de salon-service que nadie anada a mano a
+> `SalonExceptionHandler` cae en el catch-all → 500.
+> Si `SalonNotFoundException extends ResourceNotFoundException`, el `@Order(0)` sobra y el
+> 404 sale gratis y consistente con el resto de la plataforma. Aplica igual a staff-service.
+> Deuda relacionada, latente pero NO bloqueante para la ruta publica (verificado uno a uno):
+> `AppointmentExceptionHandler`, `BillingExceptionHandler`, `ClientExceptionHandler` y
+> `StaffExceptionHandler` tampoco declaran `@Order`. El proximo handler especifico que se
+> anada a esos servicios saldra 500 de forma no determinista.
+
+> **RP.28, de la misma review.** Cuatro menores:
+> 1. `BusinessHoursResponseJsonTest:26-30` — el javadoc promete que el test falla si alguien
+>    anade un `PropertyNamingStrategy` o un `JsonMapperBuilderCustomizer`. **Es falso**: el
+>    revisor anadio un customizer SNAKE_CASE y el test siguio pasando, porque el slice
+>    `@JsonTest` solo incluye `@JsonComponent`/serializers/modules, no `@Configuration`
+>    arbitrarias. El test SI cubre la regresion para la que se escribio; lo enganoso es el
+>    comentario. Recortar la afirmacion, o cubrir el pipeline completo sobre el endpoint.
+> 2. `EmployeePublicResponseDto` / `ServicePublicResponseDto` — el sufijo `Dto` es huerfano en
+>    el modulo (`SalonResponse`, `BusinessHoursResponse`, `SalonPublicResponse`,
+>    `RegisterSalonResponse` no lo llevan), y el mensaje del commit se contradice a si mismo
+>    al citarlos como precedente. Queda visible en `SalonPublicResponse`, un record sin `Dto`
+>    que contiene `List<ServicePublicResponseDto>`. Ademas `SalonDtoMapper:31,33` conserva los
+>    nombres de metodo antiguos `toServicePublicDto`/`toEmployeePublicDto`, ya desalineados.
+> 3. `staff-service/.../EmployeeServicePublicListTest:3` sigue importando Jackson 2
+>    (`com.fasterxml`). Es el mismo defecto que corrigio `75922da`, y en el servicio que
+>    alimenta empleados y servicios de la reserva publica.
+> 4. `GlobalExceptionHandler` de rivoo-common deberia declarar
+>    `@Order(Ordered.LOWEST_PRECEDENCE)` explicito: hoy la garantia descansa en que nunca lo
+>    declare. Y `SalonPublicSnapshotLoader` usa `@Component` donde el resto de la capa usa
+>    `@Service` (cosmetico).
+
+> **Nota de proceso para futuras reviews:** el directorio `scratchpad/clean` quedo contaminado
+> con una copia de trabajo previa (incluia `target/generated-sources` y los DTO antiguos). Un
+> revisor estuvo a punto de reportar un falso positivo grave —"el renombrado dejo duplicados"—
+> hasta contrastarlo con `git ls-tree`. Extraer siempre a un directorio NUEVO y vacio.
