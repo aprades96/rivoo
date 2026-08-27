@@ -601,10 +601,10 @@ así que el paso 1 sale siempre vacío.
 - [x] **RP.9** Tipos y cliente API del frontend
 - [x] **RP.10** Store de 6 pasos
 - [x] **RP.11** Paso Profesional y cableado del flujo
-- [ ] **RP.12** Tests de aislamiento cross-tenant
+- [ ] **RP.12** Tests de aislamiento cross-tenant — **BLOQUEADO: no hay Docker ni CI**
 - [ ] **RP.13** Que el store acepte ServicePublic (hoy el componente rellena category/isActive a mano)
 - [ ] **RP.14** Filtrar los null de serviceIds (asignación huérfana → EmployeeServicePersistenceAdapter:45)
-- [ ] **RP.15** `getInternal()` ignora su parámetro `tenantId` en empleados y servicios — **fuga cross-tenant en la ruta pública**
+- [x] **RP.15** `getInternal()` ignora su parámetro `tenantId` en empleados y servicios — **fuga cross-tenant en la ruta pública**
 
 > **RP.15, hallazgo del 2026-08-27, no estaba en el plan.**
 > `staff-service/.../application/EmployeeService.java:121-125` recibe `tenantId` y no lo usa:
@@ -844,3 +844,26 @@ El bloque más grande; merece plan propio.
 > con una copia de trabajo previa (incluia `target/generated-sources` y los DTO antiguos). Un
 > revisor estuvo a punto de reportar un falso positivo grave —"el renombrado dejo duplicados"—
 > hasta contrastarlo con `git ls-tree`. Extraer siempre a un directorio NUEVO y vacio.
+
+
+> **RP.12 — bloqueado, y el motivo cambia la decision (2026-08-27).**
+> Testcontainers SI esta disponible (BOM en el pom raiz, 1.21.4, artefactos `mysql` y
+> `junit-jupiter` en `~/.m2`). Lo que falta es **Docker**: no esta en el PATH ni instalado
+> como Docker Desktop. Y **tampoco hay CI**: no existe `.github/workflows`, `.gitlab-ci.yml`,
+> `Jenkinsfile` ni `.circleci`.
+> Por tanto "dejarlos escritos para que corran en CI" significa escribir tests que **no corren
+> en ningun sitio**. Esta sesion ha demostrado por mutacion, cinco veces, que una asercion que
+> nunca se ha visto en rojo no esta probada: unos tests de aislamiento que jamas se ejecutan
+> darian falsa confianza justo en la propiedad mas delicada de la feature.
+> Lo que SI quedo cubierto y ejecutandose: los tests unitarios de RP.15, que se vieron en rojo
+> antes del arreglo (4 fallos) y ahora estan en verde. Cubren el scoping por tenant en la capa
+> de aplicacion. Lo que queda SIN cubrir es el comportamiento del `@Filter` de Hibernate contra
+> MySQL real con `TenantContext` vacio. Esa es la brecha exacta, ni mas ni menos.
+> Decision pendiente del usuario: instalar Docker, montar CI, o asumir la brecha.
+
+> **Observacion de RP.15, no pedida y no aplicada.** `update`, `deactivate`, `assignServices` y
+> `updateWorkingHours` (en `EmployeeService` y `ServiceOfferingService`) tambien reciben
+> `tenantId` y tampoco lo usan para acotar el `findByExternalId`. NO son la misma gravedad:
+> van por endpoints autenticados con JWT, asi que `TenantContext` esta poblado y el `@Filter`
+> de Hibernate SI se activa y acota la consulta. Es una brecha de defensa en profundidad
+> (dependen de una sola capa en vez de dos), no una fuga viva. Tarea aparte si se decide.
