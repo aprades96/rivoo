@@ -100,6 +100,14 @@ public class SalonController {
         return ResponseEntity.ok(response);
     }
 
+    @PostMapping("/api/v1/salons/me/onboarding/complete")
+    @PreAuthorize("hasRole('SALON_OWNER')")
+    public ResponseEntity<SalonResponse> completeOnboarding() {
+        String tenantId = TenantContext.getCurrentTenantId();
+        log.atInfo().log("POST /api/v1/salons/me/onboarding/complete");
+        return ResponseEntity.ok(updateSalonUseCase.completeOnboarding(tenantId));
+    }
+
     @GetMapping("/api/v1/salons/me/business-hours")
     @PreAuthorize("hasAnyRole('SALON_OWNER', 'EMPLOYEE')")
     public ResponseEntity<List<BusinessHoursResponse>> getBusinessHours() {

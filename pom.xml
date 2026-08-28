@@ -156,8 +156,11 @@
     <profiles>
         <!-- Activate with: mvn test -P integration-test
              Clears the default 'integration' tag exclusion so that @Tag("integration")
-             tests (Testcontainers-based) are included in the surefire run.
-             Requires Docker to be running. -->
+             tests are included in the surefire run.
+             Most of these tests are Testcontainers-based and require Docker to be running.
+             The exception is salon-service's SalonJpaRepositoryOnboardingCompletionIntegrationTest,
+             which requires a local MySQL instance instead (see that class's javadoc) - Docker
+             is not needed for that one. -->
         <profile>
             <id>integration-test</id>
             <properties>

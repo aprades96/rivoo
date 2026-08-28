@@ -78,6 +78,18 @@ public class SalonJpaEntity extends TenantAwareEntity {
     @Column(name = "status")
     private com.rivoo.salon.domain.model.SalonStatus status;
 
+    // updatable = false: the only writer of this column is the compare-and-set bulk JPQL
+    // (SalonJpaRepository#markOnboardingCompletedIfPending), which translates directly to SQL and
+    // bypasses entity-level column metadata. This annotation instead blocks the OTHER writer that
+    // used to exist: SalonPersistenceAdapter#save doing a merge() of a detached Salon reconstructed
+    // from a stale read (e.g. from SalonService#updateStatus), which would otherwise copy whatever
+    // value that stale snapshot held - including a leftover null - back over a timestamp the
+    // compare-and-set had already committed in the few milliseconds in between. Verified against
+    // real MySQL that the bulk JPQL update still writes this column with updatable = false in place
+    // (see SalonJpaRepositoryOnboardingCompletionIntegrationTest).
+    @Column(name = "onboarding_completed_at", updatable = false)
+    private Instant onboardingCompletedAt;
+
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;
 

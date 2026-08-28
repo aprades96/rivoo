@@ -49,4 +49,20 @@ public interface SalonJpaRepository extends JpaRepository<SalonJpaEntity, Long> 
                                   @Param("expectedStatus") SalonStatus expectedStatus,
                                   @Param("newStatus") SalonStatus newStatus,
                                   @Param("now") Instant now);
+
+    /**
+     * Compare-and-set on {@code onboardingCompletedAt}: writes it only while it is still
+     * {@code null}, so a double click, two tabs, or a retried call all collapse into the same
+     * single write and none of them can overwrite the timestamp a previous call already set.
+     * <p>
+     * {@code updatedAt} is set explicitly because a bulk JPQL update bypasses the
+     * {@code @PreUpdate} callback that normally maintains it. {@code tenant_id} is in the
+     * predicate, so this does not depend on the Hibernate tenant {@code @Filter} - which bulk
+     * update statements ignore anyway.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Transactional
+    @Query("UPDATE SalonJpaEntity s SET s.onboardingCompletedAt = :now, s.updatedAt = :now "
+            + "WHERE s.tenantId = :tenantId AND s.onboardingCompletedAt IS NULL")
+    int markOnboardingCompletedIfPending(@Param("tenantId") String tenantId, @Param("now") Instant now);
 }

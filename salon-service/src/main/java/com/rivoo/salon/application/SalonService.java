@@ -188,6 +188,28 @@ public class SalonService implements GetSalonUseCase, UpdateSalonUseCase,
         return salonDtoMapper.toResponse(updated);
     }
 
+    /**
+     * {@code @Transactional}, unlike {@link #getByTenantId}: that method skips the annotation
+     * because it may send a welcome email over HTTP and that call must not run while a JDBC
+     * connection is held. This method calls nobody outside the database, so that reason does not
+     * apply here, and the reason to keep the annotation is concrete: {@code markOnboardingCompleted}
+     * and the {@code findByTenantId} re-read below must observe each other's effects. With the
+     * default {@code REQUIRED} propagation, the repository method's own {@code @Transactional}
+     * joins this one instead of committing on its own, so the re-read sees the write this same call
+     * just made even under MySQL's default REPEATABLE READ isolation - without a shared transaction,
+     * a concurrent commit could land in the gap between the two calls and the re-read could
+     * contradict what was just written, which the frontend would misread as a failed onboarding
+     * completion.
+     */
+    @Override
+    @Transactional
+    public SalonResponse completeOnboarding(String tenantId) {
+        salonPersistencePort.markOnboardingCompleted(tenantId);   // the count decides nothing here
+        Salon salon = salonPersistencePort.findByTenantId(tenantId)
+                .orElseThrow(() -> new SalonNotFoundException(tenantId));
+        return salonDtoMapper.toResponse(salon);
+    }
+
     // ── Business Hours ──────────────────────────────────────────────────
 
     @Override

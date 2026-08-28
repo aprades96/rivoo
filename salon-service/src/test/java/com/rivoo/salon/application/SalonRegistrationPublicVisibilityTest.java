@@ -520,6 +520,8 @@ class SalonRegistrationPublicVisibilityTest {
         final Map<Long, Salon> rows = new LinkedHashMap<>();
         /** How many times the conditional update statement was issued at all. */
         final AtomicInteger activateAttempts = new AtomicInteger();
+        /** How many times the onboarding-completion conditional update was issued at all. */
+        final AtomicInteger markOnboardingAttempts = new AtomicInteger();
         /** Every row-touching operation: {@code save} plus each successful promotion. */
         final AtomicInteger writes = new AtomicInteger();
         private long sequence = 0L;
@@ -600,6 +602,21 @@ class SalonRegistrationPublicVisibilityTest {
             return 1;
         }
 
+        @Override
+        public synchronized int markOnboardingCompleted(String tenantId) {
+            markOnboardingAttempts.incrementAndGet();
+            Optional<Salon> match = rows.values().stream()
+                    .filter(s -> tenantId.equals(s.getTenantId()) && s.getOnboardingCompletedAt() == null)
+                    .findFirst();
+            if (match.isEmpty()) {
+                return 0;
+            }
+            match.get().setOnboardingCompletedAt(Instant.now());
+            match.get().setUpdatedAt(Instant.now());
+            writes.incrementAndGet();
+            return 1;
+        }
+
         private static Salon copyOf(Salon s) {
             return Salon.builder()
                     .id(s.getId()).externalId(s.getExternalId()).tenantId(s.getTenantId())
@@ -609,7 +626,8 @@ class SalonRegistrationPublicVisibilityTest {
                     .addressStreet(s.getAddressStreet()).addressCity(s.getAddressCity())
                     .addressPostalCode(s.getAddressPostalCode()).timezone(s.getTimezone())
                     .currency(s.getCurrency()).subscriptionPlan(s.getSubscriptionPlan())
-                    .status(s.getStatus()).createdAt(s.getCreatedAt()).updatedAt(s.getUpdatedAt())
+                    .status(s.getStatus()).onboardingCompletedAt(s.getOnboardingCompletedAt())
+                    .createdAt(s.getCreatedAt()).updatedAt(s.getUpdatedAt())
                     .build();
         }
     }

@@ -737,3 +737,117 @@ Todos daban "verde" o "muerto" cuando no lo era.
 **Regla:** nombres de test unicos POR FICHERO, no por clase anidada. Y contar siempre los
 elementos `<testcase>` del XML contrastandolos con la linea `Results:` impresa; si discrepan,
 la fila de la matriz es invalida hasta averiguar por que.
+
+## Un snippet de plan que declara variables pero no la condicion de render esta incompleto
+
+**Patron:** escribi el arreglo del portero como tres expresiones derivadas (`authReady`,
+`needsOnboarding`, `unavailable`) y una frase en prosa: "con `!authReady` se pinta el spinner".
+El revisor demostro que ninguna de las tres expresiones se vuelve cierta cuando `authReady` es
+falso, asi que con la composicion natural del render la sesion muerta acabaria pintando los
+hijos: exactamente el fallo que la variable existia para evitar. La prosa lo decia; el codigo
+que se copia, no.
+
+**Por que importa:** el implementador copia el bloque de codigo, no el parrafo de al lado. Una
+variable declarada y no cableada es peor que no declararla, porque parece cubierta.
+
+**Regla:** si un plan cambia una condicion de guarda, el snippet incluye la CADENA DE RENDER
+completa (`if (...) return X; if (...) return Y; return children`), no solo los booleanos.
+Y cada caso de test enumerado debe corresponder a una rama visible del snippet.
+
+## Anadir un campo al dominio rompe en silencio los fakes con @Builder de lista explicita
+
+**Patron:** anadir `onboardingCompletedAt` a `Salon` (que es `@Builder` con lista de campos
+explicita) no basta. El store en memoria de los tests reconstruye el objeto con un `copyOf`
+que enumera los campos a mano: el campo nuevo se descarta en cada `save` y cada
+`findByTenantId`. El compare-and-set escribiria bien y la lectura devolveria `null`, y el
+sintoma apuntaria al servicio, no al fake.
+
+**Por que importa:** MapStruct empareja por nombre y no hay que tocarlo — eso hace creer que
+"anadir un campo" es gratis en todas las capas. Los fakes escritos a mano son la excepcion, y
+fallan sin un solo error de compilacion.
+
+**Regla:** al anadir un campo a un modelo de dominio, `grep` por implementaciones a mano del
+puerto de persistencia y por cualquier `copyOf` / `builder()` con lista explicita en los tests,
+y actualizarlas EN EL MISMO PASO. Nunca cuando fallen los tests.
+
+## Escribir en la cache de React Query antes de navegar no basta con refetchOnWindowFocus
+
+**Patron:** propuse `setQueryData(clave, respuesta)` antes de `router.push` para que la
+pantalla destino no leyera un dato rancio. Correcto pero insuficiente: `refetchOnWindowFocus`
+esta en `true` global y la pantalla de origen monta la misma query, asi que puede haber un
+refetch EN VUELO que resuelve despues del `setQueryData` y pisa el dato con el payload viejo.
+
+**Por que importa:** la ventana no es teorica — basta que la pantalla lleve mas de `staleTime`
+abierta y el usuario cambie de pestana y vuelva antes de pulsar el boton.
+
+**Regla:** `await queryClient.cancelQueries({ queryKey })` ANTES del `setQueryData`, siempre que
+la escritura decida una navegacion. Y `["a"]` sirve de prefijo para `invalidateQueries` pero
+NO es clave valida para `setQueryData`: ahi la clave es la exacta.
+
+## Un encargo que pide un aspecto y prohibe tocar quien lo pinta es contradictorio
+
+**Patron:** el encargo de las cinco pantallas describia al detalle la anatomia de las filas de
+horario (interruptor, selectores sin cromo nativo, separador "a", rejilla de escritorio) y en
+el parrafo siguiente prohibia tocar `working-hours-editor.tsx`, que es el UNICO componente que
+renderiza esas filas. El implementador no improviso: hizo lo que podia, y devolvio la
+contradiccion escrita. Bien hecho por su parte; el fallo era del encargo.
+
+**Por que importa:** la prohibicion tenia un motivo real (ese editor tiene logica sutil de
+adopcion de props que no habia que tocar) pero se redacto como "no toques el fichero" en vez de
+"no toques ESE mecanismo". Un implementador obediente entrega una pantalla a medias, y uno
+desobediente rompe la logica sutil.
+
+**Regla:** antes de prohibir un fichero, comprobar si ese fichero es el que produce lo que
+estas pidiendo. Si lo es, la prohibicion se acota al mecanismo concreto ("no toques la logica
+de sincronizacion de `:53-58`") y se autoriza el resto. Y si el componente lo comparten varios
+consumidores, mirar PRIMERO el artboard del otro consumidor: aqui `Horario.dc.html` resulto
+tener la misma anatomia, asi que restilar servia a los dos y la prohibicion sobraba.
+
+## Un comentario que promete una cobertura inexistente apaga la alarma del siguiente
+
+**Patron:** verifique a mano, con un ROLLBACK contra MySQL, que el compare-and-set de la marca
+de alta era idempotente y estaba acotado por tenant. Funciono. Y luego dicte un javadoc que
+decia que la atomicidad "se verifica por separado, contra MySQL". **Esa verificacion no existia
+como test**: era un comando que ejecute yo una vez y no deje escrito en ninguna parte.
+
+Un refutador que muto el codigo de verdad demostro lo que eso costaba: quitar el
+`AND ... IS NULL` del JPQL, o hacer que el JPQL no escriba el campo, o que el adaptador nunca
+llame al repositorio — las tres dejan la suite entera en verde. La escritura que decide si el
+usuario puede entrar en la aplicacion no tenia ninguna cobertura, y el javadoc estaba
+diciendole al siguiente revisor que si la tenia.
+
+**Por que importa:** es peor que no comentar nada. Un hueco visible se acaba tapando; un hueco
+que un comentario declara tapado no lo mira nadie. Es el mismo mecanismo que los "verdes
+falsos" que llevo toda la sesion catalogando, pero en prosa en vez de en una herramienta.
+
+**Regla:** una verificacion manual NO se cita en un comentario como si fuera cobertura. O se
+convierte en un test —aunque sea `@Tag("integration")` y no corra en la build normal—, o el
+comentario dice explicitamente **que ese camino esta sin cubrir**. Al escribir el javadoc,
+preguntarse: "si borro la linea de codigo que esto describe, ¿se pone algo rojo?". Si la
+respuesta es no, el comentario no puede afirmar que si.
+
+**Corolario sobre los fakes:** un test cuyo doble reimplementa el mecanismo bajo prueba
+(un `synchronized` que ES el compare-and-set) verifica el doble, no el codigo. Sirve para fijar
+que el servicio no hace leer-decidir-escribir; no sirve para nada mas, y el javadoc debe
+acotarlo asi.
+
+## Cambiar `isLoading` por "no hay datos" arregla un fallo y abre otro
+
+**Patron:** una guarda escrita como `if (isLoading) esqueleto` no protege nada cuando la consulta
+esta DESHABILITADA: en React Query v5 `isLoading = isPending && isFetching`, asi que una query
+con `enabled:false` tiene `isLoading` en **false**. El arreglo evidente es cambiarla por
+`data === undefined`. Y ahi esta la trampa: con reintentos limitados, un 500 deja `data` en
+`undefined` **para siempre**, o sea esqueleto perpetuo y boton muerto. Se cambia una pantalla
+que pierde datos por una pantalla de la que no se puede salir.
+
+**Por que importa:** en este bloque la distincion mordio TRES veces (el portero, el paso de
+horarios, y las otras dos pantallas que comparten ese editor), y el arreglo de la tercera creo
+la trampa nueva. Es el mismo error de fondo: tratar un booleano de React Query como si
+respondiera a la pregunta que uno tiene en la cabeza.
+
+**Regla:** una consulta tiene CUATRO estados que hay que cubrir explicitamente, no dos:
+(1) todavia no se pide —deshabilitada, sesion a medias—, (2) pidiendo, (3) fallo, (4) datos.
+Una guarda que solo distingue "hay datos / no hay datos" siempre deja uno de los otros tres sin
+salida. Al escribir la guarda, preguntarse: **"si esta peticion falla para siempre, ¿que ve el
+usuario y como sale de ahi?"**. Si la respuesta es un esqueleto, falta la rama de error con
+reintento.
