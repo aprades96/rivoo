@@ -1306,19 +1306,6 @@ Salieron de la auditoria de contratos backend/frontend. Verificados por mi, no s
       excepcion de prueba ahi dentro se convierte en entrada fantasma del mapa y rompe el
       test con un mensaje que no menciona la causa. En appointment-service barre el arbol entero.
 
-## Ingresos — un DELETE suelto desactiva el limite de empleados de todo un plan
-
-- [ ] `PlanLimitsService` devuelve `-1` cuando falta la fila de `max_employees`, y
-      `staff-service/.../EmployeeService.java:66` hace `if (maxEmployees >= 0) { ...validar... }`
-      — o sea, `-1` SALTA la validacion por completo. Verificado contra el esquema real:
-      `plan_limits` tiene `ON DELETE CASCADE` desde `subscription_plans` y **ninguna
-      restriccion que exija que existan las cuatro claves** (solo `UNIQUE (plan_id, limit_key)`).
-      Consecuencia: un DELETE despistado, una migracion mal hecha o un plan nuevo sembrado sin
-      limites deja SIN limite de empleados a todos los inquilinos de ese plan, en silencio,
-      sin error y sin log. No es fuga de datos: es ingresos.
-      Deliberadamente NO se toco al refactorizar (el comportamiento se preservo byte a byte,
-      confirmado por mutacion). Necesita ticket propio.
-
 ### Trampa de tests que conviene generalizar
 
 - [ ] El guardian de "no exponer nada del inquilino" en el catalogo publico de planes era una
