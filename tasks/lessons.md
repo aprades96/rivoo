@@ -687,3 +687,18 @@ a las dos cosas.
 agente sin verificarlo, y la deje en el fichero que leen los siguientes. Una leccion falsa es
 peor que ninguna, porque viene con autoridad. **Regla: lo que entre en `lessons.md` como hecho
 tecnico se verifica antes de escribirlo, igual que un comentario en el codigo.**
+
+## Una decision ya tomada por el usuario no se re-propone
+
+**Patron:** el usuario dijo "Stripe por ahora sera simulacro, ya lo configuraremos en el
+futuro, sera lo ultimo". Despues de eso recomende tres veces empezar por el webhook de Stripe,
+porque un revisor lo encontro y era el hallazgo mas llamativo de la sesion.
+
+**Por que importa:** la gravedad tecnica de un hallazgo no reordena el plan del usuario.
+Un agujero en un sistema que no esta conectado no es urgente: es una PRECONDICION del dia que
+se conecte. Insistir gasta la atencion del usuario y le hace repetirse.
+
+**Regla:** cuando aparezca un hallazgo grave sobre algo que el usuario ya ha aplazado
+explicitamente, se registra ATADO a la tarea que lo desbloquea ("al conectar Stripe:
+verificar la firma"), no como prioridad suelta. Y no se vuelve a proponer como "lo primero"
+salvo que el usuario cambie el plan.

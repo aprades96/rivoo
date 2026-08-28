@@ -1279,7 +1279,8 @@ Salieron de la auditoria de contratos backend/frontend. Verificados por mi, no s
 - [ ] Nada fija el contrato de disponibilidad por el lado del backend: renombrar el
       componente `slots` deja tsc, lint y los 129 tests en verde y reintroduce el fallo.
 
-## SEGURIDAD — el webhook de Stripe acepta eventos falsificados
+## AL CONECTAR STRIPE DE VERDAD (aplazado por decision del usuario: Stripe sigue siendo
+## simulacro y se conecta el ultimo) — el webhook acepta eventos falsificados
 
 - [ ] **PRIORITARIO.** `POST /api/webhooks/stripe` es anonimo y no verifica ninguna firma:
       la cabecera llega `required = false` y `StripeStubAdapter.constructEvent` la ignora.
