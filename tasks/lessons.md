@@ -487,3 +487,203 @@ el reflejo de "compruebo el frontend".
 deserializacion. Si el contrato viaja por JSON, el doble tiene que ser el **borde HTTP**
 (`MockRestServiceServer`) y el payload tiene que copiarse **de la fuente productora**, no
 escribirse de memoria.
+
+## Todo agente se lanza fresco. Siempre. Implementador incluido.
+
+**Patrón:** tras un veredicto BLOCK propuse que el mismo revisor verificase las
+correcciones, y reanudé al implementador original para hacerlas, las dos veces
+"porque ya tienen el contexto". El usuario corrigió ambas cosas.
+
+**Por qué importa:** el contexto que se ahorra al reanudar es exactamente el sesgo
+que se introduce. Un revisor que verifica sus propios hallazgos tiene incentivo a
+darlos por buenos. Un implementador reanudado defiende sus decisiones anteriores en
+vez de reconsiderarlas, y arrastra sus propias premisas equivocadas — en esta misma
+sesión un implementador concluyó "no hay Docker, luego no hay MySQL" y no verificó
+la migración; un agente fresco encontró el servidor escuchando en localhost:3306.
+
+**Regla:** cada despacho es un agente nuevo, sin excepción y en los dos roles.
+Implementación → implementador A, revisor B. Correcciones → implementador C,
+revisor D. A los revisores se les dan los hallazgos previos como afirmaciones a
+verificar, nunca como conclusiones establecidas.
+
+**El coste lo paga el orquestador, y es el punto:** sin reanudación, cada brief ha
+de ser autocontenido — hallazgos, ficheros, trampas del repo, criterio de
+verificación. Eso es trabajo mío, no del agente. Nota: la skill `executing-plans`
+dice "el implementador (mismo subagente) corrige"; esta regla la sobrescribe.
+
+**NOTA (esta sesión):** la pasada de correcciones del portal se lanzó reanudando al
+implementador original, antes de que existiera esta regla. Se deja terminar y la
+verifica un revisor fresco; a partir de ahí, ninguna reanudación más.
+
+## Los defectos se concentran en el alcance que nadie pidió
+
+**Patrón:** pedí añadir UNA fila a la tabla de endpoints de `billing-service/CLAUDE.md`.
+El implementador reescribió las dos tablas y afirmó cinco correcciones documentales por
+iniciativa propia. La parte encargada (tests) salió impecable; de las cinco afirmaciones
+voluntarias, cuatro eran erróneas, una de ellas grave.
+
+**Por qué importa:** un `CLAUDE.md` es normativo en este repo — los agentes construyen a
+partir de él. Una corrección equivocada que ha pasado por revisión pesa MÁS que la deriva
+que sustituye. Y el alcance no pedido no lo cubre ningún criterio de verificación, porque
+el brief no lo contemplaba.
+
+**Regla:** en el brief, acotar explícitamente qué NO se toca. Si un agente encuentra
+deriva adyacente, que la REPORTE, no que la arregle: entra como tarea propia con su
+propia verificación. Al revisar, tratar todo lo que exceda el encargo como la zona de
+mayor riesgo, no como celo profesional.
+
+**Fallo técnico concreto del que salió todo:** dedujo el nivel de autorización de
+`GET /plans` de la AUSENCIA de `@PreAuthorize`. En este stack eso no determina nada —
+lo fija `authorizeHttpRequests` en el security config más el gateway. El endpoint es
+anónimo (`permitAll` en los dos sitios) y el frontend lo llama sin token.
+
+## Un test dirigido por React Query puede dar verde sin comprobar nada
+
+**Patrón:** un test que siembra la caché de React Query, empuja un resultado nuevo y
+afirma sobre el componente puede pasar **con el bug reintroducido**. React Query
+notifica a sus observadores de forma asíncrona (microtarea de `notifyManager`), así
+que el componente nunca se repinta: la identidad en caché cambia, pero el dato nuevo
+no llega al formulario. La afirmación se evalúa sobre el render viejo.
+
+**Por qué importa:** no falla, no avisa, y parece cobertura. Solo se detectó porque la
+matriz de mutación exigía revertir ese sitio concreto y verlo en rojo — y no lo hizo.
+Ni `act()` síncrono ni `await act(async ...)` lo vacían.
+
+**Regla:** en un test que simule un refetch, primero **esperar a un campo que el
+componente bajo prueba NO controle** (`await findByText(...)`) para demostrar que el
+refetch aterrizó; solo entonces afirmar sobre lo que el usuario estaba editando. Los
+tests dirigidos por props (rerender síncrono) no tienen este problema.
+
+**Corolario:** la matriz de mutación por sitio no es burocracia. Aquí fue lo único que
+distinguió un test que protege de un test que decora.
+
+## `mvn -pl <modulo> test` sin `-am` da verde en falso
+
+**Patron:** compilar un modulo suelto sin `-am` resuelve el `rivoo-common-0.1.0-SNAPSHOT.jar`
+que haya en `~/.m2`, no el codigo de trabajo. Si el cambio esta en rivoo-common, el modulo
+se compila y pasa contra la version ANTIGUA. Verde, y no prueba nada.
+
+**Regla:** toda verificacion que toque rivoo-common va con `-am`, o con un
+`mvn -o clean test` de reactor completo. Un resultado por modulo sin `-am` no es evidencia.
+
+## Enumerar por `new Excepcion(` no encuentra las referencias cualificadas
+
+**Patron:** para decidir por excepcion si su mensaje era publicable, el agente enumero los
+sitios de lanzamiento con `grep "new BusinessValidationException"`. Se dejo tres:
+
+    throw new com.rivoo.common.exception.BusinessValidationException("Client is not active");
+
+Escritas con el nombre completo del paquete, no coinciden con el patron. Los tres eran
+endpoints AUTENTICADOS, asi que la conclusion publicada — "el cambio solo afecta a
+endpoints anonimos" — quedo escrita en el javadoc, en un test de politica y en el mensaje
+del commit. Falsa en los tres sitios.
+
+**Regla:** enumerar por el TIPO, no por la cadena de construccion. `grep -rn "NombreExcepcion"`
+a secas, o mejor aun apoyarse en el compilador/IDE. Y cuando el resultado de una enumeracion
+se convierta en justificacion escrita en el arbol, verificarla dos veces: una premisa falsa
+que pasa revision se hereda.
+
+**Corolario:** el alcance de una decision tomada en una clase BASE no se enumera mirando la
+clase base. Hay que mirar tambien todo lo que hereda de ella.
+
+## Los finales de linea son MIXTOS, no "el repo es CRLF"
+
+**Patron:** durante toda una sesion instrui a los agentes con "core.autocrlf=true, los ficheros
+son CRLF". Es falso a medias: `BillingController.java` es CRLF pero **todos los ficheros bajo
+`src/test` son LF**. Un agente normalizo sus patrones a CRLF, encontro 2 de 4, y aborto dejando
+el fichero intacto. Otro menos cuidadoso habria dejado un fichero medio editado.
+
+**Por que importa:** el modo de fallo no es solo el no-op silencioso que ya conociamos (mutacion
+que da verde en falso). Es tambien la edicion PARCIAL, que es peor: compila, pasa tests, y ha
+cambiado la mitad de lo que pretendia.
+
+**Regla:** detectar el final de linea POR FICHERO, nunca asumirlo. En cualquier script de
+edicion o mutacion: usar `\r?\n` en los patrones, comprobar el hash antes y despues, y **abortar
+sin escribir** si el numero de coincidencias no es el esperado. Nunca escribir a medias.
+
+## Una lista blanca sobre CLASES no es una lista blanca sobre lo ALCANZABLE
+
+**Patron:** cambiamos un guardian de seguridad de lista negra (seis nombres) a lista blanca
+sobre los componentes de dos records. Mejor, y mato la mutacion que la lista negra no veia.
+Pero el revisor encontro el hueco: si en vez de anadir un campo cambias el TIPO del componente
+anidado por otro record que si lleva datos del inquilino, y anades un constructor delegador para
+que ninguna llamada tenga que cambiar -> cero ficheros tocados, build verde, y el endpoint
+anonimo publica el campo. Los tests siguen pasando **sobre una clase que ya nadie usa**.
+
+**Por que importa:** un guardian que enumera CLASES FIJAS deja de alcanzar lo que protege en
+cuanto alguien redirige el grafo. Y lo peor es que no se cae: pasa en verde, vacuamente. Es la
+misma clase de fallo que el javadoc que afirmaba que un test inexistente protegia algo, un nivel
+mas abajo.
+
+**Regla:** un guardian de exposicion se ancla en la RAIZ y recorre el grafo
+(`getRecordComponents()` transitivo desde el DTO de respuesta, o aplanar el JSON serializado a
+todas las profundidades). Nunca en una lista de clases escrita a mano.
+
+**Como detectarlo:** la mutacion que lo revela no es "anado un campo", es "**cambio el tipo del
+componente**". Si tu matriz de mutacion solo anade y renombra campos, no esta probando el
+alcance del guardian.
+
+## Una matriz de mutacion sin control sobre el fuente SIN mutar no prueba nada
+
+**Patron:** un revisor reporto "9 de 9 mutaciones muertas" y era **falso**. Habia pasado
+`--reporter=basic`, que no existe en Vitest 4, asi que TODAS las ejecuciones morian al arrancar
+con exit 1 — y el arnes leia ese 1 como "el test ha fallado, mutacion detectada". Lo cazo el
+solo, ejecutando el arnes sobre el fuente sin mutar: exit 0, 8 tests. No es el primer caso en
+esta sesion; otro agente leyo mal los codigos de salida por un problema de codificacion cp1252.
+
+**Por que importa:** un exit code distinto de cero significa "algo fue mal", no "el test que me
+importa fallo". Un arnes que confunde ambas cosas reporta cobertura perfecta sobre cero
+cobertura, y es indistinguible de un buen resultado desde fuera.
+
+**Regla:** toda matriz de mutacion incluye una fila de CONTROL sobre el fuente sin mutar, que
+debe salir en VERDE. Y cada fila se valida por el recuento de tests fallados que imprime el
+runner, no por el codigo de salida. Si el control falla, la matriz entera se descarta.
+
+## Los agentes con worktree pueden romper el arbol del usuario al limpiar
+
+**Patron:** varios revisores crearon worktrees desechables del frontend con un enlace a
+`node_modules`. Al limpiar, uno se llevo por delante `node_modules/.bin` del arbol PRINCIPAL:
+`npm test`, `npm run lint` y `npm run build` dejaron de funcionar y nadie se entero hasta que
+un revisor posterior intento ejecutarlos.
+
+**Regla:** en el brief de cualquier agente que use worktree en el frontend, prohibir enlazar o
+reutilizar el `node_modules` del arbol principal — que haga su propio `npm ci` dentro del
+worktree. Y al cerrar una tanda, comprobar que las herramientas del usuario siguen vivas
+(`ls node_modules/.bin`), no solo que `git status` este limpio.
+
+## Un test puede estar DEFENDIENDO el bug que vas a arreglar
+
+**Patron:** al cerrar el callejon sin salida del paso de profesional, el arreglo choco con un
+test existente que renderizaba `employees: []` con la bandera apagada —el estado roto exacto—
+y exigia `getByText("Sin preferencia")`. Es decir, afirmaba como CORRECTO el avance al
+calendario vacio. Hubo que reescribirlo, no solo anadir cobertura.
+
+**Por que importa:** un brief que dice "no debilites lo que ya esta cubierto" empuja al agente
+a respetar tests que quiza codifican el defecto. Y un test que falla al arreglar un bug parece
+una regresion cuando es lo contrario.
+
+**Regla:** antes de arreglar, buscar si algun test AFIRMA el comportamiento roto. Si lo hace,
+cambiarlo forma parte del arreglo y hay que decirlo explicitamente en el informe, distinguiendolo
+de debilitar cobertura legitima.
+
+## CORREGIDA: la fragilidad del `userEvent` NO existe — y la leccion anterior era falsa
+
+**Lo que escribi aqui primero, y era mentira:** que estos tests pulsan elementos con
+`pointer-events-none` y que migrarlos a `userEvent` los dejaria verdes sin probar nada, porque
+`userEvent` respeta `pointer-events`.
+
+**Lo que un revisor demostro:** `vitest.config.ts:11` pone `css: false` y jsdom no carga
+Tailwind, asi que `pointer-events-none` es un nombre de clase inerte y el estilo computado es
+`auto`. La comprobacion de `userEvent` pasa y el click se dispara igual. Probado: con
+`userEvent.setup()` por defecto, contra el codigo sano pasa y contra la mutacion que quita la
+guarda FALLA. El test sigue mordiendo.
+
+**La fragilidad real, mas estrecha:** si alguien pone `css: true` en la config, o convierte las
+tarjetas apagadas en `<button disabled>` en vez de un `div` con clase, entonces si — un test que
+solo afirme "el paso no ha avanzado" se quedaria verde sin ejercitar nada. `fireEvent` es inmune
+a las dos cosas.
+
+**La leccion de verdad, y es sobre mi:** escribi una leccion a partir del razonamiento de un
+agente sin verificarlo, y la deje en el fichero que leen los siguientes. Una leccion falsa es
+peor que ninguna, porque viene con autoridad. **Regla: lo que entre en `lessons.md` como hecho
+tecnico se verifica antes de escribirlo, igual que un comentario en el codigo.**

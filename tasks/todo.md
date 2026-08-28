@@ -585,7 +585,16 @@ Orden por gravedad: primero lo que está **roto en producción**, luego lo que m
 en `docs/specs/<slug>/IMPLEMENTATION_PLAN.md`; los artboards de `rivoo-frontend/design/`
 son la especificación visual.
 
-### 1. Reserva pública — EN CURSO · plan: `docs/specs/reserva-publica/`
+### 1. Reserva pública — ✅ CERRADA (2026-08-28)
+
+44 tareas hechas y revisadas. El flujo funciona de punta a punta; hasta el 28/08 no mostraba
+ni un solo hueco (el frontend leia `availableSlots` y el backend emite `slots`), y nadie lo
+sabia. Cerrados tambien los tres callejones sin salida del paso de profesional (8d5fcf1).
+
+> **Lo que NO cierra este bloque**, y sigue abierto en sus propias secciones mas abajo:
+> el desajuste de la ventana de 1 hora (se ofrecen huecos que luego se rechazan al confirmar),
+> el oraculo de enumeracion de correos en el alta anonima de salon, y que nada fija el contrato
+> de disponibilidad por el lado del backend.
 
 Roto en producción: no hay endpoint público de servicios, empleados ni disponibilidad,
 así que el paso 1 sale siempre vacío.
@@ -603,7 +612,7 @@ así que el paso 1 sale siempre vacío.
 - [x] **RP.11** Paso Profesional y cableado del flujo
 - [~] **RP.12** Tests de aislamiento cross-tenant — **NO SE HACE (decision del usuario, 2026-08-27)**
 - [x] **RP.13** Que el store acepte ServicePublic (hoy el componente rellena category/isActive a mano)
-- [ ] **RP.14** Filtrar los null de serviceIds (asignación huérfana → EmployeeServicePersistenceAdapter:45)
+- [x] **RP.14** Filtrar los null de serviceIds (asignación huérfana → EmployeeServicePersistenceAdapter:45) (1ffa72d)
 - [x] **RP.15** `getInternal()` ignora su parámetro `tenantId` en empleados y servicios — **fuga cross-tenant en la ruta pública**
 
 > **RP.15, hallazgo del 2026-08-27, no estaba en el plan.**
@@ -615,12 +624,12 @@ así que el paso 1 sale siempre vacío.
 > y un atacante puede reservar en el salón A citando un empleado del salón B.
 > `ServiceOfferingService.java:97-101` tiene exactamente el mismo defecto: confirmado, no supuesto.
 
-- [ ] **RP.16** El campo `isOpen` de los horarios no cuadra entre backend y frontend
-- [ ] **RP.20** Deuda de la review de RP.5 (alcance del `catch`, constante del header, log)
+- [x] **RP.16** El campo `isOpen` de los horarios no cuadra entre backend y frontend (9b8061b + 902f15d; verificado: todos los DTO de red dicen isOpen)
+- [x] **RP.20** Deuda de la review de RP.5 (alcance del `catch`, constante del header, log) (RivooHeaders.TENANT_ID en uso; catch reformado en b5bf21d)
 - [x] **RP.17** Reformar la URL de los listados internos: `/{tenantId}/public/{employees,services}`
 - [x] **RP.18** Deuda menor de la review de RP.4/RP.8 (logs, docs, test del gateway)
 - [x] **RP.19** BLOQUEANTE: `salon-service/application-prod.yml` no declara `staff-service.url`
-- [ ] **RP.23** DECISION DE PRODUCTO PENDIENTE: senalizar la degradacion al frontend
+- [x] **RP.23** DECISION DE PRODUCTO PENDIENTE: senalizar la degradacion al frontend (4071ad5; los dos flags se consumen en public-service-step y public-employee-step)
 - [x] **RP.24** BLOQUEANTE: `catch` estrechado de mas en `StaffServiceAdapter` → 500 en la pagina publica
 - [x] **RP.25** `RIVOO_SERVICES_STAFF_SERVICE_URL` falta en el runbook de Railway y en docker-compose
 - [x] **RP.26** Menores de la review de RP.17-20 (asercion del gateway, test de targetTenantId, plan)
@@ -795,6 +804,45 @@ de Ajustes.
 
 Hoy `(app)/layout.tsx` es solo una columna centrada. Sidebar 248px + topbar 72px.
 El bloque más grande; merece plan propio.
+
+### 7. Pantallas sin dibujar — DIBUJADAS 2026-08-28 · canvas: 6 paginas, 71 artboards
+
+Al cruzar rutas contra artboards faltaban 12 pantallas. Ya estan en el canvas, movil y
+escritorio, hechas contra el codigo real. Separadas por si se pueden construir hoy:
+
+**Tienen codigo — se pueden implementar ya**
+
+- [ ] **FE.1** Equipo (lista) — `(app)/staff/page.tsx` · pestana principal
+- [ ] **FE.2** Detalle de empleado — `(app)/staff/[id]/page.tsx` + editor de horarios + asignacion
+- [ ] **FE.3** Formulario de empleado — `components/staff/employee-form.tsx` (hoja inferior)
+- [ ] **FE.4** Detalle de cliente — `(app)/clients/[id]/page.tsx` + panel RGPD
+- [ ] **FE.5** Formulario de cliente — `components/clients/client-form.tsx`
+- [ ] **FE.6** Login — `(auth)/login/page.tsx` · es un boton que entrega a Keycloak, no un formulario
+- [ ] **FE.7** Perfil del salon — `(app)/settings/salon/page.tsx` · solo edita nombre, telefono y descripcion
+- [ ] **FE.8** Reservas online — `(app)/settings/booking/page.tsx`
+- [ ] **FE.9** Plan y facturacion — `(app)/settings/billing/page.tsx`
+- [ ] **FE.10** Mi cuenta — `(app)/settings/account/page.tsx`
+
+**Dibujadas como PROPUESTA — no existen en el codigo**
+
+- [ ] **FE.11** Notificaciones — sin ruta. Contenido derivado de los tipos reales que envia
+      notification-service; la antelacion (24 h y 1 h) la fija un cron, no es configurable.
+- [ ] **FE.12** Error de reserva (hueco ocupado) — hoy solo hay un banner rojo en el paso 5.
+- [ ] Zona de peligro — dibujada dentro de FE.10; no hay flujo de desactivacion.
+- [ ] QR de la pagina publica — dibujado en FE.8; no existe.
+- [ ] Dias de prueba en la tarjeta de plan — el backend envia `trialDays` y la UI lo ignora.
+
+**Desajustes canvas <-> codigo detectados al dibujar**
+
+- [ ] La URL publica: el codigo genera `rivoo.app/book/<slug>`, el canvas pone
+      `rivoo.app/<slug>`. DECISION: quitar el `/book/` o corregir los artboards.
+- [ ] `/clients` esta construida y **no la enlaza nadie**: ni el codigo ni la barra inferior.
+      El wireframe dice que vive bajo "Mas", pero `settings/page.tsx` no la lista.
+- [ ] El interruptor de activar/desactivar reservas existe a medias: hay `toggleMutation`
+      declarada que nunca se pinta y que llama a la API con el cuerpo vacio.
+- [ ] `AjustesDesktop.dc.html` dibuja 8 campos editables + logo y color; el codigo edita 3.
+- [ ] Pendiente de decision: dialogo de confirmacion de anonimizado. El wireframe exige
+      teclear "ANONIMIZAR"; el codigo lo tiene activo desde el principio.
 
 ### Deuda técnica suelta
 
@@ -1119,3 +1167,161 @@ Salieron de la auditoria de contratos backend/frontend. Verificados por mi, no s
 > `CreateServiceRequest`, y pintado en `service-card.tsx` y `service-step.tsx`. El usuario escribe una
 > categoria, se envia, y el backend la descarta en silencio. Arreglarlo bien pide migracion + dominio +
 > persistencia + DTOs + mapeo. Decision de alcance del usuario.
+
+## MON.2 — Portal de facturación de Stripe — HECHA (8d690a7 + 65198db + 43228d4), APROBADA
+
+- [x] `StripePort.createBillingPortalSession(stripeCustomerId, returnUrl)` + impl en `StripeStubAdapter`
+- [x] `BillingPortalUseCase` + `BillingPortalService` (422 si `stripeCustomerId` es null)
+- [x] `POST /api/v1/billing/portal` en `BillingController`, rol SALON_OWNER, responde `{url}`
+- [x] `SubscriptionResponse`: añadir `stripeCustomerId` + `stripeSubscriptionId` (hoy el botón del frontend nunca se renderiza)
+- [x] Frontend: quitar `updatedAt` de `Subscription` (campo fantasma, solo vive en el fixture)
+- [x] `rivoo.billing.portal-return-url` en TODOS los `application*.yml` de billing-service
+
+## MON.3 — Categoría de servicio — HECHA (2ab50af), revisada y APROBADA
+
+- [x] Migración Flyway: `category VARCHAR(100) NULL` en `services`
+- [x] Dominio + entidad JPA + mapper de persistencia
+- [x] `CreateServiceOfferingRequest` / `UpdateServiceOfferingRequest` / `ServiceOfferingResponse`
+- [x] `ServiceOfferingService.create` y `.update`
+- [x] Alcance: SOLO superficie autenticada. `ServicePublic` del frontend no pide categoría.
+- [x] Frontend `service-form.tsx`: `|| undefined` impedía vaciar el campo (0df0977, rivoo-frontend)
+
+### Pendiente / avisos
+
+- [ ] `staff_db` va DOS migraciones por detrás: V3 tampoco se ha aplicado nunca (`employees`
+      sin `job_title` ni `color_hex`). El próximo arranque aplica V3+V4 seguidas. Ambas
+      verificadas ejecutables contra el MySQL 8.0.40 real de localhost:3306.
+- [ ] Hueco estructural: sin Testcontainers, ningún test cubre el binding entidad↔esquema.
+      Mutar `@Column(name="category")` a un nombre inexistente deja los 74 tests en verde.
+      Mitigado en arranque por `ddl-auto: validate`, que sí valida existencia y tipo.
+- [x] Tests JSON que fijan las claves del contrato (el punto ciego: renombrar el campo
+      dejaba los 32 tests en verde). 32 → 40 tests.
+- [x] Producción falla al arrancar si falta la URL de retorno, en vez de redirigir a
+      localhost tras un pago real.
+- [x] Deriva documental: `GET /plans` es ANÓNIMO (`permitAll` en BillingSecurityConfig:38 y
+      GatewaySecurityConfig:25), no autenticado. En este stack la ausencia de `@PreAuthorize`
+      no determina el nivel de auth — lo fija `authorizeHttpRequests` más el gateway.
+- [x] client-service NO llama a billing; su CLAUDE.md documentaba la llamada como existente (b4b7557).
+
+### Decisión pendiente del usuario
+
+- [ ] En FREE_TRIAL hay `stripeCustomerId` pero no `stripeSubscriptionId`, así que el botón
+      no aparece durante el trial. El endpoint serviría igual. Recomendación: dejarlo — en
+      trial no hay facturas, ni método de pago, ni plan que cambiar.
+
+## Hallazgos de la revisión de los 8 commits pendientes
+
+- [ ] **CRÍTICO — la reserva no muestra huecos.** Backend envía `slots:[{startTime,endTime}]`;
+      frontend lee `availableSlots: string[]`. Siempre vacío. Afecta al flujo público Y al
+      asistente interno. Verificado a mano. EN CURSO.
+- [ ] **La clase de fallo NO está cerrada.** Renombrar `active`→`isActive` en
+      `EmployeeInternalResponse` / `ServiceOfferingInternalResponse` deja 74/74 y 76/76 en
+      verde mientras producción lanzaría `MismatchedInputException` en cada llamada. Es el
+      incidente de `902f15d` repetible tal cual. 8 tests JSON para 33 DTOs de respuesta.
+- [ ] **`@Mapping(target="isActive", source="active")` sin cobertura.** Borrarlo deja 74/74
+      en verde y MapStruct genera `boolean isActive = false` sin aviso → todos los servicios
+      y empleados salen inactivos → listas vacías en el asistente. Es exactamente el bug que
+      `282fb1a` decía arreglar, reintroducible gratis. BLOQUEA 282fb1a y aa8b2c5.
+- [ ] `gdprConsentAt` es un campo fantasma: `GET /api/v1/clients/{id}` no lo envía, así que
+      la fecha de consentimiento no se muestra NUNCA. UI de RGPD.
+- [ ] `PublicBookingResponse` diverge por completo (latente hoy).
+- [ ] `0df0977` (mío) no tiene ningún test. Revertirlo deja vitest y tsc en verde.
+- [ ] Fantasmas latentes: `Salon.ownerUserId`, `Appointment.tenantId`, `Client.dateOfBirth`,
+      `PlanLimitsResponse.current*`, `EmployeeServiceResponse.employeeId`/`customDurationMinutes`.
+
+## Seguimientos de la revisión de errores de dependencia
+
+- [ ] **`isBlank()` en vez de `== null`** en la guarda del `keycloakUserId`, en
+      `staff-service/AuthServiceAdapter:81` Y `salon-service/AuthServiceAdapter:81`.
+      Verificado con sonda: `{"keycloakUserId":""}` NO dispara la guarda; se persiste
+      cadena vacía y, al ser columna UNIQUE, el segundo caso da un 500 inexplicable.
+- [ ] **La mitad visible no está entregada:** `employee-form.tsx:76` hace
+      `onError: () => toast.error(...)` sin leer `problem.detail`, y el adaptador descarta
+      `e.getResponseBodyAsString()`, que lleva el 409 accionable de auth-service ("ese email
+      ya existe"). El dueño no distingue "email ocupado" de "auth-service caído".
+- [ ] `deleteUser` etiqueta sus errores como `employee-registration-rejected` / "Employee
+      Registration Rejected" — para un BORRADO. Hoy no tiene llamantes, pero el test fija
+      la etiqueta equivocada para quien lo conecte.
+- [ ] Dos bloques de documentación quedaron falsos: el `@Order(0)` de `StaffExceptionHandler`
+      y el javadoc de `StaffExceptionHandlerOrderTest`, que afirma "502 con el mensaje
+      específico" en un fichero que contiene dos tests que demuestran lo contrario.
+
+## Fallos previos encontrados de paso (no los hemos causado)
+
+- [ ] **No se puede abrir el domingo sin error opaco.** `OnboardingSagaService:190-193`
+      siembra el domingo con `open(false)` y SIN `openTime`/`closeTime` → llegan nulos.
+      `types/employee.ts:15-16` los declara `string` no nulables (mienten). Al activar el
+      domingo y guardar sin escribir horas, `SalonBusinessHours.validate()` lanza
+      "Open days must have openTime and closeTime" y la UI muestra "Error al guardar
+      horarios" sin decir qué falta. Además `<Input value={null}>` pasa el campo de
+      controlado a no controlado.
+- [ ] **El asistente interno no resuelve "cualquier profesional".** `datetime-step.tsx:33`
+      manda la cadena literal `"any"` como employeeId, y `confirmation-step.tsx:69` manda
+      cadena vacía a un campo `@NotBlank` → 400. El flujo público sí lo resuelve
+      (`public-datetime-step.tsx:43-47`); el interno no.
+- [ ] LOW: el segmento `${open}:` de la clave de sincronización no tiene cobertura en
+      `service-form` ni `employee-form` (mutantes M9/M10 sobreviven).
+- [ ] LOW: `settings/salon/page.test.tsx:64` busca el campo por posición
+      (`querySelectorAll("input")[0]`); si alguien añade un input encima, el test apunta a
+      otro campo y se queda verde con la regresión viva.
+
+## Se destapan al ver huecos por primera vez (171b6f7)
+
+- [ ] **Desajuste de la ventana de 1 hora.** `AvailabilityService:143` ofrece los huecos que
+      no hayan pasado; `AppointmentService:283-285` rechaza los que no estén a >= 1h vista.
+      Antes era inalcanzable (no se pintaba ningún hueco). Ahora: entras a las 10:00, eliges
+      las 10:30, rellenas tus datos y falla al confirmar. Parecerá regresión nuestra y no lo es.
+- [ ] **"Cualquier profesional" en el asistente interno.** Peor de lo que creíamos: manda la
+      cadena `"any"` como employeeId → `StaffServiceAdapter:66-84` pide
+      `/employees/any/working-hours` → 404 → RuntimeException → 500. El usuario ve
+      "No hay huecos disponibles este dia" en los 30 días. El 400 del `@NotBlank` ni se
+      alcanza. El flujo público es inmune.
+- [ ] Nada fija el contrato de disponibilidad por el lado del backend: renombrar el
+      componente `slots` deja tsc, lint y los 129 tests en verde y reintroduce el fallo.
+
+## SEGURIDAD — el webhook de Stripe acepta eventos falsificados
+
+- [ ] **PRIORITARIO.** `POST /api/webhooks/stripe` es anonimo y no verifica ninguna firma:
+      la cabecera llega `required = false` y `StripeStubAdapter.constructEvent` la ignora.
+      Exploit verificado por dos revisores independientes: el dueno lee su propio
+      `stripeSubscriptionId` desde `GET /api/v1/billing/subscription`, deja que le falle la
+      tarjeta y envia `{"eventId":"<nuevo>","type":"invoice.paid","subscriptionId":"sub_..."}`
+      sin autenticarse -> vuelve a ACTIVE. Con `customer.subscription.deleted`, cancela.
+      La idempotencia no protege: el eventId lo pone quien llama.
+      La via de subir de plan gratis esta MUERTA hoy (los `stripe_monthly_price_id` estan a
+      NULL en la semilla) y se arma sola al configurar Stripe real.
+      Los cuatro comentarios que afirmaban lo contrario ya estan corregidos.
+
+### Menores de la ultima revision
+
+- [ ] El mensaje del commit c6e39dd dice "un mutante sobrevive"; son DOS
+      (`SalonBusinessHours:38` y `EmployeeWorkingHours:38`, gemelos). Inconsecuente
+      —ambos mensajes solo devuelven el entero que envio el propio dueno— pero el recuento
+      es falso.
+- [ ] `BusinessValidationException.clientSafe` es estatico publico en una clase base, asi que
+      `AppointmentConflictException.clientSafe(...)` compila y devuelve la clase base
+      descartando el subtipo. No es fuga; confunde.
+- [ ] El escaner del test de politica barre tambien las clases de TEST del paquete: una
+      excepcion de prueba ahi dentro se convierte en entrada fantasma del mapa y rompe el
+      test con un mensaje que no menciona la causa. En appointment-service barre el arbol entero.
+
+## Ingresos — un DELETE suelto desactiva el limite de empleados de todo un plan
+
+- [ ] `PlanLimitsService` devuelve `-1` cuando falta la fila de `max_employees`, y
+      `staff-service/.../EmployeeService.java:66` hace `if (maxEmployees >= 0) { ...validar... }`
+      — o sea, `-1` SALTA la validacion por completo. Verificado contra el esquema real:
+      `plan_limits` tiene `ON DELETE CASCADE` desde `subscription_plans` y **ninguna
+      restriccion que exija que existan las cuatro claves** (solo `UNIQUE (plan_id, limit_key)`).
+      Consecuencia: un DELETE despistado, una migracion mal hecha o un plan nuevo sembrado sin
+      limites deja SIN limite de empleados a todos los inquilinos de ese plan, en silencio,
+      sin error y sin log. No es fuga de datos: es ingresos.
+      Deliberadamente NO se toco al refactorizar (el comportamiento se preservo byte a byte,
+      confirmado por mutacion). Necesita ticket propio.
+
+### Trampa de tests que conviene generalizar
+
+- [ ] El guardian de "no exponer nada del inquilino" en el catalogo publico de planes era una
+      LISTA NEGRA de seis nombres. Un campo llamado `usedSeatsThisTenant` la esquiva y la
+      bateria entera sigue verde. Se esta cambiando por lista blanca sobre los componentes del
+      record. **Merece revisarse si hay mas listas negras** en el proyecto haciendo de guardian
+      de seguridad: por construccion solo protegen de lo que alguien ya penso.
