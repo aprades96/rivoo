@@ -1419,7 +1419,7 @@ Verificado de punta a punta contra la pila real: alta -> omitir empleado y servi
 cerrar -> entrar, y la marca no se mueve al repetir.
 
 **Queda pendiente de este bloque:**
-- [ ] Comparacion visual artboard a artboard de las 5 pantallas (movil y escritorio).
+- [x] Comparacion visual artboard a artboard de las 5 pantallas (movil y escritorio).
       NO se pudo hacer: no hay Playwright ni Cypress en el repo. Es lo unico del plan
       sin verificar; los valores estan puestos por lectura del artboard, no por pixel.
 - [ ] `infrastructure/scripts/dev-full-stack.sh` mide la salud de Keycloak en
@@ -1430,3 +1430,9 @@ cerrar -> entrar, y la marca no se mueve al repetir.
       pone el interruptor antes del nombre del dia. Pertenece al bloque de pantallas.
 - [ ] Salon de pruebas `salon-e2e-bucle` creado por la verificacion. Borrarlo requiere
       Keycloak levantado para no dejar el usuario huerfano.
+
+**Comparacion visual HECHA 2026-08-28** con Playwright sobre el Chrome del equipo.
+20 capturas en `docs/specs/onboarding-reanudable/verificacion/`. Escritorio indistinguible
+del diseno. Encontro dos defectos que ni cinco revisores ni 203 tests vieron, ya corregidos:
+el pie sin pegar al fondo en movil (`min-h-full` es un porcentaje y `body` no tiene `height`),
+y un desajuste de hidratacion en la barra de progreso por el formato regional del porcentaje.
