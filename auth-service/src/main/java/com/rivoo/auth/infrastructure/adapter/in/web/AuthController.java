@@ -22,6 +22,7 @@ public class AuthController {
     private final ManageTenantStatusUseCase manageTenantStatusUseCase;
     private final UpdateTenantAttributeUseCase updateTenantAttributeUseCase;
     private final ListTenantUsersUseCase listTenantUsersUseCase;
+    private final CheckEmailVerificationUseCase checkEmailVerificationUseCase;
 
     @PostMapping("/api/internal/auth/register-owner")
     public ResponseEntity<RegisterOwnerResponse> registerOwner(
@@ -60,6 +61,20 @@ public class AuthController {
         log.atDebug().log("GET /api/internal/auth/tenants/users");
         List<TenantUserResponse> users = listTenantUsersUseCase.listTenantUsers(tenantId);
         return ResponseEntity.ok(users);
+    }
+
+    /**
+     * Whether Keycloak has this user's address confirmed.
+     * <p>
+     * Exists so salon-service can promote a salon to publicly visible the moment its owner proves
+     * the address is theirs, without salon-service holding Keycloak admin credentials. Internal
+     * (PSK) only - the flag is a fact about a specific account and must not be readable anonymously.
+     */
+    @GetMapping("/api/internal/auth/users/{keycloakUserId}/email-verified")
+    public ResponseEntity<EmailVerificationResponse> isEmailVerified(@PathVariable String keycloakUserId) {
+        log.atDebug().log("GET /api/internal/auth/users/email-verified");
+        boolean verified = checkEmailVerificationUseCase.isEmailVerified(keycloakUserId);
+        return ResponseEntity.ok(new EmailVerificationResponse(keycloakUserId, verified));
     }
 
     @PutMapping("/api/internal/admin/tenants/{tenantId}/status")

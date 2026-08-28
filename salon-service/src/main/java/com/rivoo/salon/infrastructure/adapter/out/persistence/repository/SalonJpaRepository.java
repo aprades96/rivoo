@@ -29,4 +29,7 @@ public interface SalonJpaRepository extends JpaRepository<SalonJpaEntity, Long> 
     List<SalonJpaEntity> findByStatusAndCreatedAtBefore(
             @Param("status") SalonStatus status,
             @Param("before") Instant before);
+
+    @Query("SELECT s FROM SalonJpaEntity s WHERE s.status = :status")
+    List<SalonJpaEntity> findByStatus(@Param("status") SalonStatus status);
 }

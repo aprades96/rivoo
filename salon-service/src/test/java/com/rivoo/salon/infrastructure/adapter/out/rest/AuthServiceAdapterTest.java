@@ -15,6 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.springframework.http.HttpMethod.DELETE;
+import static org.springframework.http.HttpMethod.GET;
 import static org.springframework.http.HttpMethod.POST;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -35,6 +36,8 @@ class AuthServiceAdapterTest {
     private static final String REGISTER_OWNER_URI = AUTH_SERVICE_URL + "/api/internal/auth/register-owner";
     private static final String TENANT_ID = "sal_new";
     private static final String KEYCLOAK_USER_ID = "9f1c2d3e-0000-4444-8888-aaaabbbbcccc";
+    private static final String EMAIL_VERIFIED_URI =
+            AUTH_SERVICE_URL + "/api/internal/auth/users/" + KEYCLOAK_USER_ID + "/email-verified";
 
     private MockRestServiceServer server;
     private AuthServiceAdapter adapter;
@@ -182,6 +185,79 @@ class AuthServiceAdapterTest {
 
         AuthServiceException exception = catchThrowableOfType(
                 () -> adapter.deleteUser(KEYCLOAK_USER_ID), AuthServiceException.class);
+
+        assertThat(exception.getHttpStatus()).isEqualTo(HttpStatus.BAD_GATEWAY);
+        server.verify();
+    }
+
+    // -- isOwnerEmailVerified: a salon becomes publicly visible on this answer ------------------
+    //
+    // Which is why every non-answer below has to THROW rather than return false. Returning false
+    // would be the safe-looking choice and the wrong one: it is indistinguishable from a real "not
+    // verified", so a broken contract or a dead upstream would show up as owners whose salon simply
+    // never appears, with nothing in the logs pointing at why.
+
+    private boolean isOwnerEmailVerified() {
+        return adapter.isOwnerEmailVerified(KEYCLOAK_USER_ID);
+    }
+
+    private void expectEmailVerifiedQuery(org.springframework.test.web.client.response.DefaultResponseCreator response) {
+        server.expect(requestTo(EMAIL_VERIFIED_URI))
+                .andExpect(method(GET))
+                .andRespond(response);
+    }
+
+    @Test
+    void isOwnerEmailVerified_returnsTheFlagAuthServiceReports() {
+        expectEmailVerifiedQuery(withSuccess(
+                "{\"keycloakUserId\":\"%s\",\"emailVerified\":true}".formatted(KEYCLOAK_USER_ID),
+                MediaType.APPLICATION_JSON));
+
+        assertThat(isOwnerEmailVerified()).isTrue();
+        server.verify();
+    }
+
+    @Test
+    void isOwnerEmailVerified_returnsFalseWhenAuthServiceReportsFalse() {
+        expectEmailVerifiedQuery(withSuccess(
+                "{\"keycloakUserId\":\"%s\",\"emailVerified\":false}".formatted(KEYCLOAK_USER_ID),
+                MediaType.APPLICATION_JSON));
+
+        assertThat(isOwnerEmailVerified()).isFalse();
+        server.verify();
+    }
+
+    @Test
+    void isOwnerEmailVerified_authServiceIsDown_throwsBadGatewayInsteadOfReturningFalse() {
+        expectEmailVerifiedQuery(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
+
+        AuthServiceException exception = catchThrowableOfType(
+                this::isOwnerEmailVerified, AuthServiceException.class);
+
+        assertThat(exception.getHttpStatus()).isEqualTo(HttpStatus.BAD_GATEWAY);
+        server.verify();
+    }
+
+    @Test
+    void isOwnerEmailVerified_authServiceRefuses_isNotFlattenedIntoBadGateway() {
+        expectEmailVerifiedQuery(withStatus(HttpStatus.NOT_FOUND));
+
+        AuthServiceException exception = catchThrowableOfType(
+                this::isOwnerEmailVerified, AuthServiceException.class);
+
+        assertThat(exception.getHttpStatus())
+                .isNotEqualTo(HttpStatus.BAD_GATEWAY)
+                .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        server.verify();
+    }
+
+    @Test
+    void isOwnerEmailVerified_2xxWithoutTheFlag_throwsInsteadOfSilentlyMeaningNo() {
+        expectEmailVerifiedQuery(withSuccess(
+                "{\"keycloakUserId\":\"%s\"}".formatted(KEYCLOAK_USER_ID), MediaType.APPLICATION_JSON));
+
+        AuthServiceException exception = catchThrowableOfType(
+                this::isOwnerEmailVerified, AuthServiceException.class);
 
         assertThat(exception.getHttpStatus()).isEqualTo(HttpStatus.BAD_GATEWAY);
         server.verify();

@@ -64,4 +64,10 @@ public class SalonPersistenceAdapter implements SalonPersistencePort {
         return salonJpaRepository.findByStatusAndCreatedAtBefore(status, before)
                 .stream().map(mapper::toDomain).toList();
     }
+
+    @Override
+    public List<Salon> findByStatus(SalonStatus status) {
+        return salonJpaRepository.findByStatus(status)
+                .stream().map(mapper::toDomain).toList();
+    }
 }

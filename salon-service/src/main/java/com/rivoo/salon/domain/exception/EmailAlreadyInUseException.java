@@ -24,6 +24,15 @@ import org.springframework.http.HttpStatus;
  * ever escape the saga it degrades to a generic 409 rather than to a message naming the address.
  * That escape is a bug, not a fallback — {@code SalonRegistrationEnumerationTest} pins that both
  * paths answer 202.
+ * <p>
+ * <b>Scope, precisely.</b> Hiding this exception makes the RESPONSE uniform, and that alone left the
+ * oracle open: registration also used to PUBLISH the new salon immediately, under a slug derived
+ * from the attacker-supplied name, so one extra anonymous {@code GET /api/v1/salons/public/{slug}}
+ * answered 200 for a free address and 404 for a taken one. That half is closed separately, by
+ * registering into {@code ONBOARDING} and only promoting to {@code ACTIVE} once the owner confirms
+ * the address (see {@code OwnerVerificationActivationService} and
+ * {@code SalonRegistrationPublicVisibilityTest}). A TIMING difference between the two paths remains
+ * open and is not addressed anywhere — see {@code OnboardingRejection} and the module CLAUDE.md.
  */
 public class EmailAlreadyInUseException extends RivooException {
 

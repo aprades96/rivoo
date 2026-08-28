@@ -14,11 +14,22 @@ import org.springframework.http.HttpStatus;
  * endpoint must not describe. The operator gets that distinction from the logs instead.
  * <p>
  * What this mapping achieves is precisely that and nothing more: it hides WHICH dependency
- * refused. Account enumeration is closed SEPARATELY and elsewhere — the saga now answers 202 with
- * one fixed body whether or not the address already has an account, and tells the address owner by
- * mail instead (see {@code OnboardingSagaService#register} and {@code EmailAlreadyInUseException}).
- * Nothing about that lives in this constant, and no future change to it should be read as
- * maintaining that property.
+ * refused. Nothing about account enumeration lives in this constant, and no future change to it
+ * should be read as maintaining or breaking that property. That work is done SEPARATELY and
+ * elsewhere, in two halves and with one hole left open:
+ * <ul>
+ *   <li>the RESPONSE is uniform — 202 with one fixed body whether or not the address already has an
+ *       account, the difference going to the address owner by mail (see
+ *       {@code OnboardingSagaService#register} and {@code EmailAlreadyInUseException});</li>
+ *   <li>the SIDE EFFECT is uniform — registration no longer publishes the salon, so the follow-up
+ *       {@code GET /api/v1/salons/public/{slug}} that used to answer 200 for a free address and 404
+ *       for a taken one now answers 404 either way until the owner verifies their address (see
+ *       {@code OwnerVerificationActivationService});</li>
+ *   <li>the TIMING is NOT uniform and is not addressed: the free path does DB writes plus three
+ *       synchronous inter-service calls, the taken path one query and one notification POST. That is
+ *       a difference in round-trip count, discriminable from a single sample. Closing it needs
+ *       asynchronous registration, which nothing here does.</li>
+ * </ul>
  * <p>
  * One consequence worth stating: a 422 carrying this identity now means a dependency refused for a
  * reason that is NOT "the address exists" (a password the Keycloak policy rejects, for instance),

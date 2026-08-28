@@ -3,6 +3,7 @@ package com.rivoo.salon.infrastructure.adapter.out.rest;
 import com.rivoo.salon.domain.exception.AuthServiceException;
 import com.rivoo.salon.domain.exception.EmailAlreadyInUseException;
 import com.rivoo.salon.domain.port.out.AuthServicePort;
+import com.rivoo.salon.infrastructure.adapter.out.rest.dto.EmailVerificationRestResponse;
 import com.rivoo.salon.infrastructure.adapter.out.rest.dto.RegisterOwnerRequest;
 import com.rivoo.salon.infrastructure.adapter.out.rest.dto.RegisterOwnerResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -104,6 +105,48 @@ public class AuthServiceAdapter implements AuthServicePort {
 
         log.atInfo().addKeyValue("keycloakUserId", response.keycloakUserId()).log("Owner registered in Keycloak");
         return response.keycloakUserId();
+    }
+
+    @Override
+    public boolean isOwnerEmailVerified(String keycloakUserId) {
+        log.atDebug().addKeyValue("keycloakUserId", keycloakUserId)
+                .log("Calling auth-service for the owner's email verification state");
+
+        EmailVerificationRestResponse response;
+        try {
+            response = restClient.get()
+                    .uri("/api/internal/auth/users/{userId}/email-verified", keycloakUserId)
+                    .retrieve()
+                    .body(EmailVerificationRestResponse.class);
+        } catch (HttpServerErrorException | ResourceAccessException e) {
+            log.atWarn().setCause(e).addKeyValue("keycloakUserId", keycloakUserId)
+                    .log("auth-service failed while reading the email verification state");
+            throw AuthServiceException.unavailable(
+                    "Failed to read email verification state for user: " + keycloakUserId, e);
+        } catch (HttpClientErrorException e) {
+            log.atError().setCause(e).addKeyValue("keycloakUserId", keycloakUserId)
+                    .addKeyValue("upstreamStatus", e.getStatusCode().value())
+                    .log("auth-service rejected the email verification query with a client error");
+            throw AuthServiceException.rejected(
+                    "auth-service rejected the email verification query for user: " + keycloakUserId, e);
+        } catch (RestClientException e) {
+            log.atWarn().setCause(e).addKeyValue("keycloakUserId", keycloakUserId)
+                    .log("Could not complete the auth-service email verification call");
+            throw AuthServiceException.unavailable(
+                    "Failed to read email verification state for user: " + keycloakUserId, e);
+        }
+
+        if (response == null || response.emailVerified() == null) {
+            // A 2xx with no usable body is "we did not get an answer", not "not verified". Returning
+            // false here would be silently indistinguishable from a real negative and would hide a
+            // broken contract behind a salon that simply never becomes visible.
+            log.atWarn().addKeyValue("keycloakUserId", keycloakUserId)
+                    .log("auth-service returned a 2xx without a usable emailVerified flag");
+            throw AuthServiceException.unavailable(
+                    "Failed to read email verification state for user: " + keycloakUserId, null);
+        }
+
+        return response.emailVerified();
     }
 
     @Override

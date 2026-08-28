@@ -26,4 +26,6 @@ public interface SalonPersistencePort {
     Page<Salon> findAll(Pageable pageable);
 
     List<Salon> findByStatusAndCreatedAtBefore(SalonStatus status, Instant before);
+
+    List<Salon> findByStatus(SalonStatus status);
 }

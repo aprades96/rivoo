@@ -121,14 +121,23 @@ public class OnboardingSagaService implements RegisterSalonUseCase {
             throw e;
         }
 
-        // Step 6: Update salon with owner user ID
+        // Step 6: Update salon with owner user ID. The status deliberately STAYS ONBOARDING.
+        //
+        // Nobody has proved they control this address yet: the request was anonymous and the address
+        // was supplied by whoever sent it. Publishing the salon now is what made the second half of
+        // the enumeration oracle - the response is identical either way, but a free address left a
+        // slug the attacker had chosen answering 200 on GET /api/v1/salons/public/{slug} while a
+        // taken address left nothing, which is the same yes/no in two anonymous requests.
+        // OwnerVerificationActivationService promotes it to ACTIVE once Keycloak reports the address
+        // confirmed. This is also the coherent behaviour on its own terms: the owner cannot even log
+        // in until then, so a salon of theirs taking public bookings would make no sense.
         try {
             savedSalon.setOwnerUserId(keycloakUserId);
-            savedSalon.setStatus(SalonStatus.ACTIVE);
             savedSalon = salonPersistencePort.save(savedSalon);
-            log.atInfo().addKeyValue("externalId", externalId).addKeyValue("ownerUserId", keycloakUserId).log("Salon activated");
+            log.atInfo().addKeyValue("externalId", externalId).addKeyValue("ownerUserId", keycloakUserId)
+                    .log("Salon registered, awaiting owner email verification");
         } catch (Exception e) {
-            log.atError().setCause(e).addKeyValue("keycloakUserId", keycloakUserId).addKeyValue("externalId", externalId).log("Failed to activate salon, compensating");
+            log.atError().setCause(e).addKeyValue("keycloakUserId", keycloakUserId).addKeyValue("externalId", externalId).log("Failed to link the owner to the salon, compensating");
             try {
                 authServicePort.deleteUser(keycloakUserId);
             } catch (Exception compEx) {
@@ -153,12 +162,11 @@ public class OnboardingSagaService implements RegisterSalonUseCase {
             throw e;
         }
 
-        // Step 8: Send welcome email (fire-and-forget — non-critical)
-        try {
-            notificationServicePort.sendWelcomeEmail(externalId, request.email(), request.name());
-        } catch (Exception e) {
-            log.atWarn().setCause(e).addKeyValue("externalId", externalId).log("Failed to send welcome email, continuing");
-        }
+        // Step 8 used to send the WELCOME mail here. It does not any more, and this is not an
+        // omission: that template reads "tu salon esta activo", which is false until the address is
+        // confirmed. It is sent by OwnerVerificationActivationService at the moment it becomes true.
+        // The mail this path produces right now is Keycloak's VERIFY_EMAIL, which is the one the
+        // fixed 202 body ("revisa tu correo") actually refers to.
 
         // Byte-identical to the two early returns above. The salon's id, slug and status are
         // deliberately NOT echoed: each of them exists only on this path, and the owner cannot use

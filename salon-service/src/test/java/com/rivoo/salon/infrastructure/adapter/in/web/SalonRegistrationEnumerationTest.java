@@ -145,14 +145,6 @@ class SalonRegistrationEnumerationTest {
                     .andReturn().getResponse();
         }
 
-        void expectWelcomeNotification() {
-            notifications.expect(requestTo(NOTIFY_URI))
-                    .andExpect(method(POST))
-                    .andExpect(jsonPath("$.type").value("WELCOME"))
-                    .andExpect(jsonPath("$.recipientEmail").value(EMAIL))
-                    .andRespond(withSuccess());
-        }
-
         void expectExistingAccountNotification() {
             notifications.expect(requestTo(NOTIFY_URI))
                     .andExpect(method(POST))
@@ -176,12 +168,19 @@ class SalonRegistrationEnumerationTest {
 
     // -- Scenario builders. Each one configures a DIFFERENT world. -----------
 
-    /** (1) Nothing knows this address. The saga runs end to end. */
+    /**
+     * (1) Nothing knows this address. The saga runs end to end.
+     * <p>
+     * No notification expectation on purpose: this path sends none from salon-service at
+     * registration time. The mail it produces is Keycloak's VERIFY_EMAIL (triggered inside
+     * auth-service), and the WELCOME one waits until the address is actually confirmed - see
+     * {@code OwnerVerificationActivationService}. An unexpected POST to notification-service here
+     * would fail the request itself.
+     */
     private static Fixture free() {
         Fixture fixture = new Fixture(false);
         fixture.expectOwnerRegistrationAccepted();
         fixture.expectSubscriptionCreated();
-        fixture.expectWelcomeNotification();
         return fixture;
     }
 
@@ -276,9 +275,12 @@ class SalonRegistrationEnumerationTest {
 
     @Test
     void eachPathMailsTheRightThingToTheAddressThatWasSubmitted() throws Exception {
-        // The notification expectations assert BOTH the type and the recipient, and verify() fails
-        // if the request never arrives at all. The inbox is the only place the two outcomes are
-        // allowed to differ, because it is the only place just the address owner can read.
+        // The inbox is the only place the two outcomes are allowed to differ, because it is the
+        // only place just the address owner can read. The TAKEN path's expectation asserts BOTH the
+        // type and the recipient, and verify() fails if the request never arrives at all. The FREE
+        // path holds an EMPTY expectation set: any notification-service call it made would have
+        // failed register() outright, which is the assertion that its mail comes from Keycloak
+        // (VERIFY_EMAIL) and that WELCOME has moved to activation.
         Fixture newAddress = free();
         newAddress.register();
         newAddress.notifications.verify();
@@ -291,8 +293,10 @@ class SalonRegistrationEnumerationTest {
     @Test
     void aBrokenNotificationServiceDoesNotChangeTheAnswerOnEitherPath() throws Exception {
         // If the existing-address path let a notification failure escape, anyone able to take
-        // notification-service down would get the oracle back. The free path already swallowed it;
-        // both must.
+        // notification-service down would get the oracle back: a broken notification-service would
+        // turn "the address is taken" into a distinguishable HTTP failure. The free path does not
+        // call notification-service at registration at all, so it has nothing to swallow - which is
+        // precisely why the taken path's swallowing has to be pinned here.
         Fixture taken = new Fixture(true);
         taken.notifications.expect(requestTo(NOTIFY_URI))
                 .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
@@ -300,8 +304,6 @@ class SalonRegistrationEnumerationTest {
         Fixture newAddress = new Fixture(false);
         newAddress.expectOwnerRegistrationAccepted();
         newAddress.expectSubscriptionCreated();
-        newAddress.notifications.expect(requestTo(NOTIFY_URI))
-                .andRespond(withStatus(HttpStatus.INTERNAL_SERVER_ERROR));
 
         MockHttpServletResponse takenResponse = taken.register();
         MockHttpServletResponse newResponse = newAddress.register();
