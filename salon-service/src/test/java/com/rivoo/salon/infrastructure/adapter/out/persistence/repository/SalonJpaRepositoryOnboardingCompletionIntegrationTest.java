@@ -36,10 +36,15 @@ import static org.assertj.core.api.Assertions.within;
  * excludes from the default {@code surefire.excludedGroups} (see root {@code pom.xml:42-43,159-164}).
  * Run it explicitly with:
  * <pre>{@code
- * mvn -o -pl salon-service -am test -Dtest=SalonJpaRepositoryOnboardingCompletionIntegrationTest -Dsurefire.excluded.groups=
+ * mvn -o -pl salon-service -am test -Dtest=SalonJpaRepositoryOnboardingCompletionIntegrationTest -Dsurefire.excluded.groups= -Dsurefire.failIfNoSpecifiedTests=false
  * }</pre>
  * against a running local MySQL (matches the connection {@code application-local.yml} already
  * declares: {@code 127.0.0.1:3306}, schema {@code salon_db}, user {@code rivoo}).
+ * <p>
+ * The trailing {@code -Dsurefire.failIfNoSpecifiedTests=false} is required because of {@code -am}:
+ * that flag also runs Surefire in {@code rivoo-common}, where nothing matches {@code -Dtest=...},
+ * and without it Surefire treats zero matches in that module as a hard failure and aborts the whole
+ * build before {@code salon-service} is even reached.
  * <p>
  * <b>Why not Testcontainers, despite that being this repository's documented convention for
  * integration tests</b> (see {@code AppointmentRepositoryIntegrationTest},
