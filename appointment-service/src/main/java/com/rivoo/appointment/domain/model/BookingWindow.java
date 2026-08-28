@@ -13,6 +13,14 @@ import java.time.LocalDateTime;
  * {@link #isTooSoon(LocalDateTime, LocalDateTime)}, so they share the threshold <em>and</em> the
  * comparison operator: they cannot drift apart without editing this file.
  *
+ * <p>Two audiences, two pairs, one comparison. The public pair -
+ * {@code AvailabilityService#getPublicAvailableSlots} and {@code AppointmentService#book} - owes
+ * {@link #MINIMUM_LEAD_TIME} on both sides. The salon pair -
+ * {@code AvailabilityService#getAvailableSlots}, the wizard, and {@code AppointmentService#create},
+ * the endpoint it posts to - owes nothing on either side. Only the amount differs between them,
+ * and it travels as an argument precisely so that neither site can quietly grow its own copy of
+ * the comparison again.
+ *
  * <p>Domain class: plain Java, no Spring and no JPA (project dependency rule).
  */
 public final class BookingWindow {
@@ -40,6 +48,24 @@ public final class BookingWindow {
      *         {@code now + MINIMUM_LEAD_TIME} is NOT too soon.
      */
     public static boolean isTooSoon(LocalDateTime startTime, LocalDateTime now) {
-        return startTime.isBefore(now.plus(MINIMUM_LEAD_TIME));
+        return isTooSoon(startTime, now, MINIMUM_LEAD_TIME);
+    }
+
+    /**
+     * The same comparison, with the lead time the caller's audience owes.
+     *
+     * <p>{@link Duration#ZERO} is a lead time like any other here, deliberately: it has to keep
+     * meaning "not before now" through this same full date+time comparison rather than through a
+     * separate is-it-in-the-past branch. That is what keeps a fully past day offering nothing on
+     * the salon side too, and what stops a time-of-day comparison from creeping back in.
+     *
+     * @param startTime start of the appointment, in the salon's local time
+     * @param now       current instant, in the salon's local time
+     * @param leadTime  notice this audience owes; {@link Duration#ZERO} means "not before now"
+     * @return {@code true} when {@code startTime} is closer to {@code now} than {@code leadTime}
+     *         and therefore cannot be booked. Exactly {@code now + leadTime} is NOT too soon.
+     */
+    public static boolean isTooSoon(LocalDateTime startTime, LocalDateTime now, Duration leadTime) {
+        return startTime.isBefore(now.plus(leadTime));
     }
 }

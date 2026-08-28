@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -55,13 +56,27 @@ public class AvailabilityService implements CheckAvailabilityUseCase {
         }
         String tenantId = salon.tenantId();
 
-        return getAvailableSlots(tenantId, employeeId, date, serviceId);
+        // An anonymous visitor owes the public lead time: what this endpoint offers,
+        // POST /api/v1/appointments/book accepts.
+        return calculateAvailability(tenantId, employeeId, date, serviceId,
+                BookingWindow.MINIMUM_LEAD_TIME);
     }
 
     @Override
     @Transactional(readOnly = true)
     public AvailabilityResponse getAvailableSlots(String tenantId, String employeeId,
                                                    LocalDate date, String serviceId) {
+        // The salon's own wizard owes no lead time, because POST /api/v1/appointments - the
+        // endpoint that wizard posts to - imposes none: at 10:00 the owner has to be able to
+        // record the walk-in they are attending right now, and the public one-hour rule left
+        // them nothing before 11:00. Duration.ZERO still runs through the same full date+time
+        // comparison, so a past slot is not offered on this path either.
+        return calculateAvailability(tenantId, employeeId, date, serviceId, Duration.ZERO);
+    }
+
+    private AvailabilityResponse calculateAvailability(String tenantId, String employeeId,
+                                                        LocalDate date, String serviceId,
+                                                        Duration leadTime) {
         log.atInfo()
                 .addKeyValue("employeeId", employeeId)
                 .addKeyValue("date", date)
@@ -99,7 +114,8 @@ public class AvailabilityService implements CheckAvailabilityUseCase {
         }
 
         // 5. Calculate free slots
-        List<AvailableSlot> slots = calculateFreeSlots(date, dayHours, existingAppointments, serviceDuration);
+        List<AvailableSlot> slots = calculateFreeSlots(date, dayHours, existingAppointments,
+                serviceDuration, leadTime);
 
         log.atInfo()
                 .addKeyValue("slotsFound", slots.size())
@@ -109,7 +125,8 @@ public class AvailabilityService implements CheckAvailabilityUseCase {
     }
 
     private List<AvailableSlot> calculateFreeSlots(LocalDate date, EmployeeWorkingHoursDto dayHours,
-                                                    List<Appointment> existingAppointments, int serviceDuration) {
+                                                    List<Appointment> existingAppointments,
+                                                    int serviceDuration, Duration leadTime) {
         // Build busy intervals from existing appointments (convert UTC to local time)
         List<TimeInterval> busyIntervals = existingAppointments.stream()
                 .map(apt -> new TimeInterval(
@@ -158,12 +175,12 @@ public class AvailabilityService implements CheckAvailabilityUseCase {
             LocalDateTime intervalEnd = LocalDateTime.of(date, free.end());
             LocalDateTime cursor = LocalDateTime.of(date, free.start());
             while (!cursor.plusMinutes(serviceDuration).isAfter(intervalEnd)) {
-                // Never offer a slot that AppointmentService.book() would refuse: same rule,
-                // same object. Compared as a full date+time rather than "if the date is today,
-                // compare the time": with a same-day-only guard, tomorrow's 00:30 escaped the
-                // check entirely when the page was loaded at 23:50, and was offered although it
-                // is only 40 minutes away.
-                if (!BookingWindow.isTooSoon(cursor, now)) {
+                // Never offer a slot the endpoint of this audience would refuse: same rule,
+                // same object, only the lead time differs. Compared as a full date+time rather
+                // than "if the date is today, compare the time": with a same-day-only guard,
+                // tomorrow's 00:30 escaped the check entirely when the page was loaded at 23:50,
+                // and was offered although it is only 40 minutes away.
+                if (!BookingWindow.isTooSoon(cursor, now, leadTime)) {
                     slots.add(new AvailableSlot(cursor.toLocalTime(),
                             cursor.plusMinutes(serviceDuration).toLocalTime()));
                 }

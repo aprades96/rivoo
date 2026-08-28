@@ -2,6 +2,7 @@ package com.rivoo.appointment.application;
 
 import com.rivoo.appointment.application.dto.AvailabilityResponse;
 import com.rivoo.appointment.application.dto.AvailableSlot;
+import com.rivoo.appointment.application.dto.CreateAppointmentRequest;
 import com.rivoo.appointment.application.dto.EmployeeWorkingHoursDto;
 import com.rivoo.appointment.application.dto.PublicBookingRequest;
 import com.rivoo.appointment.domain.model.Appointment;
@@ -50,6 +51,13 @@ import static org.mockito.Mockito.when;
  * clock, so "queried at 23:50" is an ordinary test and not a nightly flake. The fixed clocks
  * are deliberately built on {@link ZoneOffset#UTC} while the salon is in Madrid, so a service
  * that forgot to re-zone would fail these tests rather than pass them by luck.
+ *
+ * <p>One audience further in, the invariant is the same: the offering surface and the accepting
+ * endpoint of a given audience share one rule. The public pair - the availability page and
+ * {@code POST /api/v1/appointments/book} - owes an hour on both sides. The salon pair - the
+ * wizard's {@code GET /api/v1/appointments/availability} and {@code POST /api/v1/appointments} -
+ * owes nothing on either side, which is what lets the owner record the walk-in standing in front
+ * of them. The lead time is an argument of the shared calculation, not a constant baked into it.
  */
 @DisplayName("Booking lead time - availability and booking apply the same rule")
 class BookingLeadTimeConsistencyTest {
@@ -129,6 +137,22 @@ class BookingLeadTimeConsistencyTest {
                         "cli_def789", "Ana", "Garcia", "ana@example.com", "+34600000000", true));
         when(appointmentPersistencePort.save(any(Appointment.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
+    }
+
+    /** Everything the salon-side create needs. It has no client lookup and no lead-time check. */
+    private void stubHappyCreatePath() {
+        when(staffServicePort.getEmployee(TENANT_ID, EMPLOYEE_ID))
+                .thenReturn(new StaffServicePort.StaffEmployeeInfo(EMPLOYEE_ID, "Carlos", "Ruiz", true));
+        when(billingServicePort.getMaxAppointmentsPerMonth(TENANT_ID)).thenReturn(-1);
+        when(appointmentPersistencePort.findOverlappingForUpdate(
+                anyString(), anyString(), any(Instant.class), any(Instant.class))).thenReturn(List.of());
+        when(appointmentPersistencePort.save(any(Appointment.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+    }
+
+    private static CreateAppointmentRequest creationAt(LocalDate day, LocalTime time) {
+        return new CreateAppointmentRequest(EMPLOYEE_ID, SERVICE_ID, null, "Ana Garcia",
+                "+34600000000", "ana@example.com", LocalDateTime.of(day, time), "WALK_IN", null);
     }
 
     private static PublicBookingRequest bookingAt(LocalDate day, LocalTime time) {
@@ -261,6 +285,90 @@ class BookingLeadTimeConsistencyTest {
     }
 
     @Nested
+    @DisplayName("what the salon's own wizard offers")
+    class SalonOffering {
+
+        @Test
+        @DisplayName("the walk-in at the counter can be recorded: 10:15 is offered at 10:00")
+        void slotsInsideTheNextHour_areOffered() {
+            AvailabilityService availability = availabilityWith(
+                    frozenAt(TODAY, LocalTime.of(10, 0)),
+                    openOn(TODAY, LocalTime.of(9, 0), LocalTime.of(20, 0)));
+
+            List<LocalTime> starts = startTimesOf(
+                    availability.getAvailableSlots(TENANT_ID, EMPLOYEE_ID, TODAY, SERVICE_ID));
+
+            assertThat(starts).contains(
+                    LocalTime.of(10, 15), LocalTime.of(10, 30), LocalTime.of(10, 45));
+            assertThat(starts).first().isEqualTo(LocalTime.of(10, 0));
+        }
+
+        @Test
+        @DisplayName("no lead time is not no rule: slots earlier today are still not offered")
+        void slotsEarlierToday_areNotOffered() {
+            AvailabilityService availability = availabilityWith(
+                    frozenAt(TODAY, LocalTime.of(10, 0)),
+                    openOn(TODAY, LocalTime.of(9, 0), LocalTime.of(20, 0)));
+
+            List<LocalTime> starts = startTimesOf(
+                    availability.getAvailableSlots(TENANT_ID, EMPLOYEE_ID, TODAY, SERVICE_ID));
+
+            assertThat(starts).doesNotContain(
+                    LocalTime.of(9, 0), LocalTime.of(9, 30), LocalTime.of(9, 45));
+            assertThat(starts).allSatisfy(start -> assertThat(start).isAfterOrEqualTo(LocalTime.of(10, 0)));
+        }
+
+        @Test
+        @DisplayName("a day entirely in the past offers nothing on this path either")
+        void dayEntirelyInThePast_offersNothingToTheWizardEither() {
+            AvailabilityService availability = availabilityWith(
+                    frozenAt(TODAY, LocalTime.of(10, 0)),
+                    openOn(YESTERDAY, LocalTime.of(9, 0), LocalTime.of(20, 0)));
+
+            AvailabilityResponse response =
+                    availability.getAvailableSlots(TENANT_ID, EMPLOYEE_ID, YESTERDAY, SERVICE_ID);
+
+            assertThat(response.slots()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("ten past midnight, the day that just ended is gone entirely, not merely trimmed")
+        void justAfterMidnight_thePreviousDayIsGone() {
+            // Duration.ZERO has to keep meaning "not before now" as a full date+time. A
+            // time-of-day comparison would read 09:00-23:45 as "all later than 00:10" and hand
+            // the whole of yesterday back to the wizard.
+            AvailabilityService availability = availabilityWith(
+                    frozenAt(TOMORROW, LocalTime.of(0, 10)),
+                    openOn(TODAY, LocalTime.of(9, 0), LocalTime.of(23, 45)));
+
+            AvailabilityResponse response =
+                    availability.getAvailableSlots(TENANT_ID, EMPLOYEE_ID, TODAY, SERVICE_ID);
+
+            assertThat(response.slots()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("queried at 23:50, tomorrow 00:00 is offered to the salon and not to the public page")
+        void acrossMidnight_theTwoAudiencesDiverge() {
+            // One fixture, one clock, both paths: the date boundary is handled identically and
+            // only the lead time separates the two answers.
+            AvailabilityService availability = availabilityWith(
+                    frozenAt(TODAY, LocalTime.of(23, 50)),
+                    openOn(TOMORROW, LocalTime.of(0, 0), LocalTime.of(6, 0)));
+
+            List<LocalTime> salon = startTimesOf(
+                    availability.getAvailableSlots(TENANT_ID, EMPLOYEE_ID, TOMORROW, SERVICE_ID));
+            List<LocalTime> publicPage = startTimesOf(
+                    availability.getPublicAvailableSlots(SALON_SLUG, EMPLOYEE_ID, TOMORROW, SERVICE_ID));
+
+            assertThat(salon).first().isEqualTo(LocalTime.MIDNIGHT);
+            assertThat(publicPage).first().isEqualTo(LocalTime.of(1, 0));
+            assertThat(publicPage).doesNotContain(
+                    LocalTime.MIDNIGHT, LocalTime.of(0, 30), LocalTime.of(0, 45));
+        }
+    }
+
+    @Nested
     @DisplayName("what booking accepts")
     class Accepting {
 
@@ -312,6 +420,57 @@ class BookingLeadTimeConsistencyTest {
                         .as("slot %s was offered by availability", slot)
                         .doesNotThrowAnyException();
             }
+        }
+
+        @Test
+        @DisplayName("every slot the wizard offers, the salon-side create accepts")
+        void everyWizardSlotIsCreatable() {
+            Clock clock = frozenAt(TODAY, LocalTime.of(10, 0));
+            AvailabilityService availability = availabilityWith(
+                    clock, openOn(TODAY, LocalTime.of(9, 0), LocalTime.of(20, 0)));
+            stubHappyCreatePath();
+            AppointmentService salonSide = bookingWith(clock);
+
+            List<LocalTime> offered = startTimesOf(
+                    availability.getAvailableSlots(TENANT_ID, EMPLOYEE_ID, TODAY, SERVICE_ID));
+
+            // 10:00 to 19:30 on a 15-minute grid: the same window as the public page plus the
+            // hour the public page owes. Pinned so that a rule which silently offered nothing
+            // could not satisfy this test vacuously.
+            assertThat(offered).hasSize(39);
+            assertThat(offered).startsWith(LocalTime.of(10, 0)).endsWith(LocalTime.of(19, 30));
+
+            for (LocalTime slot : offered) {
+                assertThatCode(() -> salonSide.create(TENANT_ID, creationAt(TODAY, slot)))
+                        .as("slot %s was offered by the wizard", slot)
+                        .doesNotThrowAnyException();
+            }
+        }
+
+        @Test
+        @DisplayName("10:15 at 10:00 splits the two audiences, and it splits both of their sides the same way")
+        void theSameSlotSplitsBothAudiencesConsistently() {
+            // stubHappyBookingPath() also covers everything create() needs: create() has no
+            // client lookup, so the client stub is simply unused here.
+            Clock clock = frozenAt(TODAY, LocalTime.of(10, 0));
+            AvailabilityService availability = availabilityWith(
+                    clock, openOn(TODAY, LocalTime.of(9, 0), LocalTime.of(20, 0)));
+            stubHappyBookingPath();
+            AppointmentService appointments = bookingWith(clock);
+            LocalTime walkIn = LocalTime.of(10, 15);
+
+            assertThat(startTimesOf(availability
+                    .getPublicAvailableSlots(SALON_SLUG, EMPLOYEE_ID, TODAY, SERVICE_ID)))
+                    .doesNotContain(walkIn);
+            assertThatThrownBy(() -> appointments.book(bookingAt(TODAY, walkIn)))
+                    .isInstanceOf(BusinessValidationException.class)
+                    .hasMessage("Booking must be at least 1 hour in the future");
+
+            assertThat(startTimesOf(availability
+                    .getAvailableSlots(TENANT_ID, EMPLOYEE_ID, TODAY, SERVICE_ID)))
+                    .contains(walkIn);
+            assertThatCode(() -> appointments.create(TENANT_ID, creationAt(TODAY, walkIn)))
+                    .doesNotThrowAnyException();
         }
     }
 }

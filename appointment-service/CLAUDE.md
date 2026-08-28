@@ -71,10 +71,21 @@ Valid transitions:
 2. Get salon business hours (from salon-service or cached)
 3. Get existing appointments for the employee on the requested date
 4. Calculate free slots = working hours - existing appointments
-5. Drop every slot less than `BookingWindow.MINIMUM_LEAD_TIME` (1 hour) away, measured as a full date+time so the rule still holds across midnight
+5. Drop every slot closer to now than the **caller's lead time**, measured as a full date+time so the rule still holds across midnight
 6. Check that requested time fits within a free slot
 
-Step 5 is the **same rule** `POST /api/v1/appointments/book` enforces, read from the same constant (`domain/model/BookingWindow`). Availability must never offer a slot the booking endpoint would refuse: when the two carried separate copies of the rule, the booking page rendered slots in `(now, now + 1h]` that were rejected at the confirm step.
+Step 5 applies the **same rule the accepting endpoint of that audience enforces**, read from the same object (`domain/model/BookingWindow`), with the lead time passed in as an argument:
+
+| Audience | Offering surface | Accepting endpoint | Lead time |
+|----------|------------------|--------------------|-----------|
+| Anonymous visitor | `GET /api/v1/appointments/public/availability` | `POST /api/v1/appointments/book` | `BookingWindow.MINIMUM_LEAD_TIME` (1 hour) |
+| Salon staff (wizard) | `GET /api/v1/appointments/availability` | `POST /api/v1/appointments` | `Duration.ZERO` (none) |
+
+Availability must never offer a slot its endpoint would refuse: when the two carried separate copies of the rule, the booking page rendered slots in `(now, now + 1h]` that were rejected at the confirm step. It must not withhold one its endpoint would accept either: with the public hour applied to the wizard as well, the owner could not record the walk-in they were attending at that moment, although `POST /api/v1/appointments` would have taken it.
+
+`Duration.ZERO` still means "not before now" through that same full date+time comparison, so a day entirely in the past offers nothing on either path.
+
+The slot cursor is a `LocalDateTime` anchored on the requested date, never a `LocalTime`: `LocalTime.plusMinutes()` wraps at midnight, and with a closing time of 23:45 or later the loop never terminated.
 
 **Concurrency protection**: `SELECT ... FOR UPDATE` on the employee's appointments for the time range to prevent double-booking race conditions.
 
