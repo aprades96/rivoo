@@ -16,7 +16,9 @@ package com.rivoo.billing.application.dto;
  * state. {@code PlanCatalogueExposureTest} enforces that as an ALLOWLIST — it pins the
  * record components and the emitted JSON keys to exactly the four names below, so any
  * new component fails the build regardless of what it is called, and adding one means
- * consciously editing that allowlist.
+ * consciously editing that allowlist. That allowlist is anchored at {@link PlanResponse}
+ * and walks outwards, so substituting a different type for the {@code limits} component
+ * is caught as well — the rule protects the payload, not this class by name.
  * <p>
  * Boxed types, not primitives: {@code null} means the plan has no row for that
  * {@code limit_key} at all, i.e. "unspecified". It is distinct from {@code -1}

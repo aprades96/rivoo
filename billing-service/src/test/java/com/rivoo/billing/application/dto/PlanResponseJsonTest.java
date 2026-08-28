@@ -93,14 +93,21 @@ class PlanResponseJsonTest {
     void emitsNothingTenantScoped() throws Exception {
         String jsonContent = json.write(premium()).getJson();
 
-        // NOT the guard — PlanCatalogueExposureTest is, via an allowlist over the record
-        // components and the emitted keys. This is a blocklist and only fires for the six
-        // names below; `seatsUsed` or `salonId` would sail past it, which is why the
-        // allowlist exists. It is kept because it is the only place that names the
-        // specific fields we are afraid of and says out loud that they must never appear
-        // on this endpoint, and because it asserts against the serialized string of the
-        // whole PlanResponse tree, so it also covers any future nested type before anyone
-        // remembers to allowlist it. If the two ever disagree, the allowlist wins.
+        // NOT the guard — PlanCatalogueExposureTest is, via an allowlist over every record
+        // reachable from PlanResponse and over the emitted keys at every depth. This is a
+        // blocklist and fires only for the six names below; `seatsUsed` or `salonId` would
+        // sail past it, and so would a nested type swapped wholesale for one carrying a
+        // field with a name nobody listed here — the allowlist exists for exactly that.
+        //
+        // It is kept because the two coverages are disjoint, not because this one is a
+        // safety net for the other. This layer is name-dependent but structure-blind: it
+        // matches substrings anywhere in the serialized tree, so it catches these six names
+        // at any depth, inside a type nobody has allowlisted yet, and also catches a
+        // variant that merely contains one of them (`stripeCustomerId`, `tenantIdHash`).
+        // The allowlist is the mirror image: name-independent, but it only sees what the
+        // walk from PlanResponse reaches. It is also the only place that names the specific
+        // fields we are afraid of and says out loud that they must never appear on this
+        // endpoint. If the two ever disagree, the allowlist wins.
         //
         // Note that rivoo-frontend/src/types/billing.ts:PlanLimitsResponse — the type for
         // the INTERNAL per-tenant endpoint — declares currentEmployeeCount and

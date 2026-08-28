@@ -157,7 +157,7 @@ GET /api/internal/billing/tenants/{tenantId}/plan-limits
 > planned work, not deleted. Check the controller before assuming a row is live.
 >
 > `GET /plans` is **anonymous**, not authenticated. Evidence:
-> `BillingSecurityConfig.java:38` (`requestMatchers(HttpMethod.GET, "/api/v1/billing/plans").permitAll()`)
+> `BillingSecurityConfig.java:45` (`requestMatchers(HttpMethod.GET, "/api/v1/billing/plans").permitAll()`)
 > and `api-gateway` `GatewaySecurityConfig.java:25` (`pathMatchers(HttpMethod.GET, "/api/v1/billing/plans").permitAll()`),
 > so no JWT is ever required end to end. The frontend agrees: `getPlans()` in
 > `rivoo-frontend/src/lib/api/billing.ts:13` is the only call in that file that takes no `token`.
@@ -207,6 +207,13 @@ unzip -l ~/.m2/repository/org/springframework/boot/spring-boot-test-autoconfigur
   | grep "org/springframework/boot/test/autoconfigure/"
 ```
 
+> **`-pl` without `-am` is a false-green trap everywhere except here.** The command above
+> only prints a classpath, so it compiles nothing and cannot go stale. Do not copy that
+> idiom into a run meant to *verify* anything: `mvn -o -pl billing-service test` resolves
+> `rivoo-common` from `~/.m2` instead of building it, so billing-service compiles and tests
+> against whatever jar was installed there last — green, and silent about the working tree.
+> Use `-am`, or the full reactor `mvn -o clean test`.
+
 **`@WebMvcTest` and `@AutoConfigureMockMvc` do not exist here**, so controller tests use
 `MockMvcBuilders.standaloneSetup(...)`, which installs neither the Spring Security filter
 chain nor the method-security interceptor.
@@ -228,13 +235,32 @@ expectation derived from the annotation under test cannot fail):
 
 Two further properties make it durable rather than a snapshot of the day it was written:
 
-- **Allowlist over the handler set.** Handlers are enumerated from the controller (declared,
-  non-synthetic methods carrying `@RequestMapping` or anything meta-annotated with it, so any
-  verb is caught). A handler present in the code but absent from the expected map fails the
-  build — a new endpoint is red until someone states its policy. Same reasoning
-  `PlanCatalogueExposureTest` applies to the fields of the public DTOs.
-- **Class-level `@PreAuthorize` is asserted absent.** One added on the class applies to every
+- **Allowlist over the handler set, across the whole hierarchy.** Handlers are enumerated
+  with `ReflectionUtils.getUniqueDeclaredMethods`, which walks superclasses the way Spring
+  MVC's `MethodIntrospector.selectMethods` does (non-synthetic methods carrying
+  `@RequestMapping` or anything meta-annotated with it, so any verb is caught). A handler
+  present in the code but absent from the expected map fails the build — a new endpoint is red
+  until someone states its policy. Same reasoning `PlanCatalogueExposureTest` applies to the
+  fields of the public DTOs.
+
+  That claim used to be false by one route: the enumeration read `getDeclaredMethods()`, which
+  stops at `BillingController`. A `@GetMapping` on an abstract superclass that the controller
+  extended left the suite green while `GET /api/v1/billing/inherited-danger` answered with no
+  role check on it. Bounded — `anyRequest().authenticated()` still demands a JWT, so the
+  exposure was "any authenticated role", not anonymous — but the map no longer covered every
+  live handler. Measured: row 12 below.
+- **Class-level `@PreAuthorize` is asserted absent**, through
+  `AnnotatedElementUtils.findMergedAnnotation`, which searches the type hierarchy the way Spring
+  Security's own lookup does. `Class.getAnnotation` already covered a superclass (`@PreAuthorize`
+  is `@Inherited`) but not an *interface*, where `@Inherited` does not apply and Spring Security
+  honours the annotation anyway — row 15. One added anywhere in that hierarchy applies to every
   handler, including the anonymous catalogue, without touching a single method.
+- **The "no annotation" marker is a sentinel object, not a string.** `@PreAuthorize` values are
+  always `String`, so nothing written between the parentheses can be `equals` to it. It used to
+  be the literal `"(none - reachable without a role check)"`, documented as impossible to
+  confuse with a real value; writing exactly that string on `listPlans` left the suite green
+  (row 14). Not exploitable — Spring would have failed evaluating unparseable SpEL rather than
+  opened the endpoint — but the guard should not lean on that.
 
 Measured by mutation (full reactor `mvn -o clean test`, one edit at a time, with the file hash
 asserted to have **changed** before the run is trusted — line endings are **mixed** in this
@@ -255,6 +281,16 @@ matches nothing in the latter; use `\r?\n` and verify the hash):
 | add a new handler (unguarded), test untouched | **BUILD FAILURE** |
 | add a new handler (guarded), test untouched | **BUILD FAILURE** |
 | add a class-level `@PreAuthorize` | **BUILD FAILURE** |
+| add a handler on an abstract superclass `BillingController` extends | **BUILD FAILURE** |
+| add a class-level `@PreAuthorize` on that superclass | **BUILD FAILURE** |
+| `listPlans` expression → the literal text of the old "no annotation" marker | **BUILD FAILURE** |
+| add a class-level `@PreAuthorize` on an interface `BillingController` implements | **BUILD FAILURE** |
+
+Rows 12, 14 and 15 were **BUILD SUCCESS** until the enumeration, the marker and the class-level
+lookup were changed as described above. Row 13 already failed beforehand — `@PreAuthorize` is
+`@Inherited`, so `Class.getAnnotation` saw one on a superclass; it is listed because the lookup
+changed under it, not because it was a hole. Rows 1-11 were re-measured afterwards and still
+fail.
 
 Before this test existed, only rows 1, 3, 8 and 11 were **BUILD FAILURE**; every other row was
 **BUILD SUCCESS**. Rows 1-4 were measured directly on the pre-change tree; the rest follow from
@@ -299,17 +335,47 @@ assertion. Adding a field is additive and safe; renaming or retyping one is not.
 ### The anonymous plan catalogue is guarded by an allowlist, not a blocklist
 
 `GET /api/v1/billing/plans` is readable by anyone on the internet (see the endpoint table),
-so `PlanResponse` and its nested `PlanLimitsPublicResponse` are the one pair of DTOs where
-**adding** a field is not safe. `PlanCatalogueExposureTest` pins both records to an exact set
-of names — `getRecordComponents()` *and* the emitted JSON keys, which diverge under
-`@JsonProperty` — so any new component turns red until it is deliberately added to the
-allowlist in that test. Reflection rather than a populated fixture, because a blocklist over a
-hand-built payload is blind to a field that no fixture happens to fill in.
+so `PlanResponse` and everything nested under it are the one part of this module where
+**adding** a field is not safe. `PlanCatalogueExposureTest` is the guard, in two layers, both
+anchored at `PlanResponse` — the type the handler returns — rather than at a list of classes:
+
+1. **Reachability walk over record components.** From `PlanResponse`, it follows
+   `getRecordComponents()` transitively (unwrapping collections, `Optional`, arrays and
+   generics, terminating on cycles) and requires the set of reachable records, and the
+   components of each, to equal a hardcoded map.
+2. **Emitted keys at every depth.** It serializes a reflectively built instance and flattens
+   the JSON to dotted paths (`limits.maxEmployees`), requiring the complete set to equal a
+   hardcoded set. Components and wire keys diverge under `@JsonProperty`, `@JsonIgnore` or a
+   naming strategy, and only the keys describe what leaves the process.
+
+Reflection rather than a populated fixture, because a blocklist over a hand-built payload is
+blind to a field that no fixture happens to fill in. Neither layer subsumes the other: the walk
+reaches a record referenced only through a `List<...>`, which layer 2 never instantiates; layer
+2 sees a nested type that is not a record at all, which the walk cannot describe.
+
+Both layers used to name `PlanResponse` and `PlanLimitsPublicResponse` explicitly, one
+assertion per class. That pinned two classes, not the payload: changing the **type** of the
+`limits` component to a variant carrying `usedSeatsThisTenant`, with a delegating constructor
+so no call site changed, left the build green and the anonymous endpoint emitting the field,
+while the two assertions about `PlanLimitsPublicResponse` kept passing over a class the
+response no longer reached.
+
+| Mutation | Result |
+|----------|--------|
+| swap the **type** of the `limits` component for one carrying `usedSeatsThisTenant` | **BUILD FAILURE** (both layers) |
+| add `Integer usedSeatsThisTenant` to `PlanLimitsPublicResponse` | **BUILD FAILURE** (both layers) |
+| rename a component of `PlanLimitsPublicResponse` | **BUILD FAILURE** (both layers) |
+| `@JsonProperty("seats")` on `maxEmployees` | **BUILD FAILURE** (layer 2 only — layer 1 sees no change, which is the point of keeping both) |
+
+Row 1 was **BUILD SUCCESS** before the two layers were re-anchored at the root.
 
 `PlanResponseJsonTest.emitsNothingTenantScoped` is the older blocklist over six names
 (`tenantId`, `currentEmployeeCount`, `currentAppointmentCount`, `status`, `stripe`,
-`subscription`). It is kept for the intent it documents, but it is not the guard: adding
-`Integer usedSeatsThisTenant` to the record and populating it left the whole suite green.
+`subscription`). It is kept because it is disjoint from the allowlist, not because it backs it
+up: it matches substrings anywhere in the serialized tree, so it catches those six names at any
+depth and catches variants that merely contain one (`stripeCustomerId`), but it is blind to any
+name nobody listed — adding `Integer usedSeatsThisTenant` to the record and populating it left
+the whole suite green, and so does swapping the nested type. The allowlist is the guard.
 
 ---
 
