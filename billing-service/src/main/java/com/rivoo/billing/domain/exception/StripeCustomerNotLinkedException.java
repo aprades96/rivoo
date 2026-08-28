@@ -15,4 +15,14 @@ public class StripeCustomerNotLinkedException extends BusinessValidationExceptio
     public StripeCustomerNotLinkedException(String tenantId) {
         super("Tenant '" + tenantId + "' has no Stripe customer linked to its subscription");
     }
+
+    /**
+     * Authenticated-only: the single throw site is BillingPortalService, reached from
+     * POST /api/v1/billing/portal, hasRole('SALON_OWNER'). The tenant in the message is the
+     * caller's own, and the message is the one actionable hint the owner gets.
+     */
+    @Override
+    public String clientSafeDetail() {
+        return getMessage();
+    }
 }

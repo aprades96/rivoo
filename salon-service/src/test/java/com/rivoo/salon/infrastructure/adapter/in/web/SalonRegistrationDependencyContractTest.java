@@ -253,9 +253,12 @@ class SalonRegistrationDependencyContractTest {
 
         // Deliberately NOT asserted: that the bare token "auth-service" is absent from the whole
         // body. It survives in the published `type` (.../errors/auth-service-error) and `title`
-        // ("Auth Service Error"), which predate this change, are part of the error taxonomy other
-        // code and dashboards key on, and carry no host, port, path or identifier. Renaming them
-        // is a contract change in its own right and is out of scope here - see the report.
+        // ("Auth Service Error"), which predate this change and carry no host, port, path or
+        // identifier. To be accurate about WHY they survive: they are NOT a published contract.
+        // RivooErrorTypes holds exactly one constant, SALON_NOT_FOUND, and RivooErrorTypesTest
+        // pins only that one; a repo-wide grep finds no consumer of auth-service-error, and the
+        // frontend never reads problem.type. They survive only because renaming them is a
+        // separate change with no benefit here, not because anything depends on them.
     }
 
     @Test

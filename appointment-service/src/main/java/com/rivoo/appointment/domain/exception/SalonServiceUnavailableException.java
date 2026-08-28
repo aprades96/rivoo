@@ -22,8 +22,10 @@ import org.springframework.http.HttpStatus;
  * diagnostic only: {@code AppointmentExceptionHandler#handleSalonServiceUnavailable} logs it and
  * publishes a fixed, non-revealing {@code detail} instead, because both callers of this exception
  * are the anonymous public endpoints. Routing it through
- * {@code GlobalExceptionHandler#handleRivooException} instead would put it back in the response
- * body verbatim.
+ * {@code GlobalExceptionHandler#handleRivooException} instead would no longer put it back in the
+ * response body verbatim — this exception declares no {@code clientSafeDetail()} override, so
+ * that handler would publish the generic detail — but the dedicated handler stays, because its
+ * fixed string is written for the public booking page and its log records the dependency.
  */
 public class SalonServiceUnavailableException extends RivooException {
 

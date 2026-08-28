@@ -17,8 +17,11 @@ import org.springframework.http.HttpStatus;
  * <p>
  * The rejection status is 422 and not 409, even though the only caller ({@code POST
  * /api/v1/staff/employees}, {@code hasRole('SALON_OWNER')}) is authenticated and therefore free
- * of the account-enumeration concern that forced 422 on salon-service's anonymous registration
- * path. The reason here is simply truthfulness: {@code HttpClientErrorException} is the WHOLE
+ * of the topology-hiding concern that forced a single shared rejection identity on salon-service's
+ * anonymous registration path (see {@code OnboardingRejection}: that mapping hides WHICH
+ * dependency refused; it does not close account enumeration, which salon-service's own 409 leaves
+ * open by a separate, deliberate product decision). The reason here is simply truthfulness:
+ * {@code HttpClientErrorException} is the WHOLE
  * 4xx family, so one status has to hold for all of it — 409 would misreport a Keycloak
  * password-policy 400 as a conflict, while 422 ("we understood the request, the dependency
  * refused it") is correct for 400, 404, 409 and 415 alike.
@@ -49,5 +52,18 @@ public class AuthServiceException extends RivooException {
     public static AuthServiceException rejected(String message, Throwable cause) {
         return new AuthServiceException(message, cause, REJECTED_ERROR_TYPE,
                 REJECTED_ERROR_TITLE, HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    /**
+     * Authenticated-only: the only caller is POST /api/v1/staff/employees, hasRole('SALON_OWNER'),
+     * so the tenant named in the message is the caller's own. This mirrors what
+     * StaffExceptionHandler already does for this exception today; the override keeps that
+     * behaviour if the dedicated handler is ever removed, instead of silently falling back to
+     * the generic string. Contrast salon-service's AuthServiceException, whose caller is the
+     * ANONYMOUS POST /api/v1/salons and which therefore keeps the restrictive default.
+     */
+    @Override
+    public String clientSafeDetail() {
+        return getMessage();
     }
 }

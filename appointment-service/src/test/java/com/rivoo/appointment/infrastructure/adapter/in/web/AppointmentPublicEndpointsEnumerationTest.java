@@ -157,9 +157,12 @@ class AppointmentPublicEndpointsEnumerationTest {
      * nor the requested slug.
      * <p>
      * Deliberately NOT asserted: that the literal "salon-service" is absent from the whole body.
-     * The published {@code type} URI is {@code .../errors/salon-service-unavailable} - a stable
-     * error-taxonomy identifier that predates this change and that consumers key on. Renaming it
-     * is a contract change with no consumer benefit; see the report accompanying this commit.
+     * The published {@code type} URI is {@code .../errors/salon-service-unavailable}, which
+     * predates this change. To be accurate about why it survives: no consumer keys on it.
+     * {@code RivooErrorTypes} holds exactly one constant, {@code SALON_NOT_FOUND}, and
+     * {@code RivooErrorTypesTest} pins only that one; a repo-wide grep finds no consumer of
+     * {@code salon-service-unavailable}, and the frontend never reads {@code problem.type}. It
+     * survives because renaming it is a separate change with no benefit here.
      */
     private static void assertBodyRevealsNoTopology(String body) {
         assertThat(body)

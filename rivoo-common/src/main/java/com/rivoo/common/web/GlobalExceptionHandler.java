@@ -37,10 +37,29 @@ import java.time.Instant;
 @Order(Ordered.LOWEST_PRECEDENCE)
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
+    // Published when a RivooException declares no clientSafeDetail(). Deliberately says nothing
+    // about the failure beyond "we understood you and did not do it": the class of error is
+    // already carried by `status` and by `title` (RFC 9457), which are per-exception and safe.
+    // The information removed from here is not lost — it goes to the log below, with the cause.
+    public static final String GENERIC_DETAIL =
+            "The request could not be completed. Please review the request and try again.";
+
     @ExceptionHandler(RivooException.class)
     public ProblemDetail handleRivooException(RivooException ex) {
-        log.atWarn().addKeyValue("errorTitle", ex.getErrorTitle()).addKeyValue("detail", ex.getMessage()).log("Rivoo exception");
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(ex.getHttpStatus(), ex.getMessage());
+        // Always logged, whatever is published: ex.getMessage() is the diagnostic, and moving it
+        // out of the response body must not mean deleting it. setCause(ex) is what keeps the
+        // stack trace and the cause chain (e.g. the ResourceAccessException naming an internal
+        // URL) — the previous version passed neither, so an outage left only a one-line WARN.
+        var logBuilder = ex.getHttpStatus().is5xxServerError() ? log.atError() : log.atWarn();
+        logBuilder.setCause(ex)
+                .addKeyValue("errorType", ex.getErrorType())
+                .addKeyValue("errorTitle", ex.getErrorTitle())
+                .addKeyValue("internalDetail", ex.getMessage())
+                .log("Rivoo exception");
+
+        String clientSafeDetail = ex.clientSafeDetail();
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(ex.getHttpStatus(),
+                clientSafeDetail != null ? clientSafeDetail : GENERIC_DETAIL);
         problem.setType(URI.create("https://rivoo.com/errors/" + ex.getErrorType()));
         problem.setTitle(ex.getErrorTitle());
         addCommonProperties(problem);

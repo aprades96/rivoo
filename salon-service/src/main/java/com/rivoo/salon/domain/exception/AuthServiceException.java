@@ -13,6 +13,13 @@ import org.springframework.http.HttpStatus;
  * opposite: auth-service answered correctly and refused the request for a business reason (any
  * 4xx), which is not an infrastructure failure and must not be flattened into 502 — a 502 there
  * both hides the real reason from the caller and raises a false infrastructure alarm.
+ * <p>
+ * No {@code clientSafeDetail()} override, deliberately: the only caller is the ANONYMOUS
+ * {@code POST /api/v1/salons}. The message names the dependency and the tenant and its cause
+ * chain carries the internal URL, host and port included, so none of it may be published.
+ * {@code SalonExceptionHandler} already replaces it with a fixed string; the restrictive default
+ * here is what keeps that true if the dedicated handler ever goes away. Contrast staff-service's
+ * same-named exception, whose only caller is authenticated and which therefore does override.
  */
 public class AuthServiceException extends RivooException {
 

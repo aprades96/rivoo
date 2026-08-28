@@ -12,6 +12,9 @@ import org.springframework.http.HttpStatus;
  * means billing-service answered correctly and refused the request for a business reason (any
  * 4xx — e.g. 422 for a tenant that already has a subscription), which is not an infrastructure
  * failure and must not be flattened into 502.
+ * <p>
+ * Same {@code clientSafeDetail()} decision as {@link AuthServiceException}, for the same reason:
+ * the only caller is the ANONYMOUS {@code POST /api/v1/salons}, so the restrictive default stays.
  */
 public class BillingServiceException extends RivooException {
 

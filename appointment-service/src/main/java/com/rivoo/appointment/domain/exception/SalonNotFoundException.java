@@ -17,6 +17,11 @@ import com.rivoo.common.exception.ResourceNotFoundException;
  * {@code AppointmentService}) for the "not ACTIVE" case. Matches the pattern
  * already used for the same problem in salon-service's own public endpoint
  * (see {@code SalonPublicSnapshotLoader}).
+ * <p>
+ * No {@code clientSafeDetail()} override, deliberately: both flows are anonymous, so the message
+ * (which echoes the requested slug) goes to the log only and the caller gets the generic detail.
+ * That strengthens the property above rather than weakening it — the two situations were already
+ * required to produce identical bodies, and now that body contains nothing slug-specific at all.
  */
 public class SalonNotFoundException extends ResourceNotFoundException {
 
