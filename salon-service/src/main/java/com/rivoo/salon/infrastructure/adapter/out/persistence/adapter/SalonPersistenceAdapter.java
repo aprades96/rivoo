@@ -70,4 +70,9 @@ public class SalonPersistenceAdapter implements SalonPersistencePort {
         return salonJpaRepository.updateStatusIfCurrentlyIs(
                 tenantId, SalonStatus.ONBOARDING, SalonStatus.ACTIVE, Instant.now());
     }
+
+    @Override
+    public int markOnboardingCompleted(String tenantId) {
+        return salonJpaRepository.markOnboardingCompletedIfPending(tenantId, Instant.now());
+    }
 }

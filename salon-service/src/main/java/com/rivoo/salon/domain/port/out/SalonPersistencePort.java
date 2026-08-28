@@ -44,4 +44,13 @@ public interface SalonPersistencePort {
      * @return {@code 1} if this call promoted the salon, {@code 0} if it was not ONBOARDING any more
      */
     int activateIfOnboarding(String tenantId);
+
+    /**
+     * Writes {@code onboardingCompletedAt} for this tenant, but only while it is still
+     * {@code null} - a single conditional statement rather than read-decide-write, so a double
+     * click, two tabs, or a retried call all collapse into the same single write.
+     *
+     * @return {@code 1} if this call wrote the timestamp, {@code 0} if it was already set
+     */
+    int markOnboardingCompleted(String tenantId);
 }

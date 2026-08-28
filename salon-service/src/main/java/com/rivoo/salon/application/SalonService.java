@@ -188,6 +188,20 @@ public class SalonService implements GetSalonUseCase, UpdateSalonUseCase,
         return salonDtoMapper.toResponse(updated);
     }
 
+    /**
+     * Not {@code @Transactional}: the CAS in {@code markOnboardingCompleted} is already atomic on
+     * its own, and wrapping this in a transaction would only make the repository's own
+     * {@code @Transactional} commit and then re-read inside a second, outer one - no different
+     * from what happens without it. Same reasoning as {@link #getByTenantId}, see its javadoc.
+     */
+    @Override
+    public SalonResponse completeOnboarding(String tenantId) {
+        salonPersistencePort.markOnboardingCompleted(tenantId);   // the count decides nothing here
+        Salon salon = salonPersistencePort.findByTenantId(tenantId)
+                .orElseThrow(() -> new SalonNotFoundException(tenantId));
+        return salonDtoMapper.toResponse(salon);
+    }
+
     // ── Business Hours ──────────────────────────────────────────────────
 
     @Override
