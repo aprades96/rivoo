@@ -1357,3 +1357,19 @@ Salieron de la auditoria de contratos backend/frontend. Verificados por mi, no s
       "correo nuevo" escribe en base de datos y llama a Keycloak y a facturacion, y el
       camino "correo existente" hace una consulta y manda un correo. Un orden de magnitud,
       medible desde fuera. Cerrarlo exige alta asincrona = rediseno, no arreglo.
+
+## Encontrados al revisar el arreglo del bucle (preexistentes)
+
+- [ ] `AppointmentService.create` (linea 71) no tiene NINGUNA validacion temporal, y
+      `CreateAppointmentRequest.startTime` solo lleva `@NotNull`, sin `@Future`. Acepta una
+      hora pasada. Asi que el par del salon es asimetrico al reves: el asistente retiene los
+      huecos pasados que `create()` si aceptaria. A las 10:07, el dueno que apunta una cita
+      que empezo a las 10:00 recibe como primera opcion las 10:15.
+      `everyWizardSlotIsCreatable` no puede verlo: comprueba ofrecido -> aceptado, nunca al reves.
+- [ ] `AvailabilityService:198-202`: una cita que cruza medianoche (23:30 -> 00:30) se convierte
+      en el intervalo (23:30, 00:30) y `subtractBusy` la descarta por `00:30 <= 09:00`. El hueco
+      ocupado se ofrece como libre y luego lo rechaza el bloqueo por solapamiento. Preexistente,
+      pero ahora ALCANZABLE: legitimar cierres de 23:45-23:59 es su precondicion.
+- [ ] `EmployeeWorkingHours.validate()` no compara el descanso contra apertura y cierre. Un
+      descanso de 03:00-04:00 en un dia 09:00-18:00 pasa la validacion y produce el intervalo
+      (04:00, 18:00) mas uno invertido: se ofrecen huecos de 04:00 a 09:00, fuera de horario.
