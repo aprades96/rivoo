@@ -49,11 +49,23 @@ import static org.mockito.Mockito.when;
  * terminate" into a red test instead of a hung build. Two seconds against a loop that needs
  * microseconds measures termination, not machine speed.
  *
- * <p>Deliberately, only the two cases below can hang, and both are chosen so the thread that
- * {@code assertTimeoutPreemptively} abandons keeps allocating almost nothing: the lead time
- * discards nearly every cursor position, so a broken loop spins instead of filling the heap and
- * the failure that gets reported is the timeout itself, not a collateral {@code OutOfMemoryError}
- * that would take the rest of the suite down with it.
+ * <p><strong>Why both hanging cases offer nothing.</strong> {@code assertTimeoutPreemptively}
+ * fails the test at the deadline but cannot stop the thread it abandons: against a broken loop
+ * that thread keeps running until the fork exits. Whether it merely spins or fills the heap is
+ * decided by the fixture, and the choice is binary. The lead-time filter judges the cursor's
+ * time of day against a threshold that does not move, and a wrapped cursor revisits the same 96
+ * quarter-hour positions for ever, so a fixture that lets one position through lets it through
+ * on every cycle and the slot list grows without bound. Both cases below are therefore frozen
+ * so that NO position survives the filter - case A at 23:50 with an hour of lead, case B on a
+ * day already past - and the abandoned thread adds not one slot. Measured against a verbatim
+ * transcription of the pre-fix loop, each adds 0 slots in 2,000,000 iterations while still
+ * failing to terminate. What gets reported is the timeout itself, never a collateral
+ * {@code OutOfMemoryError} that would take the rest of the suite down with it.
+ *
+ * <p>The price is that neither hanging case can also assert which slots a near-midnight day
+ * offers: by the argument above, any fixture that emits one slot is a fixture that fills the
+ * heap. The slot list is pinned instead on intervals that terminate under both loops (the two
+ * controls below), and the lead-time filtering by {@code BookingLeadTimeConsistencyTest}.
  */
 @DisplayName("Slot loop termination - a closing time near midnight must not hang the request thread")
 class AvailabilitySlotLoopTerminationTest {
@@ -110,19 +122,18 @@ class AvailabilitySlotLoopTerminationTest {
     }
 
     @Test
-    @DisplayName("a salon open until 23:59 terminates, and offers only the slots that fit before closing")
+    @DisplayName("a salon open until 23:59 terminates, queried inside the last hour of that day")
     void closingOneMinuteBeforeMidnight_terminates() {
-        // 22:00 now, open 09:00-23:59, 15-minute service on a 15-minute grid: the lead time
-        // discards everything before 23:00, and 23:45 would end at 00:00, past the closing time.
+        // 23:50 now, open 09:00-23:59, 15-minute service: an hour of lead puts the earliest
+        // bookable start at 00:50 tomorrow, so every position on this date is discarded and the
+        // old cursor wrapped past midnight without ever adding a slot. The interval still ends
+        // at 23:59, which is what made that cursor roll over to 00:00 and walk the day again.
         AvailabilityService availability =
-                openOn(TODAY, LocalTime.of(9, 0), LocalTime.of(23, 59), 15, frozenAt(TODAY, LocalTime.of(22, 0)));
+                openOn(TODAY, LocalTime.of(9, 0), LocalTime.of(23, 59), 15, frozenAt(TODAY, LocalTime.of(23, 50)));
 
         List<AvailableSlot> slots = slotsWithin(availability, TODAY);
 
-        assertThat(slots).containsExactly(
-                new AvailableSlot(LocalTime.of(23, 0), LocalTime.of(23, 15)),
-                new AvailableSlot(LocalTime.of(23, 15), LocalTime.of(23, 30)),
-                new AvailableSlot(LocalTime.of(23, 30), LocalTime.of(23, 45)));
+        assertThat(slots).isEmpty();
     }
 
     @Test
