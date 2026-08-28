@@ -802,3 +802,31 @@ estas pidiendo. Si lo es, la prohibicion se acota al mecanismo concreto ("no toq
 de sincronizacion de `:53-58`") y se autoriza el resto. Y si el componente lo comparten varios
 consumidores, mirar PRIMERO el artboard del otro consumidor: aqui `Horario.dc.html` resulto
 tener la misma anatomia, asi que restilar servia a los dos y la prohibicion sobraba.
+
+## Un comentario que promete una cobertura inexistente apaga la alarma del siguiente
+
+**Patron:** verifique a mano, con un ROLLBACK contra MySQL, que el compare-and-set de la marca
+de alta era idempotente y estaba acotado por tenant. Funciono. Y luego dicte un javadoc que
+decia que la atomicidad "se verifica por separado, contra MySQL". **Esa verificacion no existia
+como test**: era un comando que ejecute yo una vez y no deje escrito en ninguna parte.
+
+Un refutador que muto el codigo de verdad demostro lo que eso costaba: quitar el
+`AND ... IS NULL` del JPQL, o hacer que el JPQL no escriba el campo, o que el adaptador nunca
+llame al repositorio — las tres dejan la suite entera en verde. La escritura que decide si el
+usuario puede entrar en la aplicacion no tenia ninguna cobertura, y el javadoc estaba
+diciendole al siguiente revisor que si la tenia.
+
+**Por que importa:** es peor que no comentar nada. Un hueco visible se acaba tapando; un hueco
+que un comentario declara tapado no lo mira nadie. Es el mismo mecanismo que los "verdes
+falsos" que llevo toda la sesion catalogando, pero en prosa en vez de en una herramienta.
+
+**Regla:** una verificacion manual NO se cita en un comentario como si fuera cobertura. O se
+convierte en un test —aunque sea `@Tag("integration")` y no corra en la build normal—, o el
+comentario dice explicitamente **que ese camino esta sin cubrir**. Al escribir el javadoc,
+preguntarse: "si borro la linea de codigo que esto describe, ¿se pone algo rojo?". Si la
+respuesta es no, el comentario no puede afirmar que si.
+
+**Corolario sobre los fakes:** un test cuyo doble reimplementa el mecanismo bajo prueba
+(un `synchronized` que ES el compare-and-set) verifica el doble, no el codigo. Sirve para fijar
+que el servicio no hace leer-decidir-escribir; no sirve para nada mas, y el javadoc debe
+acotarlo asi.
