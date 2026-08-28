@@ -194,7 +194,7 @@ Base path is `/api/internal/billing` (`BillingInternalController`), not `/api/in
 
 ## Testing constraints and known gaps
 
-### `@PreAuthorize` on `/api/v1/billing/**` is NOT covered by any test
+### `@PreAuthorize` on `/api/v1/billing/**` is only partially covered
 
 `spring-boot-test-autoconfigure-4.0.3.jar` ships exactly two slices, `json` and `jdbc`.
 The version is the one the build resolves (root `pom.xml` pins `spring-boot-starter-parent`
@@ -211,11 +211,34 @@ unzip -l ~/.m2/repository/org/springframework/boot/spring-boot-test-autoconfigur
 controller tests use `MockMvcBuilders.standaloneSetup(...)`, which does not install the Spring
 Security filter chain or the method-security interceptor.
 
-Consequence, measured rather than assumed: **deleting the `@PreAuthorize` from
-`BillingController#createPortalSession` leaves the whole suite green.** The same holds for the
-other `/api/v1/billing` handlers. The annotations are load-bearing in production and unguarded
-in CI, so the endpoint table above is the only record of the intended role — keep it accurate,
-and treat any change to an authorization annotation as needing manual verification.
+No test in this module therefore proves that a caller without `ROLE_SALON_OWNER` is actually
+rejected. What CI *does* check, since `BillingControllerPlansTest` was added, is that the
+annotation is **present or absent as intended**, by reflection
+(`listPlans_handlerCarriesNoMethodSecurityAnnotation`): the test asserts `listPlans` carries no
+`@PreAuthorize` — the anonymous catalogue would break if it did — and, as a control that the
+reflection is not blind, that `getSubscription` and `createPortalSession` do carry one. That
+control is what gives those two handlers incidental coverage.
+
+Measured per handler by mutation (full reactor `mvn -o clean test`, one edit at a time,
+file hash checked before and after — `core.autocrlf=true` here, so a multi-line `\n` pattern
+silently matches nothing and you get a false green):
+
+| Handler | Mutation | Result |
+|---------|----------|--------|
+| `GET /subscription` | delete `@PreAuthorize` | **BUILD FAILURE** — `listPlans_handlerCarriesNoMethodSecurityAnnotation` |
+| `POST /portal` | delete `@PreAuthorize` | **BUILD FAILURE** — same test |
+| `POST /checkout-session` | delete `@PreAuthorize` | **BUILD SUCCESS** — genuinely unguarded |
+| `GET /plans` | add `@PreAuthorize` | **BUILD FAILURE** — same test |
+
+So `createCheckout` is the one handler whose authorization annotation can still be deleted
+without CI noticing; treat any change to it as needing manual verification. The other three
+are pinned only *by name* — the reflection probe sees that an annotation exists, not that the
+expression inside it is right, so swapping `hasRole('SALON_OWNER')` for `hasRole('EMPLOYEE')`
+or `permitAll()` still passes.
+
+This paragraph previously claimed that deleting the annotation from `createPortalSession` left
+the suite green, "measured rather than assumed". It was measured, and then commit `60231e4`
+falsified it without updating this file. Re-measure before trusting the table above.
 
 Closing this properly needs a `@SpringBootTest`-based security test (Testcontainers, `@Tag("integration")`,
 excluded from the default surefire run) rather than another standalone slice.
@@ -231,6 +254,21 @@ already shipped a production bug this way (`active`/`isActive`) — hence the si
 
 Any new field on a response DTO that the frontend or another service reads gets a key-level
 assertion. Adding a field is additive and safe; renaming or retyping one is not.
+
+### The anonymous plan catalogue is guarded by an allowlist, not a blocklist
+
+`GET /api/v1/billing/plans` is readable by anyone on the internet (see the endpoint table),
+so `PlanResponse` and its nested `PlanLimitsPublicResponse` are the one pair of DTOs where
+**adding** a field is not safe. `PlanCatalogueExposureTest` pins both records to an exact set
+of names — `getRecordComponents()` *and* the emitted JSON keys, which diverge under
+`@JsonProperty` — so any new component turns red until it is deliberately added to the
+allowlist in that test. Reflection rather than a populated fixture, because a blocklist over a
+hand-built payload is blind to a field that no fixture happens to fill in.
+
+`PlanResponseJsonTest.emitsNothingTenantScoped` is the older blocklist over six names
+(`tenantId`, `currentEmployeeCount`, `currentAppointmentCount`, `status`, `stripe`,
+`subscription`). It is kept for the intent it documents, but it is not the guard: adding
+`Integer usedSeatsThisTenant` to the record and populating it left the whole suite green.
 
 ---
 

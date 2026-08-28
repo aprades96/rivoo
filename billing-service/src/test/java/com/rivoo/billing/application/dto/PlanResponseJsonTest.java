@@ -93,10 +93,17 @@ class PlanResponseJsonTest {
     void emitsNothingTenantScoped() throws Exception {
         String jsonContent = json.write(premium()).getJson();
 
-        // This endpoint is anonymous. Per-plan limits are pricing-page material and are
-        // fine; anything describing a particular tenant is not. Note that
-        // rivoo-frontend/src/types/billing.ts:PlanLimitsResponse — the type for the
-        // INTERNAL per-tenant endpoint — declares currentEmployeeCount and
+        // NOT the guard — PlanCatalogueExposureTest is, via an allowlist over the record
+        // components and the emitted keys. This is a blocklist and only fires for the six
+        // names below; `seatsUsed` or `salonId` would sail past it, which is why the
+        // allowlist exists. It is kept because it is the only place that names the
+        // specific fields we are afraid of and says out loud that they must never appear
+        // on this endpoint, and because it asserts against the serialized string of the
+        // whole PlanResponse tree, so it also covers any future nested type before anyone
+        // remembers to allowlist it. If the two ever disagree, the allowlist wins.
+        //
+        // Note that rivoo-frontend/src/types/billing.ts:PlanLimitsResponse — the type for
+        // the INTERNAL per-tenant endpoint — declares currentEmployeeCount and
         // currentAppointmentCount, so those names are already in the vocabulary of
         // whoever next edits a "plan limits" DTO.
         assertThat(jsonContent).doesNotContain("tenantId");

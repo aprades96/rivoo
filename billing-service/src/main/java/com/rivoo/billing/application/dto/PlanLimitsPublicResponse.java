@@ -13,7 +13,10 @@ package com.rivoo.billing.application.dto;
  * record does not have today — so reusing that class here would put a type that is
  * expected to carry usage counts on an unauthenticated endpoint. Nothing tenant-scoped
  * may ever be added to THIS record: no usage counts, no consumption, no subscription
- * state. {@code PlanCatalogueExposureTest} enforces that.
+ * state. {@code PlanCatalogueExposureTest} enforces that as an ALLOWLIST — it pins the
+ * record components and the emitted JSON keys to exactly the four names below, so any
+ * new component fails the build regardless of what it is called, and adding one means
+ * consciously editing that allowlist.
  * <p>
  * Boxed types, not primitives: {@code null} means the plan has no row for that
  * {@code limit_key} at all, i.e. "unspecified". It is distinct from {@code -1}
