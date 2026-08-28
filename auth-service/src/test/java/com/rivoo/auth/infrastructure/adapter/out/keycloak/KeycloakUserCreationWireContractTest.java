@@ -1,6 +1,11 @@
 package com.rivoo.auth.infrastructure.adapter.out.keycloak;
 
+import com.rivoo.auth.application.AuthService;
+import com.rivoo.auth.application.dto.RegisterEmployeeRequest;
+import com.rivoo.auth.application.dto.RegisterOwnerRequest;
 import com.rivoo.auth.domain.port.out.KeycloakAdminPort;
+import com.rivoo.auth.domain.port.out.OnboardingEventPort;
+import com.rivoo.auth.domain.port.out.TenantUserMappingPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,17 +15,20 @@ import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import java.lang.reflect.Constructor;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.springframework.http.HttpMethod.GET;
 import static org.springframework.http.HttpMethod.POST;
 import static org.springframework.http.HttpMethod.PUT;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withNoContent;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
@@ -38,14 +46,34 @@ class KeycloakUserCreationWireContractTest {
 
     private static final String BASE_URL = "http://keycloak.test/admin/realms/rivoo";
     private static final String USER_ID = "11111111-2222-3333-4444-555555555555";
+    private static final String TENANT_ID = "sal_00000000-1111-2222-3333-444444444444";
+    private static final String EXECUTE_ACTIONS_URL =
+            BASE_URL + "/users/" + USER_ID + "/execute-actions-email";
+    private static final String EXISTING_USER_JSON = """
+            {"id":"%s","username":"owner@example.com","email":"owner@example.com",
+             "firstName":"Ana","lastName":"Lopez","enabled":true,"emailVerified":true}""".formatted(USER_ID);
 
     private MockRestServiceServer keycloak;
     private RestClient restClient;
     private KeycloakTokenManager tokenManager;
 
+    /**
+     * Every request that actually left, recorded independently of the expectations. Needed to
+     * assert an ABSENCE: {@code MockRestServiceServer} can only fail on a request it did not
+     * expect, and the caller under test swallows failures from this particular call by design, so
+     * "no execute-actions-email happened" is asserted positively here rather than inferred from
+     * the absence of a complaint.
+     */
+    private final List<String> wireCalls = new ArrayList<>();
+
     @BeforeEach
     void setUp() {
-        RestClient.Builder builder = RestClient.builder();
+        wireCalls.clear();
+        RestClient.Builder builder = RestClient.builder()
+                .requestInterceptor((request, body, execution) -> {
+                    wireCalls.add(request.getMethod() + " " + request.getURI());
+                    return execution.execute(request, body);
+                });
         keycloak = MockRestServiceServer.bindTo(builder).build();
         tokenManager = mock(KeycloakTokenManager.class);
         when(tokenManager.getAccessToken()).thenReturn("stub-admin-token");
@@ -172,6 +200,135 @@ class KeycloakUserCreationWireContractTest {
         adapterWith(false).sendRequiredActionsEmail(USER_ID, List.of("VERIFY_EMAIL"));
 
         keycloak.verify();
+    }
+
+    // -- Registration, end to end, judged at the wire --------------------
+
+    private AuthService authServiceWith(boolean ownerEmailVerifiedOnCreation) {
+        return new AuthService(adapterWith(ownerEmailVerifiedOnCreation),
+                mock(OnboardingEventPort.class), mock(TenantUserMappingPort.class));
+    }
+
+    /**
+     * Every Keycloak call a registration makes EXCEPT {@code execute-actions-email}, in order.
+     * That last call is left out deliberately so each test has to declare for itself whether it
+     * expects one -- which is the entire difference between the two directions below.
+     */
+    private void expectEverythingButTheActionEmail(String roleName) {
+        expectUserCreation(keycloak.expect(requestTo(BASE_URL + "/users")).andExpect(method(POST)));
+        keycloak.expect(requestTo(BASE_URL + "/users/" + USER_ID)).andExpect(method(GET))
+                .andRespond(withSuccess(EXISTING_USER_JSON, MediaType.APPLICATION_JSON));
+        keycloak.expect(requestTo(BASE_URL + "/users/" + USER_ID)).andExpect(method(PUT))
+                .andRespond(withNoContent());
+        keycloak.expect(requestTo(BASE_URL + "/roles/" + roleName)).andExpect(method(GET))
+                .andRespond(withSuccess("{\"id\":\"role-uuid\",\"name\":\"" + roleName + "\"}",
+                        MediaType.APPLICATION_JSON));
+        keycloak.expect(requestTo(BASE_URL + "/users/" + USER_ID + "/role-mappings/realm"))
+                .andExpect(method(POST)).andRespond(withNoContent());
+    }
+
+    private void registerOwnerWith(boolean ownerEmailVerifiedOnCreation) {
+        authServiceWith(ownerEmailVerifiedOnCreation).registerOwner(new RegisterOwnerRequest(
+                TENANT_ID, "owner@example.com", "chosen-by-the-owner", "Ana", "Lopez",
+                "Demo Salon", "FREE_TRIAL"));
+    }
+
+    private void registerEmployeeWith(boolean ownerEmailVerifiedOnCreation) {
+        authServiceWith(ownerEmailVerifiedOnCreation).registerEmployee(new RegisterEmployeeRequest(
+                TENANT_ID, "employee@example.com", "temp-pass", "Luis", "Gomez"));
+    }
+
+    @Test
+    void registerOwner_whenVerificationRequired_putsExactlyVerifyEmailToExecuteActionsEmail() {
+        expectEverythingButTheActionEmail("ROLE_SALON_OWNER");
+        keycloak.expect(requestTo(EXECUTE_ACTIONS_URL))
+                .andExpect(method(PUT))
+                .andExpect(content().json("[\"VERIFY_EMAIL\"]", true))
+                .andRespond(withNoContent());
+
+        registerOwnerWith(false);
+
+        keycloak.verify();
+        assertThat(wireCalls)
+                .as("the owner was created unverified, so the link must actually be requested")
+                .contains("PUT " + EXECUTE_ACTIONS_URL);
+    }
+
+    /**
+     * The direction the switch exists for, and the one that was broken. Keycloak's
+     * {@code execute-actions-email} SETS the required actions on the user as part of sending, so an
+     * owner created with {@code emailVerified=true} and no required action was handed
+     * {@code VERIFY_EMAIL} straight back and locked out -- on precisely the profiles that turned
+     * the switch on because they have no SMTP server to satisfy it with. Nothing may reach that
+     * endpoint here.
+     */
+    @Test
+    void registerOwner_whenVerificationSkipped_neverTouchesTheExecuteActionsEmailEndpoint() {
+        expectEverythingButTheActionEmail("ROLE_SALON_OWNER");
+
+        registerOwnerWith(true);
+
+        keycloak.verify();
+        assertThat(wireCalls)
+                .as("nothing is pending, so Keycloak must not be asked to execute anything")
+                .noneMatch(call -> call.contains("execute-actions-email"))
+                .hasSize(5);
+    }
+
+    @Test
+    void registerEmployee_whenOwnerVerificationRequired_putsExactlyUpdatePasswordToExecuteActions() {
+        expectEverythingButTheActionEmail("ROLE_EMPLOYEE");
+        keycloak.expect(requestTo(EXECUTE_ACTIONS_URL))
+                .andExpect(method(PUT))
+                .andExpect(content().json("[\"UPDATE_PASSWORD\"]", true))
+                .andRespond(withNoContent());
+
+        registerEmployeeWith(false);
+
+        keycloak.verify();
+        assertThat(wireCalls).contains("PUT " + EXECUTE_ACTIONS_URL);
+    }
+
+    /**
+     * The employee flow is not the owner's and must not move with it: a temporary password chosen
+     * by somebody else still has to be replaced, whatever the owner's switch says.
+     */
+    @Test
+    void registerEmployee_whenOwnerVerificationSkipped_stillPutsExactlyUpdatePassword() {
+        expectEverythingButTheActionEmail("ROLE_EMPLOYEE");
+        keycloak.expect(requestTo(EXECUTE_ACTIONS_URL))
+                .andExpect(method(PUT))
+                .andExpect(content().json("[\"UPDATE_PASSWORD\"]", true))
+                .andRespond(withNoContent());
+
+        registerEmployeeWith(true);
+
+        keycloak.verify();
+        assertThat(wireCalls).contains("PUT " + EXECUTE_ACTIONS_URL);
+    }
+
+    @Test
+    void sendRequiredActionsEmail_whenGivenAnEmptyActionList_makesNoRequestAtAll() {
+        // No expectation is declared, so any request at all would be an unexpected one; the
+        // recorded calls assert the same thing positively.
+        adapterWith(false).sendRequiredActionsEmail(USER_ID, List.of());
+
+        keycloak.verify();
+        assertThat(wireCalls).isEmpty();
+    }
+
+    /**
+     * The single source of truth, checked from outside: what the adapter reports as still pending
+     * is exactly what it put into the creation body for that same flag value.
+     */
+    @Test
+    void pendingActionsForNewOwner_mirrorsTheRequiredActionsPutIntoTheCreationBody() {
+        assertThat(adapterWith(false).pendingActionsForNewOwner())
+                .as("created unverified: VERIFY_EMAIL is still owed")
+                .containsExactly("VERIFY_EMAIL");
+        assertThat(adapterWith(true).pendingActionsForNewOwner())
+                .as("created verified: nothing is owed, so nothing may be mailed")
+                .isEmpty();
     }
 
     /**

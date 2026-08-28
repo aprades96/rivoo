@@ -26,6 +26,12 @@ import static org.mockito.Mockito.when;
  * Owner registration must ASK Keycloak to mail the verification link, not merely create the user
  * with the action pending: a pending required action alone produces no email, so the owner would be
  * locked out of an account they can neither use nor unlock.
+ * <p>
+ * What it must NOT do is decide for itself what is pending. The adapter created the account and is
+ * the sole reader of {@code rivoo.keycloak.owner.email-verified-on-creation}; this use case only
+ * relays its answer. Whether an empty answer then reaches Keycloak is the adapter's business and is
+ * pinned at the HTTP boundary in {@code KeycloakUserCreationWireContractTest} -- a mock cannot show
+ * that no request was made.
  */
 class OwnerVerificationEmailTest {
 
@@ -54,6 +60,8 @@ class OwnerVerificationEmailTest {
 
     @Test
     void registerOwner_asksKeycloakToMailTheVerificationLink() {
+        when(keycloakAdminPort.pendingActionsForNewOwner()).thenReturn(List.of("VERIFY_EMAIL"));
+
         registerOwner();
 
         @SuppressWarnings("unchecked")
@@ -66,10 +74,32 @@ class OwnerVerificationEmailTest {
                 .doesNotContain("UPDATE_PASSWORD");
     }
 
+    /**
+     * The use case used to carry its own {@code List.of("VERIFY_EMAIL")} constant and pass it
+     * unconditionally. Since {@code execute-actions-email} SETS the actions it mails, that re-armed
+     * {@code VERIFY_EMAIL} on an owner deliberately created already verified and locked them out.
+     * Nothing here may reintroduce a second opinion about what is pending.
+     */
+    @Test
+    void registerOwner_relaysTheAdaptersEmptyAnswerInsteadOfItsOwnConstant() {
+        when(keycloakAdminPort.pendingActionsForNewOwner()).thenReturn(List.of());
+
+        registerOwner();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<String>> actions = ArgumentCaptor.forClass(List.class);
+        verify(keycloakAdminPort).sendRequiredActionsEmail(eq(OWNER_ID), actions.capture());
+
+        assertThat(actions.getValue())
+                .as("the adapter reported nothing pending; the use case may not invent an action")
+                .isEmpty();
+    }
+
     @Test
     void registerOwner_emailFailureDoesNotUndoAnOtherwiseCompleteRegistration() {
         // Best-effort by design, and pinned here because the alternative — letting it propagate —
         // would compensate (delete) a user whose salon row the caller already committed to.
+        when(keycloakAdminPort.pendingActionsForNewOwner()).thenReturn(List.of("VERIFY_EMAIL"));
         doThrow(new IllegalStateException("SMTP down"))
                 .when(keycloakAdminPort).sendRequiredActionsEmail(anyString(), any());
 

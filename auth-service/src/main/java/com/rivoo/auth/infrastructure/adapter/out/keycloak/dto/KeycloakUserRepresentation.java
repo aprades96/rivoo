@@ -53,8 +53,26 @@ public record KeycloakUserRepresentation(
                 null, email, email, firstName, lastName,
                 true, emailVerifiedOnCreation,
                 List.of(new CredentialRepresentation("password", password, false)),
-                emailVerifiedOnCreation ? List.of() : List.of("VERIFY_EMAIL"), null
+                ownerRequiredActions(emailVerifiedOnCreation), null
         );
+    }
+
+    /**
+     * THE definition of what a freshly created owner still has to do, and the only place the
+     * consequence of {@code rivoo.keycloak.owner.email-verified-on-creation} is spelled out.
+     * <p>
+     * Both readers go through here: the creation body above, and
+     * {@code KeycloakAdminPort#pendingActionsForNewOwner()}, which the registration use case asks
+     * before deciding what to mail. They therefore cannot disagree. They used to: the use case
+     * carried its own hardcoded {@code ["VERIFY_EMAIL"]} and mailed it unconditionally, and since
+     * Keycloak's {@code execute-actions-email} SETS the required actions on the user as part of
+     * sending, an owner created verified was immediately re-burdened with {@code VERIFY_EMAIL} and
+     * locked out — on exactly the profiles the switch exists to unblock.
+     * <p>
+     * Empty means empty: nothing is pending, so nothing is to be mailed.
+     */
+    public static List<String> ownerRequiredActions(boolean emailVerifiedOnCreation) {
+        return emailVerifiedOnCreation ? List.of() : List.of("VERIFY_EMAIL");
     }
 
     public static KeycloakUserRepresentation forEmployeeCreation(String email, String password,

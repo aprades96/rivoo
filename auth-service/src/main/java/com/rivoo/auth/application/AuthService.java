@@ -23,13 +23,6 @@ import java.util.Map;
 public class AuthService implements RegisterOwnerUseCase, RegisterEmployeeUseCase,
         ManageTenantStatusUseCase, UpdateTenantAttributeUseCase, ListTenantUsersUseCase {
 
-    /**
-     * The owner picks their own password during registration, so the ONLY thing Keycloak has to
-     * ask them for is proof that the address is theirs. Deliberately not the employee's
-     * {@link #EMPLOYEE_REQUIRED_ACTIONS}.
-     */
-    private static final List<String> OWNER_REQUIRED_ACTIONS = List.of("VERIFY_EMAIL");
-
     /** Unchanged: the employee gets a temporary password and must replace it. */
     private static final List<String> EMPLOYEE_REQUIRED_ACTIONS = List.of("UPDATE_PASSWORD");
 
@@ -62,12 +55,18 @@ public class AuthService implements RegisterOwnerUseCase, RegisterEmployeeUseCas
                     request.tenantId(), keycloakUserId, request.email(),
                     EventType.OWNER_CREATED, null));
 
-            // Trigger Keycloak's VERIFY_EMAIL mail. Same shape as the employee flow: best-effort,
-            // because failing here would roll back an otherwise complete registration. The account
-            // stays unverified (and therefore unable to log in) until the address is confirmed;
-            // Keycloak re-offers the action on the next login attempt, so this is recoverable.
+            // Mail whatever the owner still has PENDING -- asked of the adapter, never assumed
+            // here. The adapter created the account and is the sole reader of the switch that
+            // decides whether verification was required at all; when the owner was created already
+            // verified this list is empty and no request reaches Keycloak. Hardcoding
+            // ["VERIFY_EMAIL"] here would re-impose it, because execute-actions-email SETS the
+            // actions it mails -- locking out the very owner the switch exists to let in.
+            // Best-effort, like the employee flow: failing here would roll back an otherwise
+            // complete registration, and Keycloak re-offers a pending action on the next login
+            // attempt, so it is recoverable.
             try {
-                keycloakAdminPort.sendRequiredActionsEmail(keycloakUserId, OWNER_REQUIRED_ACTIONS);
+                keycloakAdminPort.sendRequiredActionsEmail(
+                        keycloakUserId, keycloakAdminPort.pendingActionsForNewOwner());
             } catch (Exception emailError) {
                 log.atWarn().setCause(emailError).addKeyValue("keycloakUserId", keycloakUserId)
                         .log("Failed to send verify-email action to owner, address stays unverified");

@@ -139,7 +139,21 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
     }
 
     @Override
+    public List<String> pendingActionsForNewOwner() {
+        return KeycloakUserRepresentation.ownerRequiredActions(ownerEmailVerifiedOnCreation);
+    }
+
+    @Override
     public void sendRequiredActionsEmail(String keycloakUserId, List<String> requiredActions) {
+        // Nothing pending, nothing to send -- and emphatically not a harmless call to make anyway:
+        // execute-actions-email SETS the required actions on the user, so an empty-handed request
+        // is the difference between an owner who can log in and one who cannot.
+        if (requiredActions == null || requiredActions.isEmpty()) {
+            log.atDebug().addKeyValue("keycloakUserId", keycloakUserId)
+                    .log("No required actions pending, skipping execute-actions-email");
+            return;
+        }
+
         log.atDebug().addKeyValue("keycloakUserId", keycloakUserId)
                 .addKeyValue("requiredActions", requiredActions).log("Sending required actions email");
 

@@ -85,8 +85,18 @@ correo es requisito de la verificacion del dueno".
 | `test` | `true` | `src/test/resources/application-test.yml` |
 | `prod` | `false` | `src/main/resources/application-prod.yml` |
 
+**The switch also decides whether Keycloak is asked to mail anything at all.** Keycloak's
+`execute-actions-email` SETS the required actions on the user as part of sending, not merely mails
+them, so asking it to send `VERIFY_EMAIL` to an owner created already verified would re-impose the
+action and lock them out — on exactly the profiles the switch exists to unblock. The decision has
+ONE home: `KeycloakUserRepresentation.ownerRequiredActions(flag)`, read both to build the creation
+body and to answer `KeycloakAdminPort.pendingActionsForNewOwner()`. `AuthService.registerOwner`
+asks that port method instead of carrying its own action list, and
+`sendRequiredActionsEmail` makes no HTTP request at all for an empty list. `AuthService` does NOT
+read the property: it stays a single `@Value` in `KeycloakAdminAdapter`.
+
 `forEmployeeCreation` is NOT affected: employees keep their temporary password plus
-`UPDATE_PASSWORD` + `VERIFY_EMAIL` in every profile.
+`UPDATE_PASSWORD` + `VERIFY_EMAIL` in every profile, and are always mailed `UPDATE_PASSWORD`.
 
 ---
 
@@ -106,7 +116,7 @@ correo es requisito de la verificacion del dueno".
 
 | Port | Purpose |
 |------|---------|
-| `KeycloakAdminPort` | Interface to Keycloak Admin REST API (7 methods) |
+| `KeycloakAdminPort` | Interface to Keycloak Admin REST API (10 methods) |
 | `OnboardingEventPort` | Persist audit events |
 | `TenantUserMappingPort` | Persist/query tenant-user mappings |
 

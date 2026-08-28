@@ -20,11 +20,27 @@ public interface KeycloakAdminPort {
      * Sends an email asking the user to execute the given required actions.
      * <p>
      * The actions are a PARAMETER, not a constant: the employee flow asks for UPDATE_PASSWORD
-     * (temporary password) and the owner flow asks for VERIFY_EMAIL only (the owner chose their
-     * own password). Sending an owner the employee's UPDATE_PASSWORD link would force a password
-     * change nobody asked for.
+     * (temporary password) and the owner flow asks for whatever
+     * {@link #pendingActionsForNewOwner()} reports. Sending an owner the employee's
+     * UPDATE_PASSWORD link would force a password change nobody asked for.
+     * <p>
+     * An EMPTY list is a no-op: no request is made. Keycloak's {@code execute-actions-email} does
+     * not merely mail the actions, it SETS them on the user, so asking it to execute nothing is
+     * not harmless — it is how an already-verified owner gets VERIFY_EMAIL re-imposed and locked
+     * out. Nothing pending, nothing sent.
      */
     void sendRequiredActionsEmail(String keycloakUserId, List<String> requiredActions);
+
+    /**
+     * The required actions a newly created owner still has pending — {@code VERIFY_EMAIL}, or
+     * NOTHING when the owner was created already verified.
+     * <p>
+     * Deliberately answered by the adapter and not decided by the caller: the adapter is the sole
+     * reader of {@code rivoo.keycloak.owner.email-verified-on-creation}, and it derives this from
+     * the very expression that built the creation body, so the account Keycloak holds and the mail
+     * Keycloak is asked to send can never describe different states.
+     */
+    List<String> pendingActionsForNewOwner();
 
     /**
      * Sets user attributes (tenant_id, subscription_plan, salon_name).
