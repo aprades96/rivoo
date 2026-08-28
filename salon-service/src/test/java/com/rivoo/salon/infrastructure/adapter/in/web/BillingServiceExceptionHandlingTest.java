@@ -31,29 +31,29 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Regression test for the defect fixed by making {@link BillingServiceException}
  * extend {@code RivooException}: before that change it extended a bare
  * {@code RuntimeException} with no {@code @ExceptionHandler} anywhere in the
- * monorepo (verified: {@code grep -rn "BillingServiceException"
- * salon-service/src} returned only its own declaration, its throw site in
- * {@code BillingServiceAdapter}, and the port method — zero handlers), so it
- * always fell through to {@link GlobalExceptionHandler}'s generic
+ * monorepo, so it always fell through to {@link GlobalExceptionHandler}'s generic
  * {@code @ExceptionHandler(Exception.class)} catch-all: a deterministic 500
  * "An unexpected error occurred" on every billing-service outage during salon
- * registration, the same class of bug already fixed for
- * {@code SalonNotFoundException} and for {@code AuthServiceException}.
+ * registration.
  * <p>
- * {@link BillingServiceException} now has a dedicated handler in
- * {@link SalonExceptionHandler#handleBillingServiceError(BillingServiceException)},
- * for the same reason {@code AuthServiceException} does: it is the same class
- * of failure (an external dependency down during onboarding) and it DOES carry
- * a cause (see {@code BillingServiceAdapter}, which wraps the original
- * exception) — {@link GlobalExceptionHandler#handleRivooException} would still
- * produce the correct 502 body via {@code BillingServiceException}'s own
- * {@code HttpStatus}, but its {@code atWarn} logging (no {@code setCause}) would
- * silently drop that stack trace, leaving a billing-service outage diagnosable
- * only from a one-line WARN with no cause chain. The HTTP contract (status,
- * type, title, detail) is unchanged by the dedicated handler — only the
- * logging is.
+ * {@link BillingServiceException} has a dedicated handler in
+ * {@link SalonExceptionHandler#handleBillingServiceError(BillingServiceException)}
+ * for two reasons. It carries a cause (see {@code BillingServiceAdapter}, which wraps the
+ * original failure), and {@link GlobalExceptionHandler#handleRivooException}'s generic
+ * {@code atWarn} (no {@code setCause}) would silently drop that stack trace. And that generic
+ * handler publishes {@code ex.getMessage()} as the response {@code detail} — on an ANONYMOUS
+ * endpoint, where the adapter's message names the dependency and the tenant.
+ * <p>
+ * This class exercises the handler in isolation (the exception is stubbed at the use-case
+ * boundary). The classification that DECIDES between 502 and 422, and the end-to-end body an
+ * anonymous caller receives, are covered below the port instead — see
+ * {@code BillingServiceAdapterTest} and {@code SalonRegistrationDependencyContractTest}.
  */
 class BillingServiceExceptionHandlingTest {
+
+    /** The fixed, topology-free string SalonExceptionHandler publishes for a broken dependency. */
+    private static final String CLIENT_SAFE_DETAIL =
+            "Salon registration is temporarily unavailable. Please try again in a few minutes.";
 
     private RegisterSalonUseCase registerSalonUseCase;
     private MockMvc mockMvc;
@@ -104,15 +104,15 @@ class BillingServiceExceptionHandlingTest {
     @Test
     void register_billingServiceUnreachable_returns502NotAnInternalServerError() throws Exception {
         when(registerSalonUseCase.register(org.mockito.ArgumentMatchers.any()))
-                .thenThrow(new BillingServiceException(
-                        "Failed to create subscription in billing-service for tenant: sal_new"));
+                .thenThrow(BillingServiceException.unavailable(
+                        "Failed to create subscription in billing-service for tenant: sal_new", null));
 
         mockMvc.perform(post("/api/v1/salons")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(REQUEST_BODY))
                 .andExpect(status().isBadGateway())
                 .andExpect(jsonPath("$.status").value(502))
-                .andExpect(jsonPath("$.detail").value("Failed to create subscription in billing-service for tenant: sal_new"))
+                .andExpect(jsonPath("$.detail").value(CLIENT_SAFE_DETAIL))
                 .andExpect(jsonPath("$.title").value("Billing Service Error"))
                 .andExpect(jsonPath("$.type").value("https://rivoo.com/errors/billing-service-error"));
     }
@@ -121,11 +121,10 @@ class BillingServiceExceptionHandlingTest {
     void register_billingServiceUnreachable_logsThroughLocalHandlerWithCauseAtErrorLevel() throws Exception {
         // BillingServiceAdapter always wraps the original failure as the cause (see
         // BillingServiceAdapter#createSubscription) — losing it here would leave a
-        // billing-service outage diagnosable only from a one-line WARN with no stack trace,
-        // exactly the gap AuthServiceException was already given a dedicated handler to avoid.
+        // billing-service outage diagnosable only from a one-line WARN with no stack trace.
         Throwable upstreamCause = new RuntimeException("Connection refused");
         when(registerSalonUseCase.register(org.mockito.ArgumentMatchers.any()))
-                .thenThrow(new BillingServiceException(
+                .thenThrow(BillingServiceException.unavailable(
                         "Failed to create subscription in billing-service for tenant: sal_new", upstreamCause));
 
         mockMvc.perform(post("/api/v1/salons")
