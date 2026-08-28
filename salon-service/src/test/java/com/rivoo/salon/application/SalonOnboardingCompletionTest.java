@@ -40,16 +40,24 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * instantiated directly, and a {@link CyclicBarrier} to force two threads to start together rather
  * than happen to run one after the other.
  * <p>
- * <b>What {@link #twoConcurrentCallsProduceExactlyOneWrite()} does and does not prove.</b> It does
- * NOT demonstrate that the check-and-write is atomic: {@code FakeSalonStore.markOnboardingCompleted}
- * is itself {@code synchronized}, so the mutual exclusion between the two threads is provided by
- * the test double, not observed as an emergent property of {@link SalonService}. What it does
- * prove - and what is actually load-bearing - is that {@code SalonService#completeOnboarding}
- * performs no read-decide-write of its own: it delegates the check and the write to a single call
- * on {@link SalonPersistencePort#markOnboardingCompleted}, so whatever atomicity the port
- * implementation provides is not undermined by the service racing ahead of it. The real atomicity
- * guarantee - the {@code WHERE ... onboarding_completed_at IS NULL} clause in the JPQL update - is
- * provided and verified separately, against MySQL.
+ * <b>What this class does and does not prove.</b> Every test here, including
+ * {@link #twoConcurrentCallsProduceExactlyOneWrite()}, runs against {@code FakeSalonStore}, whose
+ * {@code markOnboardingCompleted} is itself {@code synchronized}: the mutual exclusion between the
+ * two threads in that test is provided by the test double, not observed as an emergent property of
+ * {@link SalonService}. What this class DOES prove - and what is actually load-bearing - is that
+ * {@code SalonService#completeOnboarding} performs no read-decide-write of its own: it delegates the
+ * check and the write to a single call on {@link SalonPersistencePort#markOnboardingCompleted}, so
+ * whatever atomicity the port implementation provides is not undermined by the service racing ahead
+ * of it.
+ * <p>
+ * <b>What this class does NOT prove.</b> The real atomicity guarantee - the
+ * {@code WHERE ... onboarding_completed_at IS NULL} predicate in the JPQL update
+ * ({@code SalonJpaRepository#markOnboardingCompletedIfPending}) actually being enforced by MySQL -
+ * has no coverage here, by construction: {@code FakeSalonStore} is a hand-written in-memory double,
+ * not the real query. That guarantee is exercised separately, against a real MySQL instance, by
+ * {@code SalonJpaRepositoryOnboardingCompletionIntegrationTest} (package
+ * {@code infrastructure.adapter.out.persistence.repository}, tagged {@code @Tag("integration")},
+ * excluded from the default build - see that class's javadoc for the exact command to run it).
  */
 class SalonOnboardingCompletionTest {
 
