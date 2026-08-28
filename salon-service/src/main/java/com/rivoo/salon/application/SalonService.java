@@ -189,15 +189,20 @@ public class SalonService implements GetSalonUseCase, UpdateSalonUseCase,
     }
 
     /**
-     * Not {@code @Transactional}: {@code markOnboardingCompleted} is a single conditional
-     * statement, already atomic on its own, and needs no transaction of its own to be correct.
-     * Wrapping this method in one would not add isolation either - with the default
-     * {@code REQUIRED} propagation, the repository method's own {@code @Transactional} would
-     * simply join the outer transaction instead of committing independently - it would only hold
-     * the JDBC connection open across the extra {@code findByTenantId} for no benefit. Same
-     * reasoning as {@link #getByTenantId}, see its javadoc.
+     * {@code @Transactional}, unlike {@link #getByTenantId}: that method skips the annotation
+     * because it may send a welcome email over HTTP and that call must not run while a JDBC
+     * connection is held. This method calls nobody outside the database, so that reason does not
+     * apply here, and the reason to keep the annotation is concrete: {@code markOnboardingCompleted}
+     * and the {@code findByTenantId} re-read below must observe each other's effects. With the
+     * default {@code REQUIRED} propagation, the repository method's own {@code @Transactional}
+     * joins this one instead of committing on its own, so the re-read sees the write this same call
+     * just made even under MySQL's default REPEATABLE READ isolation - without a shared transaction,
+     * a concurrent commit could land in the gap between the two calls and the re-read could
+     * contradict what was just written, which the frontend would misread as a failed onboarding
+     * completion.
      */
     @Override
+    @Transactional
     public SalonResponse completeOnboarding(String tenantId) {
         salonPersistencePort.markOnboardingCompleted(tenantId);   // the count decides nothing here
         Salon salon = salonPersistencePort.findByTenantId(tenantId)
