@@ -1341,13 +1341,15 @@ Salieron de la auditoria de contratos backend/frontend. Verificados por mi, no s
 - [ ] El dia del cambio de hora de primavera, "una hora" se queda en ~1 minuto real: la
       comparacion es en `LocalDateTime`, no en instantes.
 
-## Test acoplado a la fecha de hoy — se rompera manana
+## CORREGIDO: el test de la fecha NO esta acoplado al reloj
 
-- [ ] `rivoo-frontend/src/components/booking/public-datetime-step.test.tsx:24,94,97` fija
-      `"2026-08-28"`, que era HOY cuando se escribio. El componente construye la tira de
-      fechas con `addDays(today, i)`, asi que manana esa fecha ya no aparece.
-      Ademas es intermitente: fallo 1 de cada ~14 ejecuciones de la bateria completa
-      (usa `findByRole` con 1000 ms sobre un fetch de React Query). Verde en aislamiento.
+- [x] Lo anote como "se rompera manana" y era FALSO. `public-datetime-step.tsx:65` hace
+      `const availabilityDate = data?.date ?? dateStr`, y el handler solo es alcanzable con
+      `data` presente — la fecha sale del payload simulado, no del reloj. Comprobado moviendo
+      cada uno por separado: cambiar solo el mock rompe el test, cambiar solo la asercion
+      tambien. La cadena fija es el mock haciendose eco de si mismo.
+      La intermitencia tampoco se reprodujo: 13 ejecuciones completas, 144/144 siempre.
+
 
 ## La fuga del alta se estrecho, no se cerro (el contenido si, el TIEMPO no)
 
