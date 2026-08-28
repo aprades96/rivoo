@@ -32,7 +32,8 @@ public class WebhookService implements ProcessWebhookUseCase {
     public void processEvent(String payload, String signatureHeader) {
         StripePort.StripeWebhookEvent event = stripePort.constructEvent(payload, signatureHeader);
         if (event == null) {
-            log.atWarn().log("Invalid webhook signature — ignoring");
+            // Not a signature failure: nothing verifies the signature yet (see StripePort#constructEvent).
+            log.atWarn().log("Unparseable webhook payload — ignoring");
             return;
         }
 
