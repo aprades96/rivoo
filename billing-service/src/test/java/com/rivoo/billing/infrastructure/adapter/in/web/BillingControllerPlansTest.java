@@ -11,11 +11,9 @@ import com.rivoo.common.web.GlobalExceptionHandler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -42,10 +40,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * installed. This test therefore does NOT prove end-to-end anonymity — no test in this
  * module can, see the module CLAUDE.md — and it does not pretend to. What it does cover is
  * the half of the contract that lives in this class: the handler needs no tenant and no
- * request input to answer, and it carries no method-security annotation. The latter is
- * load-bearing precisely because {@code @EnableMethodSecurity} IS active in production, so
- * a {@code @PreAuthorize} added here would reject every anonymous caller while both
- * security configs still say permitAll.
+ * request input to answer, and the shape of the body it returns.
+ * <p>
+ * The other half - that {@code listPlans} carries no {@code @PreAuthorize}, load-bearing
+ * because {@code @EnableMethodSecurity} IS active in production, so an annotation added here
+ * would reject every anonymous caller while both security configs still say permitAll - is
+ * owned by {@link BillingControllerAuthorizationPolicyTest}, alongside the policy of every
+ * other handler on this controller. It was asserted here until then, with two sibling-handler
+ * assertions kept beside it as a control that the reflection was not blind; those two were the
+ * only thing pinning {@code getSubscription} and {@code createPortalSession} anywhere, which is
+ * why the invariant now lives in a file that owns it instead of acquiring it by accident.
  */
 class BillingControllerPlansTest {
 
@@ -121,23 +125,6 @@ class BillingControllerPlansTest {
                 .andExpect(jsonPath("$[0].limits.maxEmployees").isEmpty())
                 .andExpect(jsonPath("$[0].limits.smsRemindersEnabled").isEmpty())
                 .andExpect(jsonPath("$[0].limits.maxAppointmentsPerMonth").value(200));
-    }
-
-    @Test
-    void listPlans_handlerCarriesNoMethodSecurityAnnotation() throws Exception {
-        Method listPlans = BillingController.class.getMethod("listPlans");
-
-        assertThat(listPlans.getAnnotation(PreAuthorize.class)).isNull();
-        assertThat(BillingController.class.getAnnotation(PreAuthorize.class)).isNull();
-
-        // Control: the probe above is only meaningful if it can actually see the
-        // annotation when it is there. The sibling handlers on this same controller are
-        // SALON_OWNER-only, so a change that made this reflection blind (wrong annotation
-        // type, non-runtime retention) fails here instead of passing vacuously.
-        assertThat(BillingController.class.getMethod("getSubscription").getAnnotation(PreAuthorize.class))
-                .isNotNull();
-        assertThat(BillingController.class.getMethod("createPortalSession").getAnnotation(PreAuthorize.class))
-                .isNotNull();
     }
 
     @Test

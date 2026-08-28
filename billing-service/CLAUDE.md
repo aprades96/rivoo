@@ -194,7 +194,7 @@ Base path is `/api/internal/billing` (`BillingInternalController`), not `/api/in
 
 ## Testing constraints and known gaps
 
-### `@PreAuthorize` on `/api/v1/billing/**` is only partially covered
+### `@PreAuthorize` on `/api/v1/billing/**` is pinned by reflection, not enforced by a test
 
 `spring-boot-test-autoconfigure-4.0.3.jar` ships exactly two slices, `json` and `jdbc`.
 The version is the one the build resolves (root `pom.xml` pins `spring-boot-starter-parent`
@@ -207,41 +207,82 @@ unzip -l ~/.m2/repository/org/springframework/boot/spring-boot-test-autoconfigur
   | grep "org/springframework/boot/test/autoconfigure/"
 ```
 
-**`@WebMvcTest` and `@AutoConfigureMockMvc` do not exist here**, so
-controller tests use `MockMvcBuilders.standaloneSetup(...)`, which does not install the Spring
-Security filter chain or the method-security interceptor.
+**`@WebMvcTest` and `@AutoConfigureMockMvc` do not exist here**, so controller tests use
+`MockMvcBuilders.standaloneSetup(...)`, which installs neither the Spring Security filter
+chain nor the method-security interceptor.
 
-No test in this module therefore proves that a caller without `ROLE_SALON_OWNER` is actually
-rejected. What CI *does* check, since `BillingControllerPlansTest` was added, is that the
-annotation is **present or absent as intended**, by reflection
-(`listPlans_handlerCarriesNoMethodSecurityAnnotation`): the test asserts `listPlans` carries no
-`@PreAuthorize` — the anonymous catalogue would break if it did — and, as a control that the
-reflection is not blind, that `getSubscription` and `createPortalSession` do carry one. That
-control is what gives those two handlers incidental coverage.
+#### What IS pinned
 
-Measured per handler by mutation (full reactor `mvn -o clean test`, one edit at a time,
-file hash checked before and after — `core.autocrlf=true` here, so a multi-line `\n` pattern
-silently matches nothing and you get a false green):
+`BillingControllerAuthorizationPolicyTest` owns the authorization invariant for every handler
+on `BillingController`. It reads the annotations reflectively — the only mechanism available
+without a security slice — and pins, per handler, **both** the presence/absence of
+`@PreAuthorize` **and its exact expression**, compared against hardcoded string literals (an
+expectation derived from the annotation under test cannot fail):
 
-| Handler | Mutation | Result |
-|---------|----------|--------|
-| `GET /subscription` | delete `@PreAuthorize` | **BUILD FAILURE** — `listPlans_handlerCarriesNoMethodSecurityAnnotation` |
-| `POST /portal` | delete `@PreAuthorize` | **BUILD FAILURE** — same test |
-| `POST /checkout-session` | delete `@PreAuthorize` | **BUILD SUCCESS** — genuinely unguarded |
-| `GET /plans` | add `@PreAuthorize` | **BUILD FAILURE** — same test |
+| Handler | Pinned policy |
+|---------|---------------|
+| `GET /subscription` | `hasRole('SALON_OWNER')` |
+| `POST /checkout-session` | `hasRole('SALON_OWNER')` |
+| `POST /portal` | `hasRole('SALON_OWNER')` |
+| `GET /plans` | no `@PreAuthorize` — anonymous by design |
 
-So `createCheckout` is the one handler whose authorization annotation can still be deleted
-without CI noticing; treat any change to it as needing manual verification. The other three
-are pinned only *by name* — the reflection probe sees that an annotation exists, not that the
-expression inside it is right, so swapping `hasRole('SALON_OWNER')` for `hasRole('EMPLOYEE')`
-or `permitAll()` still passes.
+Two further properties make it durable rather than a snapshot of the day it was written:
 
-This paragraph previously claimed that deleting the annotation from `createPortalSession` left
-the suite green, "measured rather than assumed". It was measured, and then commit `60231e4`
-falsified it without updating this file. Re-measure before trusting the table above.
+- **Allowlist over the handler set.** Handlers are enumerated from the controller (declared,
+  non-synthetic methods carrying `@RequestMapping` or anything meta-annotated with it, so any
+  verb is caught). A handler present in the code but absent from the expected map fails the
+  build — a new endpoint is red until someone states its policy. Same reasoning
+  `PlanCatalogueExposureTest` applies to the fields of the public DTOs.
+- **Class-level `@PreAuthorize` is asserted absent.** One added on the class applies to every
+  handler, including the anonymous catalogue, without touching a single method.
 
-Closing this properly needs a `@SpringBootTest`-based security test (Testcontainers, `@Tag("integration")`,
-excluded from the default surefire run) rather than another standalone slice.
+Measured by mutation (full reactor `mvn -o clean test`, one edit at a time, with the file hash
+asserted to have **changed** before the run is trusted — line endings are **mixed** in this
+repo, `BillingController.java` is CRLF while the test files under `src/test` are LF, so a
+pattern anchored on `\n` silently matches nothing in the former and one anchored on `\r\n`
+matches nothing in the latter; use `\r?\n` and verify the hash):
+
+| Mutation | Result |
+|----------|--------|
+| delete `@PreAuthorize` from `getSubscription` | **BUILD FAILURE** |
+| delete `@PreAuthorize` from `createCheckout` | **BUILD FAILURE** |
+| delete `@PreAuthorize` from `createPortalSession` | **BUILD FAILURE** |
+| `getSubscription` expression → `hasRole('EMPLOYEE')` | **BUILD FAILURE** |
+| `createCheckout` expression → `hasRole('EMPLOYEE')` | **BUILD FAILURE** |
+| `createPortalSession` expression → `hasRole('EMPLOYEE')` | **BUILD FAILURE** |
+| `createCheckout` expression → `permitAll()` | **BUILD FAILURE** |
+| add `@PreAuthorize` to `listPlans` | **BUILD FAILURE** |
+| add a new handler (unguarded), test untouched | **BUILD FAILURE** |
+| add a new handler (guarded), test untouched | **BUILD FAILURE** |
+| add a class-level `@PreAuthorize` | **BUILD FAILURE** |
+
+Before this test existed, only rows 1, 3, 8 and 11 were **BUILD FAILURE**; every other row was
+**BUILD SUCCESS**. Rows 1-4 were measured directly on the pre-change tree; the rest follow from
+reading the five assertions that were doing the work at the time, in
+`BillingControllerPlansTest.listPlans_handlerCarriesNoMethodSecurityAnnotation` — it compared
+annotations against `null`/non-`null` and never read `.value()` (so rows 5-7, the expression
+swaps, could not fail), never enumerated the controller's methods (so rows 9-10, a new handler,
+could not fail), and did assert the class-level annotation was absent (so row 11 was already
+covered, and remains so in the new class).
+
+So `createCheckout` — the handler that starts a Stripe payment — was guarded by nothing, and no
+expression on any handler was checked. What coverage `getSubscription` and `createPortalSession`
+had was incidental: two of those assertions existed only as a control that the probe was not
+blind. That test method has been removed — the new class subsumes all of it, and two files
+half-asserting one invariant is exactly how it drifted in the first place.
+
+#### What is still NOT covered
+
+A reflection test proves the annotation is **written** as intended. It does **not** prove Spring
+**enforces** it. Nothing in this module — or anywhere in the repo — observes a caller without
+`ROLE_SALON_OWNER` actually being rejected. Unverified, specifically: that `@EnableMethodSecurity`
+(`BillingSecurityConfig`) wires an interceptor onto these methods at all; that the security
+filter chain runs; and that `KeycloakJwtConverter` emits the `ROLE_` prefix `hasRole` expects
+(that class has no test of its own). If method security were silently switched off with every
+annotation still in place, the whole suite would stay green.
+
+Closing that needs a `@SpringBootTest`-based security test with Testcontainers, tagged
+`@Tag("integration")` and excluded from the default surefire run. Still open.
 
 ### Response DTO field names must be pinned at the JSON level
 
