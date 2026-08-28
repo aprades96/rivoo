@@ -609,7 +609,8 @@ class SalonRegistrationPublicVisibilityTest {
                     .addressStreet(s.getAddressStreet()).addressCity(s.getAddressCity())
                     .addressPostalCode(s.getAddressPostalCode()).timezone(s.getTimezone())
                     .currency(s.getCurrency()).subscriptionPlan(s.getSubscriptionPlan())
-                    .status(s.getStatus()).createdAt(s.getCreatedAt()).updatedAt(s.getUpdatedAt())
+                    .status(s.getStatus()).onboardingCompletedAt(s.getOnboardingCompletedAt())
+                    .createdAt(s.getCreatedAt()).updatedAt(s.getUpdatedAt())
                     .build();
         }
     }

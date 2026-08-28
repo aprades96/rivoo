@@ -78,6 +78,9 @@ public class SalonJpaEntity extends TenantAwareEntity {
     @Column(name = "status")
     private com.rivoo.salon.domain.model.SalonStatus status;
 
+    @Column(name = "onboarding_completed_at")
+    private Instant onboardingCompletedAt;
+
     @Column(name = "created_at", updatable = false)
     private Instant createdAt;
 

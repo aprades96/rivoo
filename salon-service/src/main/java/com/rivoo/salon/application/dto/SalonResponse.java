@@ -19,6 +19,7 @@ public record SalonResponse(
         String subscriptionPlan,
         String status,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        Instant onboardingCompletedAt
 ) {
 }

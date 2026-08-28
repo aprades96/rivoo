@@ -33,6 +33,7 @@ public class Salon {
     private String currency;
     private SubscriptionPlan subscriptionPlan;
     private SalonStatus status;
+    private Instant onboardingCompletedAt;
     private Instant createdAt;
     private Instant updatedAt;
 }
