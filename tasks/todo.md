@@ -1373,3 +1373,22 @@ Salieron de la auditoria de contratos backend/frontend. Verificados por mi, no s
 - [ ] `EmployeeWorkingHours.validate()` no compara el descanso contra apertura y cierre. Un
       descanso de 03:00-04:00 en un dia 09:00-18:00 pasa la validacion y produce el intervalo
       (04:00, 18:00) mas uno invertido: se ofrecen huecos de 04:00 a 09:00, fuera de horario.
+
+## Al desplegar: el correo es requisito de la verificacion del dueno
+
+Decision del usuario (2026-08-28): la rama de verificacion SE FUSIONA a master. Los
+ajustes para poder probar sin correo se hacen mas adelante.
+
+Contexto verificado hoy: **hoy no sale ningun correo**. El unico emisor de
+notification-service es `MailStubAdapter` (anota en el log, no envia), y el realm de
+Keycloak (`infrastructure/keycloak/rivoo-realm.json`) **no tiene bloque `smtpServer`**.
+Sin correo, Keycloak exige verificar y el enlace no llega: nadie puede entrar.
+
+- [ ] Para poder probar sin correo: que la confirmacion se genere con `true` por defecto
+      (configurable), de modo que el registro funcione en local y en pruebas.
+- [ ] Registrar los envios como `SENT` en base de datos aunque el emisor sea el simulacro,
+      para poder verificar el flujo sin buzon.
+- [ ] Al desplegar de verdad (AWS + Jenkins): dominio, registros SPF/DKIM en su DNS,
+      credenciales de un proveedor transaccional (Brevo/Resend/Postmark valen), bloque
+      `smtpServer` en el realm, y sustituir `MailStubAdapter` por un emisor real.
+      Sin eso, el registro queda bloqueado en produccion.
