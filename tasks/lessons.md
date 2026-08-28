@@ -830,3 +830,24 @@ respuesta es no, el comentario no puede afirmar que si.
 (un `synchronized` que ES el compare-and-set) verifica el doble, no el codigo. Sirve para fijar
 que el servicio no hace leer-decidir-escribir; no sirve para nada mas, y el javadoc debe
 acotarlo asi.
+
+## Cambiar `isLoading` por "no hay datos" arregla un fallo y abre otro
+
+**Patron:** una guarda escrita como `if (isLoading) esqueleto` no protege nada cuando la consulta
+esta DESHABILITADA: en React Query v5 `isLoading = isPending && isFetching`, asi que una query
+con `enabled:false` tiene `isLoading` en **false**. El arreglo evidente es cambiarla por
+`data === undefined`. Y ahi esta la trampa: con reintentos limitados, un 500 deja `data` en
+`undefined` **para siempre**, o sea esqueleto perpetuo y boton muerto. Se cambia una pantalla
+que pierde datos por una pantalla de la que no se puede salir.
+
+**Por que importa:** en este bloque la distincion mordio TRES veces (el portero, el paso de
+horarios, y las otras dos pantallas que comparten ese editor), y el arreglo de la tercera creo
+la trampa nueva. Es el mismo error de fondo: tratar un booleano de React Query como si
+respondiera a la pregunta que uno tiene en la cabeza.
+
+**Regla:** una consulta tiene CUATRO estados que hay que cubrir explicitamente, no dos:
+(1) todavia no se pide —deshabilitada, sesion a medias—, (2) pidiendo, (3) fallo, (4) datos.
+Una guarda que solo distingue "hay datos / no hay datos" siempre deja uno de los otros tres sin
+salida. Al escribir la guarda, preguntarse: **"si esta peticion falla para siempre, ¿que ve el
+usuario y como sale de ahi?"**. Si la respuesta es un esqueleto, falta la rama de error con
+reintento.
