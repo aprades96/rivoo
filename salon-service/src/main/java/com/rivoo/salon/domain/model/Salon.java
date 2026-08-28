@@ -34,14 +34,15 @@ public class Salon {
     private SubscriptionPlan subscriptionPlan;
     private SalonStatus status;
     /**
-     * Written deliberately, and exclusively, by {@code SalonService.completeOnboarding} through
-     * the compare-and-set {@code SalonPersistencePort.markOnboardingCompleted} - but it can also
-     * be overwritten by two unrelated read-modify-save flows that load the whole aggregate:
-     * {@code SalonService.update} (PUT /api/v1/salons/me) and {@code SalonService.updateStatus}.
-     * Either one loading this salon before the CAS commits, then saving, will merge back the
-     * {@code null} it read and undo the completion. The window is narrow and this race is known
-     * and accepted - it is not an invariant of the code that this field is touched in only one
-     * place.
+     * Written exclusively by {@code SalonService.completeOnboarding} through the compare-and-set
+     * {@code SalonPersistencePort.markOnboardingCompleted}. The two unrelated read-modify-save flows
+     * that load the whole aggregate - {@code SalonService.update} (PUT /api/v1/salons/me) and
+     * {@code SalonService.updateStatus} - used to be able to race the compare-and-set and merge a
+     * stale {@code null} back over a timestamp it had just committed. That is now closed at the JPA
+     * mapping level: {@code SalonJpaEntity.onboardingCompletedAt} is {@code updatable = false}, so no
+     * {@code merge()} of this aggregate can write this column any more - the bulk JPQL update behind
+     * {@code markOnboardingCompleted} remains the only writer, since it translates to SQL directly
+     * and is not subject to entity-level column metadata.
      */
     private Instant onboardingCompletedAt;
     private Instant createdAt;
