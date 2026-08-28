@@ -21,7 +21,7 @@ Manages subscriptions, plans, plan limits, and Stripe integration. Handles the f
 | `monthly_price` | DECIMAL(10,2) NOT NULL | |
 | `stripe_monthly_price_id` | VARCHAR(100) NULL | Stripe Price ID |
 | `trial_days` | INT DEFAULT 0 | 14 for FREE_TRIAL |
-| `is_active` | BOOLEAN DEFAULT TRUE | |
+| `active` | BOOLEAN DEFAULT TRUE | Columna real: `active`, NO `is_active` |
 
 ### Table: `plan_limits`
 
@@ -140,7 +140,7 @@ GET /api/internal/billing/tenants/{tenantId}/plan-limits
 | Method | Path | Purpose |
 |--------|------|---------|
 | POST | `/api/webhooks/stripe` | Stripe webhook handler |
-| GET | `/api/v1/billing/plans` | List available plans (pricing page, pre-signup) |
+| GET | `/api/v1/billing/plans` | List available plans with their per-plan `limits` (pricing page, pre-signup) |
 
 ### Authenticated (JWT required)
 

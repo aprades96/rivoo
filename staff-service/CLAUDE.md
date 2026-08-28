@@ -24,7 +24,7 @@ Manages employees, their working hours, the service catalog (haircuts, coloring,
 | `phone` | VARCHAR(20) NULL | |
 | `job_title` | VARCHAR(100) NULL | "Barbero Senior", "Estilista" |
 | `color_hex` | VARCHAR(7) DEFAULT '#3B82F6' | Calendar color |
-| `is_active` | BOOLEAN DEFAULT TRUE | |
+| `active` | BOOLEAN DEFAULT TRUE | Columna real: `active`, NO `is_active` |
 | `created_at` | TIMESTAMP | |
 | `updated_at` | TIMESTAMP | |
 
@@ -44,7 +44,7 @@ Same structure as `salon_business_hours` but with `employee_id` FK. UNIQUE: `(em
 | `duration_minutes` | INT NOT NULL | 30, 45, 60... |
 | `price` | DECIMAL(10,2) NOT NULL | |
 | `category` | VARCHAR(100) NULL | "Cortes", "Barba", "Color" |
-| `is_active` | BOOLEAN DEFAULT TRUE | |
+| `active` | BOOLEAN DEFAULT TRUE | Columna real: `active`, NO `is_active` |
 | `created_at` | TIMESTAMP | |
 | `updated_at` | TIMESTAMP | |
 
@@ -114,7 +114,7 @@ GET /api/internal/billing/tenants/{tenantId}/plan-limits
 
 1. Employee with `keycloak_user_id = NULL` can exist (registered by owner but no login account yet)
 2. Employee restrictions: ROLE_EMPLOYEE can only see/manage their own appointments and assigned clients
-3. Service deactivation: soft delete (`is_active = false`), not physical delete
+3. Service deactivation: soft delete (`active = false`), not physical delete
 4. Employee deactivation: check for future appointments first
 
 ---

@@ -27,7 +27,7 @@ Manages salon clients (personal data, notes, visit history). Primary GDPR-affect
 | `source` | ENUM('WALK_IN','ONLINE_BOOKING','MANUAL','IMPORTED') DEFAULT 'MANUAL' | |
 | `total_visits` | INT DEFAULT 0 | Denormalized counter |
 | `last_visit_at` | TIMESTAMP NULL | |
-| `is_active` | BOOLEAN DEFAULT TRUE | |
+| `active` | BOOLEAN DEFAULT TRUE | Columna real: `active`, NO `is_active` |
 | `gdpr_consent_at` | TIMESTAMP NULL | When consent was given |
 | `gdpr_anonymized_at` | TIMESTAMP NULL | When anonymization was applied |
 | `created_at` | TIMESTAMP | |
