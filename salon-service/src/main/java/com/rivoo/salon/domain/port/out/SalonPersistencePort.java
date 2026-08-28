@@ -50,7 +50,10 @@ public interface SalonPersistencePort {
      * {@code null} - a single conditional statement rather than read-decide-write, so a double
      * click, two tabs, or a retried call all collapse into the same single write.
      *
-     * @return {@code 1} if this call wrote the timestamp, {@code 0} if it was already set
+     * @return {@code 1} if this call wrote the timestamp; {@code 0} both if it was already set
+     *         AND if no salon exists for this tenant - the two are indistinguishable from this
+     *         return value alone, which is why the caller always re-reads afterwards to tell them
+     *         apart
      */
     int markOnboardingCompleted(String tenantId);
 }

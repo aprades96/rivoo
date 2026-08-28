@@ -189,10 +189,13 @@ public class SalonService implements GetSalonUseCase, UpdateSalonUseCase,
     }
 
     /**
-     * Not {@code @Transactional}: the CAS in {@code markOnboardingCompleted} is already atomic on
-     * its own, and wrapping this in a transaction would only make the repository's own
-     * {@code @Transactional} commit and then re-read inside a second, outer one - no different
-     * from what happens without it. Same reasoning as {@link #getByTenantId}, see its javadoc.
+     * Not {@code @Transactional}: {@code markOnboardingCompleted} is a single conditional
+     * statement, already atomic on its own, and needs no transaction of its own to be correct.
+     * Wrapping this method in one would not add isolation either - with the default
+     * {@code REQUIRED} propagation, the repository method's own {@code @Transactional} would
+     * simply join the outer transaction instead of committing independently - it would only hold
+     * the JDBC connection open across the extra {@code findByTenantId} for no benefit. Same
+     * reasoning as {@link #getByTenantId}, see its javadoc.
      */
     @Override
     public SalonResponse completeOnboarding(String tenantId) {

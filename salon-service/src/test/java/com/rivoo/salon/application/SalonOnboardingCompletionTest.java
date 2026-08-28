@@ -1,6 +1,7 @@
 package com.rivoo.salon.application;
 
 import com.rivoo.salon.application.dto.SalonResponse;
+import com.rivoo.salon.domain.exception.SalonNotFoundException;
 import com.rivoo.salon.domain.model.Salon;
 import com.rivoo.salon.domain.model.SalonBusinessHours;
 import com.rivoo.salon.domain.model.SalonStatus;
@@ -26,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * {@code SalonService#completeOnboarding} is the write side of the onboarding-completion timestamp:
@@ -34,9 +36,20 @@ import static org.assertj.core.api.Assertions.assertThat;
  * wrote - and it must not let one tenant touch another's row.
  * <p>
  * Follows the same shape as {@link SalonRegistrationPublicVisibilityTest}: an in-memory
- * {@link SalonPersistencePort} written by hand (not a mock, so the compare-and-set is really
- * exercised), {@link SalonDtoMapperImpl} instantiated directly, and a {@link CyclicBarrier} to force
- * two threads to race for real rather than happen to run one after the other.
+ * {@link SalonPersistencePort} written by hand (not a mock), {@link SalonDtoMapperImpl}
+ * instantiated directly, and a {@link CyclicBarrier} to force two threads to start together rather
+ * than happen to run one after the other.
+ * <p>
+ * <b>What {@link #twoConcurrentCallsProduceExactlyOneWrite()} does and does not prove.</b> It does
+ * NOT demonstrate that the check-and-write is atomic: {@code FakeSalonStore.markOnboardingCompleted}
+ * is itself {@code synchronized}, so the mutual exclusion between the two threads is provided by
+ * the test double, not observed as an emergent property of {@link SalonService}. What it does
+ * prove - and what is actually load-bearing - is that {@code SalonService#completeOnboarding}
+ * performs no read-decide-write of its own: it delegates the check and the write to a single call
+ * on {@link SalonPersistencePort#markOnboardingCompleted}, so whatever atomicity the port
+ * implementation provides is not undermined by the service racing ahead of it. The real atomicity
+ * guarantee - the {@code WHERE ... onboarding_completed_at IS NULL} clause in the JPQL update - is
+ * provided and verified separately, against MySQL.
  */
 class SalonOnboardingCompletionTest {
 
@@ -137,6 +150,19 @@ class SalonOnboardingCompletionTest {
         assertThat(salons.findByTenantId(OTHER_TENANT_ID).orElseThrow().getOnboardingCompletedAt())
                 .as("a different tenant's row must be untouched - tenantId is part of the predicate")
                 .isNull();
+    }
+
+    @Test
+    void tenantWithNoSalonAtAllGetsSalonNotFoundInsteadOfBeingTreatedAsAlreadyCompleted() {
+        FakeSalonStore salons = new FakeSalonStore();
+        SalonService salonService = newSalonService(salons);
+
+        // markOnboardingCompleted returns 0 both when the row exists but is already completed and
+        // when the tenant has no row at all - the two situations SalonService.completeOnboarding
+        // tells apart by re-reading. This is the second one: no salon was ever seeded for this
+        // tenant.
+        assertThatThrownBy(() -> salonService.completeOnboarding("sal_does_not_exist"))
+                .isInstanceOf(SalonNotFoundException.class);
     }
 
     // -- helpers --------------------------------------------------------------

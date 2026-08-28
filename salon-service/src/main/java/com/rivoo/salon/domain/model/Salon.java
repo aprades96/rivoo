@@ -33,6 +33,16 @@ public class Salon {
     private String currency;
     private SubscriptionPlan subscriptionPlan;
     private SalonStatus status;
+    /**
+     * Written deliberately, and exclusively, by {@code SalonService.completeOnboarding} through
+     * the compare-and-set {@code SalonPersistencePort.markOnboardingCompleted} - but it can also
+     * be overwritten by two unrelated read-modify-save flows that load the whole aggregate:
+     * {@code SalonService.update} (PUT /api/v1/salons/me) and {@code SalonService.updateStatus}.
+     * Either one loading this salon before the CAS commits, then saving, will merge back the
+     * {@code null} it read and undo the completion. The window is narrow and this race is known
+     * and accepted - it is not an invariant of the code that this field is touched in only one
+     * place.
+     */
     private Instant onboardingCompletedAt;
     private Instant createdAt;
     private Instant updatedAt;
