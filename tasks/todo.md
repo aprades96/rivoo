@@ -1313,3 +1313,30 @@ Salieron de la auditoria de contratos backend/frontend. Verificados por mi, no s
       bateria entera sigue verde. Se esta cambiando por lista blanca sobre los componentes del
       record. **Merece revisarse si hay mas listas negras** en el proyecto haciendo de guardian
       de seguridad: por construccion solo protegen de lo que alguien ya penso.
+
+## CRITICO — bucle infinito alcanzable sin autenticarse
+
+- [ ] `AvailabilityService.java:150-162`: `cursor.plusMinutes(serviceDuration)` da la vuelta
+      pasada medianoche porque `LocalTime` es circular. Si ningun paso de la rejilla llega a
+      falsear `cursor + duracion <= cierre`, el `while` NO TERMINA y `slots.add(...)` crece sin
+      limite. Reproducido: 09:00-23:59 con d=30 y 10:00-23:45 con d=30 no terminan; 09:00-18:00
+      con d=30 si (35 huecos).
+      Disparador realista: hora de cierre a las 23:45/23:50/23:59, que es como se escribe
+      "abierto hasta medianoche" con un LocalTime.
+      Una sola peticion anonima a `GET /api/v1/appointments/public/availability` bloquea un
+      hilo y agota la memoria. El filtro de antelacion NO salva: el `continue` tambien avanza
+      el cursor. Preexistente, identico antes y despues del arreglo de la ventana.
+
+## La ventana de 1 hora se estrecho, no se cerro
+
+- [ ] La disponibilidad se calcula en T1 y la reserva se valida en T2 > T2 (lo que tarda el
+      visitante en rellenar). Todo hueco en `[T1+1h, T2+1h)` se ofrece y se rechaza — o sea,
+      el PRIMER hueco de la lista siempre falla si el visitante tarda algo.
+      `appointment-service/CLAUDE.md:77` afirma ahora que eso nunca pasa. Es falso.
+      Arreglo: filtrar en `now + MINIMUM_LEAD_TIME + SLOT_GRANULARITY` (un escalon de holgura),
+      o dar tolerancia al `book()`. Y suavizar la frase del doc.
+- [ ] Sin `serviceId` la disponibilidad publica devuelve intervalos crudos SIN filtrar nada,
+      incluidos dias enteros pasados, a un caller anonimo. `serviceId` es opcional en el
+      endpoint publico.
+- [ ] El dia del cambio de hora de primavera, "una hora" se queda en ~1 minuto real: la
+      comparacion es en `LocalDateTime`, no en instantes.
