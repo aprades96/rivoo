@@ -25,6 +25,10 @@ rivoo:
   security:
     internal-service-key: ${RIVOO_SECURITY_INTERNAL_SERVICE_KEY}
   keycloak:
+    owner:
+      # Production behaviour, stated explicitly rather than inherited: the owner must confirm their
+      # address. Only local/test flip this, and only while there is still no SMTP server.
+      email-verified-on-creation: false
     admin:
       server-url: ${RIVOO_KEYCLOAK_SERVER_URL}
       realm: ${RIVOO_KEYCLOAK_REALM}

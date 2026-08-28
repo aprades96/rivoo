@@ -13,3 +13,11 @@ management:
     web:
       exposure:
         include: health,info
+
+rivoo:
+  keycloak:
+    owner:
+      # Safe default for every profile: the salon owner is created unverified and must confirm
+      # their address. Only `local` and `test` override it to true, and only because there is no
+      # SMTP server yet (see application-local.yml).
+      email-verified-on-creation: false

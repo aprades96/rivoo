@@ -7,6 +7,7 @@ import com.rivoo.auth.infrastructure.adapter.out.keycloak.dto.KeycloakRoleRepres
 import com.rivoo.auth.infrastructure.adapter.out.keycloak.dto.KeycloakUserRepresentation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -28,12 +29,27 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
     private final KeycloakTokenManager tokenManager;
     private final String baseUrl;
 
+    /**
+     * Creates the salon owner already verified, skipping {@code VERIFY_EMAIL}.
+     * <p>
+     * Only exists because there is no SMTP server yet — neither the application's own sender
+     * (notification-service's {@code MailStubAdapter} just logs) nor Keycloak's realm (no
+     * {@code smtpServer} in {@code rivoo-realm.json}), and it is Keycloak that mails the
+     * verification link. Turn it back off as soon as SMTP is configured, so the owner receives a
+     * real confirmation email. Defaults to {@code false} (verification required) so a profile that
+     * forgets the property gets the production behaviour, not the test one.
+     */
+    private final boolean ownerEmailVerifiedOnCreation;
+
     public KeycloakAdminAdapter(RestClient keycloakRestClient,
                                 KeycloakTokenManager tokenManager,
-                                @Qualifier("keycloakAdminBaseUrl") String baseUrl) {
+                                @Qualifier("keycloakAdminBaseUrl") String baseUrl,
+                                @Value("${rivoo.keycloak.owner.email-verified-on-creation:false}")
+                                boolean ownerEmailVerifiedOnCreation) {
         this.restClient = keycloakRestClient;
         this.tokenManager = tokenManager;
         this.baseUrl = baseUrl;
+        this.ownerEmailVerifiedOnCreation = ownerEmailVerifiedOnCreation;
     }
 
     @Override
@@ -41,7 +57,7 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
         log.atDebug().addKeyValue("email", email).log("Creating Keycloak user");
 
         KeycloakUserRepresentation user = KeycloakUserRepresentation.forCreation(
-                email, password, firstName, lastName);
+                email, password, firstName, lastName, ownerEmailVerifiedOnCreation);
 
         try {
             URI location = restClient.post()

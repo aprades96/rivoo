@@ -1,0 +1,9 @@
+rivoo:
+  keycloak:
+    owner:
+      # Only here because there is no SMTP server yet: notification-service's MailStubAdapter just
+      # logs, and rivoo-realm.json has no smtpServer block -- and it is Keycloak, not the app, that
+      # mails the verification link. Without this the owner never gets a link and can never log in.
+      # Set it back to false as soon as SMTP is configured, so the owner receives a real
+      # confirmation email.
+      email-verified-on-creation: true

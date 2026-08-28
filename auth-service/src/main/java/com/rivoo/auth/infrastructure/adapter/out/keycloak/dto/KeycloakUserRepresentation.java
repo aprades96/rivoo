@@ -38,14 +38,22 @@ public record KeycloakUserRepresentation(
      * ({@code temporary=false}), so there is nothing for them to update.
      * <p>
      * Consequence, intended: Keycloak refuses login until the address is confirmed.
+     * <p>
+     * TEMPORARY ESCAPE HATCH — {@code emailVerifiedOnCreation}: there is no SMTP server yet
+     * (notification-service's {@code MailStubAdapter} only logs, and {@code rivoo-realm.json} has
+     * no {@code smtpServer} block; the verification link is Keycloak's to send, not the app's), so
+     * on those environments nobody could ever confirm an address and no owner could ever log in.
+     * Passing {@code true} skips the requirement. Once SMTP is configured this must go back to
+     * {@code false} everywhere, so the owner receives a real confirmation email.
      */
     public static KeycloakUserRepresentation forCreation(String email, String password,
-                                                          String firstName, String lastName) {
+                                                          String firstName, String lastName,
+                                                          boolean emailVerifiedOnCreation) {
         return new KeycloakUserRepresentation(
                 null, email, email, firstName, lastName,
-                true, false,
+                true, emailVerifiedOnCreation,
                 List.of(new CredentialRepresentation("password", password, false)),
-                List.of("VERIFY_EMAIL"), null
+                emailVerifiedOnCreation ? List.of() : List.of("VERIFY_EMAIL"), null
         );
     }
 

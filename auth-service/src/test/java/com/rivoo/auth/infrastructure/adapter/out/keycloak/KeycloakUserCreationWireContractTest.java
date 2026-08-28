@@ -3,13 +3,16 @@ package com.rivoo.auth.infrastructure.adapter.out.keycloak;
 import com.rivoo.auth.domain.port.out.KeycloakAdminPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import java.lang.reflect.Constructor;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.http.HttpMethod.POST;
@@ -37,15 +40,26 @@ class KeycloakUserCreationWireContractTest {
     private static final String USER_ID = "11111111-2222-3333-4444-555555555555";
 
     private MockRestServiceServer keycloak;
-    private KeycloakAdminPort adapter;
+    private RestClient restClient;
+    private KeycloakTokenManager tokenManager;
 
     @BeforeEach
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         keycloak = MockRestServiceServer.bindTo(builder).build();
-        KeycloakTokenManager tokenManager = mock(KeycloakTokenManager.class);
+        tokenManager = mock(KeycloakTokenManager.class);
         when(tokenManager.getAccessToken()).thenReturn("stub-admin-token");
-        adapter = new KeycloakAdminAdapter(builder.build(), tokenManager, BASE_URL);
+        restClient = builder.build();
+    }
+
+    /**
+     * @param ownerEmailVerifiedOnCreation the value of
+     *        {@code rivoo.keycloak.owner.email-verified-on-creation}. {@code false} is the
+     *        production behaviour and the inline default; {@code true} is the temporary
+     *        local/test escape hatch that exists only while there is no SMTP server.
+     */
+    private KeycloakAdminPort adapterWith(boolean ownerEmailVerifiedOnCreation) {
+        return new KeycloakAdminAdapter(restClient, tokenManager, BASE_URL, ownerEmailVerifiedOnCreation);
     }
 
     private void expectUserCreation(org.springframework.test.web.client.ResponseActions actions) {
@@ -55,7 +69,7 @@ class KeycloakUserCreationWireContractTest {
     }
 
     @Test
-    void createUser_marksTheOwnerAddressUnverifiedAndRequiresVerifyEmail() {
+    void createUser_whenVerificationRequired_marksTheOwnerAddressUnverifiedAndRequiresVerifyEmail() {
         expectUserCreation(keycloak.expect(requestTo(BASE_URL + "/users"))
                 .andExpect(method(POST))
                 .andExpect(jsonPath("$.email").value("owner@example.com"))
@@ -65,13 +79,13 @@ class KeycloakUserCreationWireContractTest {
                 .andExpect(jsonPath("$.requiredActions.length()").value(1))
                 .andExpect(jsonPath("$.requiredActions[0]").value("VERIFY_EMAIL")));
 
-        adapter.createUser("owner@example.com", "chosen-by-the-owner", "Ana", "Lopez");
+        adapterWith(false).createUser("owner@example.com", "chosen-by-the-owner", "Ana", "Lopez");
 
         keycloak.verify();
     }
 
     @Test
-    void createUser_doesNotForceTheOwnerToChangeTheirOwnPassword() {
+    void createUser_whenVerificationRequired_doesNotForceTheOwnerToChangeTheirOwnPassword() {
         // The owner typed this password during registration, so temporary=false and UPDATE_PASSWORD
         // must NOT be required — that is the employee's flow, not this one. Asserted separately
         // from the test above so a fix that simply copied forEmployeeCreation cannot pass.
@@ -82,13 +96,38 @@ class KeycloakUserCreationWireContractTest {
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         org.hamcrest.Matchers.containsString("UPDATE_PASSWORD")))));
 
-        adapter.createUser("owner@example.com", "chosen-by-the-owner", "Ana", "Lopez");
+        adapterWith(false).createUser("owner@example.com", "chosen-by-the-owner", "Ana", "Lopez");
+
+        keycloak.verify();
+    }
+
+    /**
+     * The other direction of the same switch. Only reachable on {@code local} and {@code test},
+     * and only because there is no SMTP server yet: neither the application's sender
+     * (notification-service's {@code MailStubAdapter}, which just logs) nor Keycloak's realm (no
+     * {@code smtpServer} in {@code rivoo-realm.json}) can send the verification link, so requiring
+     * it would leave every owner permanently locked out. When SMTP exists this must go back to
+     * being unreachable in every profile.
+     */
+    @Test
+    void createUser_whenVerificationSkipped_marksTheOwnerVerifiedAndRequiresNoAction() {
+        expectUserCreation(keycloak.expect(requestTo(BASE_URL + "/users"))
+                .andExpect(method(POST))
+                .andExpect(jsonPath("$.email").value("owner@example.com"))
+                .andExpect(jsonPath("$.enabled").value(true))
+                .andExpect(jsonPath("$.emailVerified").value(true))
+                .andExpect(jsonPath("$.credentials[0].temporary").value(false))
+                .andExpect(jsonPath("$.requiredActions.length()").value(0))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        org.hamcrest.Matchers.containsString("VERIFY_EMAIL")))));
+
+        adapterWith(true).createUser("owner@example.com", "chosen-by-the-owner", "Ana", "Lopez");
 
         keycloak.verify();
     }
 
     @Test
-    void createEmployeeUser_keepsItsTemporaryPasswordAndBothRequiredActions() {
+    void createEmployeeUser_whenOwnerVerificationRequired_keepsItsTemporaryPasswordAndBothRequiredActions() {
         // Regression guard in the other direction: the owner fix must not have been applied by
         // editing the shared shape and silently relaxing the employee's flow.
         expectUserCreation(keycloak.expect(requestTo(BASE_URL + "/users"))
@@ -99,7 +138,24 @@ class KeycloakUserCreationWireContractTest {
                 .andExpect(jsonPath("$.requiredActions[0]").value("UPDATE_PASSWORD"))
                 .andExpect(jsonPath("$.requiredActions[1]").value("VERIFY_EMAIL")));
 
-        adapter.createEmployeeUser("employee@example.com", "temp-pass", "Luis", "Gomez");
+        adapterWith(false).createEmployeeUser("employee@example.com", "temp-pass", "Luis", "Gomez");
+
+        keycloak.verify();
+    }
+
+    @Test
+    void createEmployeeUser_whenOwnerVerificationSkipped_isCompletelyUnaffected() {
+        // The switch is the OWNER's alone. An employee gets a temporary password from someone else,
+        // so nothing about them may change when the owner's verification is relaxed.
+        expectUserCreation(keycloak.expect(requestTo(BASE_URL + "/users"))
+                .andExpect(method(POST))
+                .andExpect(jsonPath("$.emailVerified").value(false))
+                .andExpect(jsonPath("$.credentials[0].temporary").value(true))
+                .andExpect(jsonPath("$.requiredActions.length()").value(2))
+                .andExpect(jsonPath("$.requiredActions[0]").value("UPDATE_PASSWORD"))
+                .andExpect(jsonPath("$.requiredActions[1]").value("VERIFY_EMAIL")));
+
+        adapterWith(true).createEmployeeUser("employee@example.com", "temp-pass", "Luis", "Gomez");
 
         keycloak.verify();
     }
@@ -113,8 +169,30 @@ class KeycloakUserCreationWireContractTest {
                 .andExpect(content().json("[\"VERIFY_EMAIL\"]", true))
                 .andRespond(withSuccess("", MediaType.APPLICATION_JSON));
 
-        adapter.sendRequiredActionsEmail(USER_ID, List.of("VERIFY_EMAIL"));
+        adapterWith(false).sendRequiredActionsEmail(USER_ID, List.of("VERIFY_EMAIL"));
 
         keycloak.verify();
+    }
+
+    /**
+     * Not a wire assertion, but the same switch: the wiring that decides which of the two bodies
+     * above is sent. Pinned by reflection because no Spring context is started in this module, and
+     * the two things that matter are unobservable otherwise -- the property NAME (a typo silently
+     * falls back to the default forever) and the INLINE default. The default must be present, so a
+     * profile file that omits the property cannot stop the service booting, and it must be the SAFE
+     * value, so that profile gets production behaviour rather than the local/test escape hatch.
+     */
+    @Test
+    void ownerVerificationFlag_isReadFromTheExpectedPropertyAndDefaultsToRequiringVerification()
+            throws NoSuchMethodException {
+        Constructor<KeycloakAdminAdapter> constructor = KeycloakAdminAdapter.class.getDeclaredConstructor(
+                RestClient.class, KeycloakTokenManager.class, String.class, boolean.class);
+
+        Value flag = constructor.getParameters()[3].getAnnotation(Value.class);
+
+        assertThat(flag).as("the flag must come from configuration, not a constant").isNotNull();
+        assertThat(flag.value())
+                .as("exact property name, and an inline default equal to the safe value")
+                .isEqualTo("${rivoo.keycloak.owner.email-verified-on-creation:false}");
     }
 }

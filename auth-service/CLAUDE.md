@@ -62,6 +62,32 @@ Core class: `KeycloakAdminAdapter` (implements `KeycloakAdminPort`):
 
 **IMPORTANT**: User PUT operations use `Map<String, Object>` body (not records) to deliberately exclude `credentials` field — otherwise Keycloak wipes passwords.
 
+### Owner creation and email verification
+
+`KeycloakUserRepresentation.forCreation` creates the salon owner with `emailVerified=false` and the
+`VERIFY_EMAIL` required action, so Keycloak refuses their login until they click the link. That is
+the production behaviour and the default.
+
+**Temporary switch** — `rivoo.keycloak.owner.email-verified-on-creation` (read in
+`KeycloakAdminAdapter`, inline default `false`): set to `true` the owner is created already
+verified, with no required action. It exists only because there is no SMTP server yet — neither the
+application's own sender (notification-service's `MailStubAdapter` only logs) nor Keycloak's realm
+(no `smtpServer` block in `infrastructure/keycloak/rivoo-realm.json`), and it is Keycloak, not
+notification-service, that mails the verification link. Set it back to `false` in every profile as
+soon as SMTP is configured, so the owner receives a real confirmation email.
+The infrastructure that has to exist first is listed in `tasks/todo.md`, section "Al desplegar: el
+correo es requisito de la verificacion del dueno".
+
+| Profile | Value | Where |
+|---------|-------|-------|
+| (any, default) | `false` | `src/main/resources/application.yml` |
+| `local` | `true` | `src/main/resources/application-local.yml` |
+| `test` | `true` | `src/test/resources/application-test.yml` |
+| `prod` | `false` | `src/main/resources/application-prod.yml` |
+
+`forEmployeeCreation` is NOT affected: employees keep their temporary password plus
+`UPDATE_PASSWORD` + `VERIFY_EMAIL` in every profile.
+
 ---
 
 ## Ports
