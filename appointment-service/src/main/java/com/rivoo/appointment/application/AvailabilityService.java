@@ -146,18 +146,27 @@ public class AvailabilityService implements CheckAvailabilityUseCase {
 
         List<AvailableSlot> slots = new ArrayList<>();
         for (TimeInterval free : freeIntervals) {
-            LocalTime cursor = free.start();
-            while (cursor.plusMinutes(serviceDuration).compareTo(free.end()) <= 0) {
+            // The cursor is a full LocalDateTime anchored on the requested date, NOT a LocalTime:
+            // LocalTime.plusMinutes() wraps silently at midnight. On any interval ending at 23:45
+            // or later - which is how "open until midnight" gets encoded with a LocalTime - the
+            // cursor jumped back to 00:00 and "cursor + duration <= closeTime" became true again,
+            // forever: one anonymous availability request pinned a request thread and grew the
+            // slot list without bound. An interval that ends at 23:59 ends at 23:59 on THIS date,
+            // so both ends are anchored on it; the cursor then increases strictly by
+            // SLOT_GRANULARITY_MINUTES towards a fixed bound and the loop cannot run more than
+            // (interval length / granularity) + 1 times, whatever the opening hours are.
+            LocalDateTime intervalEnd = LocalDateTime.of(date, free.end());
+            LocalDateTime cursor = LocalDateTime.of(date, free.start());
+            while (!cursor.plusMinutes(serviceDuration).isAfter(intervalEnd)) {
                 // Never offer a slot that AppointmentService.book() would refuse: same rule,
                 // same object. Compared as a full date+time rather than "if the date is today,
                 // compare the time": with a same-day-only guard, tomorrow's 00:30 escaped the
                 // check entirely when the page was loaded at 23:50, and was offered although it
                 // is only 40 minutes away.
-                if (BookingWindow.isTooSoon(LocalDateTime.of(date, cursor), now)) {
-                    cursor = cursor.plusMinutes(SLOT_GRANULARITY_MINUTES);
-                    continue;
+                if (!BookingWindow.isTooSoon(cursor, now)) {
+                    slots.add(new AvailableSlot(cursor.toLocalTime(),
+                            cursor.plusMinutes(serviceDuration).toLocalTime()));
                 }
-                slots.add(new AvailableSlot(cursor, cursor.plusMinutes(serviceDuration)));
                 cursor = cursor.plusMinutes(SLOT_GRANULARITY_MINUTES);
             }
         }
