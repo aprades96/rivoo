@@ -14,10 +14,16 @@ import org.springframework.http.HttpStatus;
  * may be worth retrying. This does not reopen the anti-enumeration oracle: the status and the
  * body's shape (type, title, and the set of fields present) are the same for any slug — only
  * the failure mode of salon-service itself decides between 502 and 503, never which salon was
- * requested. The {@code detail} field IS slug-specific (see {@code SalonServiceAdapter}, which
- * builds the message as "... for slug: " + slug), but that leaks nothing: it only ever echoes
- * back the exact slug the anonymous caller itself supplied, never anything about whether that
- * salon exists or its status.
+ * requested.
+ * <p>
+ * This exception's {@code message} IS slug-specific and names salon-service (see
+ * {@code SalonServiceAdapter}, which builds it as "salon-service ... for slug: " + slug), and its
+ * cause carries the full internal URL — host and port included. That message is a SERVER-SIDE
+ * diagnostic only: {@code AppointmentExceptionHandler#handleSalonServiceUnavailable} logs it and
+ * publishes a fixed, non-revealing {@code detail} instead, because both callers of this exception
+ * are the anonymous public endpoints. Routing it through
+ * {@code GlobalExceptionHandler#handleRivooException} instead would put it back in the response
+ * body verbatim.
  */
 public class SalonServiceUnavailableException extends RivooException {
 

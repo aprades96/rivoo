@@ -3,7 +3,7 @@ package com.rivoo.appointment.infrastructure.adapter.out.rest;
 import com.rivoo.appointment.domain.exception.SalonNotFoundException;
 import com.rivoo.appointment.domain.exception.SalonServiceUnavailableException;
 import com.rivoo.appointment.domain.port.out.SalonServicePort;
-import com.rivoo.common.web.GlobalExceptionHandler;
+import com.rivoo.appointment.infrastructure.adapter.in.web.AppointmentExceptionHandler;
 import com.rivoo.common.web.RivooErrorTypes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,6 +48,9 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 class SalonServiceAdapterTest {
 
     private static final String SALON_SERVICE_URL = "http://salon";
+    /** The fixed string AppointmentExceptionHandler publishes instead of the internal message. */
+    private static final String CLIENT_SAFE_DETAIL =
+            "This booking page is temporarily unavailable. Please try again in a few minutes.";
 
     private MockRestServiceServer server;
     private SalonServiceAdapter adapter;
@@ -136,7 +139,7 @@ class SalonServiceAdapterTest {
 
         assertThat(exception).isNotInstanceOf(SalonNotFoundException.class);
         assertThat(exception.getHttpStatus()).isEqualTo(HttpStatus.BAD_GATEWAY);
-        assertBodyPinnedToSlug(exception, "salon-service returned a server error for slug: bella-vista");
+        assertBodyCarriesNoTopology(exception, "salon-service returned a server error for slug: bella-vista");
     }
 
     @Test
@@ -151,16 +154,15 @@ class SalonServiceAdapterTest {
                 () -> adapter.getSalonBySlug("bella-vista"), SalonServiceUnavailableException.class);
 
         assertThat(exception.getHttpStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
-        assertBodyPinnedToSlug(exception, "salon-service is unreachable for slug: bella-vista");
+        assertBodyCarriesNoTopology(exception, "salon-service is unreachable for slug: bella-vista");
     }
 
     @Test
-    void serverError_sameBodyShapeForAnySlug_onlyDetailEchoesTheRequestedSlug() {
-        // Pins the actual invariant SalonServiceUnavailableException's javadoc documents: status,
-        // type and title never vary with the slug. detail DOES include the slug — but it must be
-        // EXACTLY "... for slug: <slug>", nothing more: an exact match here (not merely checking
-        // getHttpStatus(), as this test class used to) is what would catch a future regression
-        // that enriches the message with the salon's internal state.
+    void serverError_bodyIsIdenticalForAnySlug_andNamesNoInternalService() {
+        // Pins two invariants at once. (1) Anti-enumeration: status, type, title AND detail never
+        // vary with the slug - stronger than the previous version of this test, which allowed
+        // detail to echo the slug. (2) No topology in the body: the detail an anonymous caller
+        // receives must not name salon-service, even though the exception's own message does.
         // Both expectations must be registered before either request fires: MockRestServiceServer
         // rejects new expectations once a request has already been made against it.
         server.expect(requestTo(SALON_SERVICE_URL + "/api/internal/salons/by-slug/salon-a"))
@@ -175,27 +177,45 @@ class SalonServiceAdapterTest {
         SalonServiceUnavailableException exceptionB = catchThrowableOfType(
                 () -> adapter.getSalonBySlug("salon-b"), SalonServiceUnavailableException.class);
 
-        ProblemDetail problemA = new GlobalExceptionHandler().handleRivooException(exceptionA);
-        ProblemDetail problemB = new GlobalExceptionHandler().handleRivooException(exceptionB);
+        ProblemDetail problemA = new AppointmentExceptionHandler().handleSalonServiceUnavailable(exceptionA);
+        ProblemDetail problemB = new AppointmentExceptionHandler().handleSalonServiceUnavailable(exceptionB);
 
         assertThat(problemA.getStatus()).isEqualTo(problemB.getStatus());
         assertThat(problemA.getType()).isEqualTo(problemB.getType());
         assertThat(problemA.getTitle()).isEqualTo(problemB.getTitle());
-        assertThat(problemA.getDetail()).isEqualTo("salon-service returned a server error for slug: salon-a");
-        assertThat(problemB.getDetail()).isEqualTo("salon-service returned a server error for slug: salon-b");
+        assertThat(problemA.getDetail()).isEqualTo(problemB.getDetail());
+        assertThat(problemA.getDetail()).isEqualTo(CLIENT_SAFE_DETAIL);
+        // The exceptions themselves DO differ - proving the two requests really took different
+        // paths and that the identical bodies above are not an artefact of a single shared stub.
+        assertThat(exceptionA.getMessage()).isNotEqualTo(exceptionB.getMessage());
     }
 
     /**
-     * Builds the exact {@link ProblemDetail} an anonymous caller would receive (via
-     * {@link GlobalExceptionHandler#handleRivooException}) and pins every field, including the
-     * full, exact {@code detail} — not just {@link SalonServiceUnavailableException#getHttpStatus()}.
+     * Builds the exact {@link ProblemDetail} an anonymous caller would receive - through
+     * {@link AppointmentExceptionHandler}, the advice that actually wins at runtime for this
+     * exception type - and pins every field.
+     * <p>
+     * The {@code detail} must be the fixed client-safe string: {@code exception.getMessage()}
+     * names salon-service and its cause carries the full internal URL (host and port), and both
+     * anonymous public endpoints route through here. The last assertion is the point of this
+     * helper: the diagnostic is not destroyed, it is MOVED - it stays on the exception, which
+     * {@link AppointmentExceptionHandler#handleSalonServiceUnavailable} logs with
+     * {@code atError().setCause(ex)}.
      */
-    private static void assertBodyPinnedToSlug(SalonServiceUnavailableException exception, String expectedDetail) {
-        ProblemDetail problem = new GlobalExceptionHandler().handleRivooException(exception);
+    private static void assertBodyCarriesNoTopology(SalonServiceUnavailableException exception,
+                                                    String expectedInternalMessage) {
+        ProblemDetail problem = new AppointmentExceptionHandler().handleSalonServiceUnavailable(exception);
 
         assertThat(problem.getStatus()).isEqualTo(exception.getHttpStatus().value());
         assertThat(problem.getType()).isEqualTo(URI.create("https://rivoo.com/errors/" + exception.getErrorType()));
         assertThat(problem.getTitle()).isEqualTo("Salon Service Unavailable");
-        assertThat(problem.getDetail()).isEqualTo(expectedDetail);
+        assertThat(problem.getDetail()).isEqualTo(CLIENT_SAFE_DETAIL);
+        assertThat(problem.getDetail())
+                .as("an unauthenticated caller must not be told which internal service failed")
+                .doesNotContain("salon-service", "bella-vista", SALON_SERVICE_URL);
+
+        assertThat(exception.getMessage())
+                .as("the diagnostic must survive server-side for the log, not be thrown away")
+                .isEqualTo(expectedInternalMessage);
     }
 }

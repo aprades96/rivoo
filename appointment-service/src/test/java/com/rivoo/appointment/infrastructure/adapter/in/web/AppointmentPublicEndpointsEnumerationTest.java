@@ -25,6 +25,7 @@ import org.springframework.web.client.RestClient;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.springframework.http.HttpMethod.GET;
+import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
@@ -102,6 +103,74 @@ class AppointmentPublicEndpointsEnumerationTest {
         suspendedSalonFixture.server().verify();
 
         assertBodiesIdenticalExceptTimestamp(notFoundBody, suspendedBody);
+    }
+
+    @Test
+    void publicBook_salonServiceDown_answers502WithoutNamingAnyInternalService() throws Exception {
+        // Same wiring as the enumeration tests above: real controller, real use cases, real
+        // SalonServiceAdapter, both advices registered exactly as at runtime. The double sits at
+        // the HTTP edge, so the SalonServiceUnavailableException under test is produced by the
+        // real adapter from a real upstream 500 - not stubbed into existence.
+        Fixture fixture = salonServiceDownMockMvc("misteriosa");
+
+        String body = performBooking(fixture.mockMvc(), "misteriosa")
+                .andExpect(status().isBadGateway())
+                .andReturn().getResponse().getContentAsString();
+        fixture.server().verify();
+
+        assertBodyRevealsNoTopology(body);
+    }
+
+    @Test
+    void publicAvailability_salonServiceDown_answers502WithoutNamingAnyInternalService() throws Exception {
+        // The endpoint next door: fixing only one of the two anonymous entry points is exactly
+        // how the equivalent leak survived the previous pass.
+        Fixture fixture = salonServiceDownMockMvc("misteriosa");
+
+        String body = performAvailability(fixture.mockMvc(), "misteriosa")
+                .andExpect(status().isBadGateway())
+                .andReturn().getResponse().getContentAsString();
+        fixture.server().verify();
+
+        assertBodyRevealsNoTopology(body);
+    }
+
+    /**
+     * Builds the full real chain backed by a fake salon-service that answers 500 - salon-service
+     * itself broken, as opposed to answering "no such salon".
+     */
+    private static Fixture salonServiceDownMockMvc(String slug) {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo(SALON_SERVICE_URL + "/api/internal/salons/by-slug/" + slug))
+                .andExpect(method(GET))
+                .andRespond(withStatus(INTERNAL_SERVER_ERROR));
+        return new Fixture(buildMockMvc(builder), server);
+    }
+
+    /**
+     * The response an unauthenticated caller receives must not describe the internal topology.
+     * <p>
+     * {@code detail} was the field that named the dependency ("salon-service returned a server
+     * error for slug: X"), and it is pinned here to the fixed string. The body as a whole must
+     * additionally contain neither the internal base URL (which the exception's CAUSE carries)
+     * nor the requested slug.
+     * <p>
+     * Deliberately NOT asserted: that the literal "salon-service" is absent from the whole body.
+     * The published {@code type} URI is {@code .../errors/salon-service-unavailable} - a stable
+     * error-taxonomy identifier that predates this change and that consumers key on. Renaming it
+     * is a contract change with no consumer benefit; see the report accompanying this commit.
+     */
+    private static void assertBodyRevealsNoTopology(String body) {
+        assertThat(body)
+                .as("the internal URL travels in the exception's cause and must not reach the client")
+                .doesNotContain(SALON_SERVICE_URL);
+        assertThat(body)
+                .as("detail must be the fixed client-safe string, not the adapter's internal message")
+                .contains("\"detail\":\"This booking page is temporarily unavailable."
+                        + " Please try again in a few minutes.\"")
+                .doesNotContain("returned a server error for slug")
+                .doesNotContain("misteriosa");
     }
 
     private record Fixture(MockMvc mockMvc, MockRestServiceServer server) {
