@@ -4,7 +4,6 @@ import com.rivoo.staff.domain.exception.AuthServiceException;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
 import org.springframework.core.annotation.Order;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -30,12 +29,31 @@ import java.time.Instant;
 @Order(0)
 public class StaffExceptionHandler {
 
+    /**
+     * Status, type and title come from the exception itself. {@code AuthServiceAdapter}
+     * classifies a dependency 4xx ("auth-service answered and said no") as 422 and only a 5xx /
+     * unreachable / unusable response as 502, so hardcoding {@code BAD_GATEWAY} here — as this
+     * method used to — would silently undo that classification and re-flatten every business
+     * rejection into a false "the upstream is broken". Fixing only the adapter would have
+     * achieved nothing while this handler stayed.
+     * <p>
+     * {@code detail} stays {@code ex.getMessage()}: unlike salon-service's anonymous
+     * {@code POST /api/v1/salons}, every route that can raise this exception here is behind
+     * {@code hasRole('SALON_OWNER')}, so the tenant named in the message is the caller's own.
+     */
     @ExceptionHandler(AuthServiceException.class)
     public ProblemDetail handleAuthServiceError(AuthServiceException ex) {
-        log.atError().setCause(ex).log("Auth service error");
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY, ex.getMessage());
-        problem.setType(URI.create("https://rivoo.com/errors/auth-service-error"));
-        problem.setTitle("Auth Service Error");
+        if (ex.getHttpStatus().is4xxClientError()) {
+            // auth-service refusing a request is not an infrastructure incident: logging it at
+            // ERROR is the false alarm this handler used to raise on every 4xx. The adapter
+            // already logged the upstream status at ERROR where it could still see it.
+            log.atWarn().setCause(ex).addKeyValue("upstreamOutcome", "rejected").log("Auth service error");
+        } else {
+            log.atError().setCause(ex).addKeyValue("upstreamOutcome", "unavailable").log("Auth service error");
+        }
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(ex.getHttpStatus(), ex.getMessage());
+        problem.setType(URI.create("https://rivoo.com/errors/" + ex.getErrorType()));
+        problem.setTitle(ex.getErrorTitle());
         enrichProblemDetail(problem);
         return problem;
     }

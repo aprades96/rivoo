@@ -91,7 +91,7 @@ class StaffExceptionHandlerOrderTest {
     @Test
     void getById_authServiceUnreachable_returns502WithAuthServiceErrorBody() throws Exception {
         when(getEmployeeUseCase.getByExternalId(eq("emp_1")))
-                .thenThrow(new AuthServiceException("Failed to register employee in auth-service for tenant: sal_A"));
+                .thenThrow(AuthServiceException.unavailable("Failed to register employee in auth-service for tenant: sal_A", null));
 
         mockMvc.perform(get("/api/v1/staff/employees/emp_1"))
                 .andExpect(status().isBadGateway())
@@ -110,7 +110,7 @@ class StaffExceptionHandlerOrderTest {
         // "Rivoo exception"), which would silently drop the stack trace on an
         // auth-service outage.
         when(getEmployeeUseCase.getByExternalId(eq("emp_1")))
-                .thenThrow(new AuthServiceException("Failed to register employee in auth-service for tenant: sal_A"));
+                .thenThrow(AuthServiceException.unavailable("Failed to register employee in auth-service for tenant: sal_A", null));
 
         mockMvc.perform(get("/api/v1/staff/employees/emp_1"))
                 .andExpect(status().isBadGateway());
@@ -127,5 +127,43 @@ class StaffExceptionHandlerOrderTest {
         assertThat(logAppender.list)
                 .as("GlobalExceptionHandler.handleRivooException must NOT be the one that ran")
                 .noneMatch(event -> "Rivoo exception".equals(event.getFormattedMessage()));
+    }
+
+    @Test
+    void getById_authServiceRejectedTheRequest_isNotReFlattenedIntoBadGateway() throws Exception {
+        // The handler used to hardcode HttpStatus.BAD_GATEWAY and the auth-service-error
+        // type/title, which silently undid the adapter's classification: fixing only the adapter
+        // would have left every business rejection surfacing as a false "the upstream is broken".
+        when(getEmployeeUseCase.getByExternalId(eq("emp_1")))
+                .thenThrow(AuthServiceException.rejected(
+                        "auth-service rejected the employee registration for tenant: sal_A", null));
+
+        mockMvc.perform(get("/api/v1/staff/employees/emp_1"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.status").value(422))
+                .andExpect(jsonPath("$.title").value("Employee Registration Rejected"))
+                .andExpect(jsonPath("$.type").value("https://rivoo.com/errors/employee-registration-rejected"));
+    }
+
+    @Test
+    void getById_authServiceRejectedTheRequest_isLoggedAsWarnNotAsAnInfrastructureAlarm() throws Exception {
+        // A dependency refusing a request is not an incident. Logging it at ERROR — as the
+        // handler did for every AuthServiceException — is the false operator alarm this change
+        // exists to remove.
+        when(getEmployeeUseCase.getByExternalId(eq("emp_1")))
+                .thenThrow(AuthServiceException.rejected(
+                        "auth-service rejected the employee registration for tenant: sal_A", null));
+
+        mockMvc.perform(get("/api/v1/staff/employees/emp_1"))
+                .andExpect(status().isUnprocessableEntity());
+
+        assertThat(logAppender.list)
+                .as("a 4xx from the dependency must not be logged at ERROR")
+                .noneMatch(event -> event.getLevel() == Level.ERROR);
+        assertThat(logAppender.list)
+                .anySatisfy(event -> {
+                    assertThat(event.getLevel()).isEqualTo(Level.WARN);
+                    assertThat(event.getFormattedMessage()).isEqualTo("Auth service error");
+                });
     }
 }
