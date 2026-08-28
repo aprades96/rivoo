@@ -1340,3 +1340,18 @@ Salieron de la auditoria de contratos backend/frontend. Verificados por mi, no s
       endpoint publico.
 - [ ] El dia del cambio de hora de primavera, "una hora" se queda en ~1 minuto real: la
       comparacion es en `LocalDateTime`, no en instantes.
+
+## Test acoplado a la fecha de hoy — se rompera manana
+
+- [ ] `rivoo-frontend/src/components/booking/public-datetime-step.test.tsx:24,94,97` fija
+      `"2026-08-28"`, que era HOY cuando se escribio. El componente construye la tira de
+      fechas con `addDays(today, i)`, asi que manana esa fecha ya no aparece.
+      Ademas es intermitente: fallo 1 de cada ~14 ejecuciones de la bateria completa
+      (usa `findByRole` con 1000 ms sobre un fetch de React Query). Verde en aislamiento.
+
+## La fuga del alta se estrecho, no se cerro (el contenido si, el TIEMPO no)
+
+- [ ] Las dos respuestas son identicas en codigo, cuerpo y cabeceras. Pero el camino
+      "correo nuevo" escribe en base de datos y llama a Keycloak y a facturacion, y el
+      camino "correo existente" hace una consulta y manda un correo. Un orden de magnitud,
+      medible desde fuera. Cerrarlo exige alta asincrona = rediseno, no arreglo.
