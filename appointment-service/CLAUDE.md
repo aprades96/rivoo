@@ -71,7 +71,10 @@ Valid transitions:
 2. Get salon business hours (from salon-service or cached)
 3. Get existing appointments for the employee on the requested date
 4. Calculate free slots = working hours - existing appointments
-5. Check that requested time fits within a free slot
+5. Drop every slot less than `BookingWindow.MINIMUM_LEAD_TIME` (1 hour) away, measured as a full date+time so the rule still holds across midnight
+6. Check that requested time fits within a free slot
+
+Step 5 is the **same rule** `POST /api/v1/appointments/book` enforces, read from the same constant (`domain/model/BookingWindow`). Availability must never offer a slot the booking endpoint would refuse: when the two carried separate copies of the rule, the booking page rendered slots in `(now, now + 1h]` that were rejected at the confirm step.
 
 **Concurrency protection**: `SELECT ... FOR UPDATE` on the employee's appointments for the time range to prevent double-booking race conditions.
 

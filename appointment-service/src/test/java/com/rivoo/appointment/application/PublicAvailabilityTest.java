@@ -5,13 +5,14 @@ import com.rivoo.appointment.domain.exception.SalonNotFoundException;
 import com.rivoo.appointment.domain.port.out.AppointmentPersistencePort;
 import com.rivoo.appointment.domain.port.out.SalonServicePort;
 import com.rivoo.appointment.domain.port.out.StaffServicePort;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -52,8 +53,16 @@ class PublicAvailabilityTest {
     @Mock
     private SalonServicePort salonServicePort;
 
-    @InjectMocks
     private AvailabilityService service;
+
+    @BeforeEach
+    void createServiceUnderTest() {
+        // Clock.systemUTC() reproduces exactly what this code did before "now" became an
+        // injected collaborator. The boundary cases run on a fixed clock, in
+        // BookingLeadTimeConsistencyTest.
+        service = new AvailabilityService(appointmentPersistencePort, staffServicePort,
+                salonServicePort, Clock.systemUTC());
+    }
 
     @Test
     @DisplayName("resolves tenantId from the salon slug and delegates to the existing slot calculation")
@@ -101,14 +110,16 @@ class PublicAvailabilityTest {
         SalonServicePort notFoundPort = mock(SalonServicePort.class);
         when(notFoundPort.getSalonBySlug(slug)).thenThrow(new SalonNotFoundException(slug));
         AvailabilityService notFoundService =
-                new AvailabilityService(appointmentPersistencePort, staffServicePort, notFoundPort);
+                new AvailabilityService(appointmentPersistencePort, staffServicePort, notFoundPort,
+                        Clock.systemUTC());
 
         // Scenario B: the slug resolves fine but the salon is not ACTIVE.
         SalonServicePort suspendedPort = mock(SalonServicePort.class);
         when(suspendedPort.getSalonBySlug(slug))
                 .thenReturn(new SalonServicePort.SalonInfo("sal_X", "Misteriosa", "SUSPENDED"));
         AvailabilityService suspendedService =
-                new AvailabilityService(appointmentPersistencePort, staffServicePort, suspendedPort);
+                new AvailabilityService(appointmentPersistencePort, staffServicePort, suspendedPort,
+                        Clock.systemUTC());
 
         SalonNotFoundException notFoundException = catchThrowableOfType(
                 () -> notFoundService.getPublicAvailableSlots(slug, EMPLOYEE_ID, DATE, SERVICE_ID),

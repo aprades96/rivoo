@@ -22,6 +22,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.client.RestClient;
 
+import java.time.Clock;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.springframework.http.HttpMethod.GET;
@@ -237,7 +239,8 @@ class AppointmentPublicEndpointsEnumerationTest {
         AvailabilityService availabilityService = new AvailabilityService(
                 mock(AppointmentPersistencePort.class),
                 mock(StaffServicePort.class),
-                salonServiceAdapter);
+                salonServiceAdapter,
+                Clock.systemUTC());
 
         AppointmentService appointmentService = new AppointmentService(
                 mock(AppointmentPersistencePort.class),
@@ -246,7 +249,8 @@ class AppointmentPublicEndpointsEnumerationTest {
                 mock(BillingServicePort.class),
                 mock(NotificationServicePort.class),
                 salonServiceAdapter,
-                mock(AppointmentDtoMapper.class));
+                mock(AppointmentDtoMapper.class),
+                Clock.systemUTC());
 
         AppointmentController controller = new AppointmentController(
                 mock(CreateAppointmentUseCase.class),

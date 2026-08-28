@@ -5,6 +5,7 @@ import com.rivoo.appointment.application.dto.AvailableSlot;
 import com.rivoo.appointment.application.dto.EmployeeWorkingHoursDto;
 import com.rivoo.appointment.domain.exception.SalonNotFoundException;
 import com.rivoo.appointment.domain.model.Appointment;
+import com.rivoo.appointment.domain.model.BookingWindow;
 import com.rivoo.appointment.domain.port.in.CheckAvailabilityUseCase;
 import com.rivoo.appointment.domain.port.out.AppointmentPersistencePort;
 import com.rivoo.appointment.domain.port.out.SalonServicePort;
@@ -14,8 +15,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -34,6 +37,7 @@ public class AvailabilityService implements CheckAvailabilityUseCase {
     private final AppointmentPersistencePort appointmentPersistencePort;
     private final StaffServicePort staffServicePort;
     private final SalonServicePort salonServicePort;
+    private final Clock clock;
 
     @Override
     @Transactional(readOnly = true)
@@ -136,16 +140,20 @@ public class AvailabilityService implements CheckAvailabilityUseCase {
                     .toList();
         }
 
-        // Split free intervals into discrete slots based on service duration
-        LocalDate today = LocalDate.now(SALON_TIMEZONE);
-        LocalTime nowLocal = LocalTime.now(SALON_TIMEZONE);
+        // Split free intervals into discrete slots based on service duration.
+        // Only the clock's instant is used; the zone is always the salon's.
+        LocalDateTime now = LocalDateTime.now(clock.withZone(SALON_TIMEZONE));
 
         List<AvailableSlot> slots = new ArrayList<>();
         for (TimeInterval free : freeIntervals) {
             LocalTime cursor = free.start();
             while (cursor.plusMinutes(serviceDuration).compareTo(free.end()) <= 0) {
-                // Skip past slots if querying today
-                if (!date.isAfter(today) && !cursor.isAfter(nowLocal)) {
+                // Never offer a slot that AppointmentService.book() would refuse: same rule,
+                // same object. Compared as a full date+time rather than "if the date is today,
+                // compare the time": with a same-day-only guard, tomorrow's 00:30 escaped the
+                // check entirely when the page was loaded at 23:50, and was offered although it
+                // is only 40 minutes away.
+                if (BookingWindow.isTooSoon(LocalDateTime.of(date, cursor), now)) {
                     cursor = cursor.plusMinutes(SLOT_GRANULARITY_MINUTES);
                     continue;
                 }

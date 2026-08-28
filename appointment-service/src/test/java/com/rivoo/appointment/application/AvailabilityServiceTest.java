@@ -6,15 +6,17 @@ import com.rivoo.appointment.domain.model.Appointment;
 import com.rivoo.appointment.domain.model.AppointmentSource;
 import com.rivoo.appointment.domain.model.AppointmentStatus;
 import com.rivoo.appointment.domain.port.out.AppointmentPersistencePort;
+import com.rivoo.appointment.domain.port.out.SalonServicePort;
 import com.rivoo.appointment.domain.port.out.StaffServicePort;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -26,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -49,8 +52,16 @@ class AvailabilityServiceTest {
     @Mock
     private StaffServicePort staffServicePort;
 
-    @InjectMocks
     private AvailabilityService availabilityService;
+
+    @BeforeEach
+    void createServiceUnderTest() {
+        // Clock.systemUTC() reproduces exactly what this code did before "now" became an
+        // injected collaborator. The boundary cases run on a fixed clock, in
+        // BookingLeadTimeConsistencyTest.
+        availabilityService = new AvailabilityService(appointmentPersistencePort, staffServicePort,
+                mock(SalonServicePort.class), Clock.systemUTC());
+    }
 
     // -------------------------------------------------------------------------
     // Helper builders

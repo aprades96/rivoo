@@ -17,16 +17,17 @@ import com.rivoo.appointment.domain.port.out.SalonServicePort;
 import com.rivoo.appointment.domain.port.out.StaffServicePort;
 import com.rivoo.appointment.infrastructure.mapper.AppointmentDtoMapper;
 import com.rivoo.common.exception.BusinessValidationException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -62,8 +63,17 @@ class AppointmentServiceTest {
     @Mock private SalonServicePort salonServicePort;
     @Mock private AppointmentDtoMapper mapper;
 
-    @InjectMocks
     private AppointmentService appointmentService;
+
+    @BeforeEach
+    void createServiceUnderTest() {
+        // Clock.systemUTC() reproduces exactly what this code did before "now" became an
+        // injected collaborator. The boundary cases run on a fixed clock, in
+        // BookingLeadTimeConsistencyTest.
+        appointmentService = new AppointmentService(appointmentPersistencePort, staffServicePort,
+                clientServicePort, billingServicePort, notificationServicePort, salonServicePort,
+                mapper, Clock.systemUTC());
+    }
 
     // -------------------------------------------------------------------------
     // Helpers

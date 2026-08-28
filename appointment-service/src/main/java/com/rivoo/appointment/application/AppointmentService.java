@@ -15,6 +15,7 @@ import com.rivoo.appointment.domain.exception.SalonNotFoundException;
 import com.rivoo.appointment.domain.model.Appointment;
 import com.rivoo.appointment.domain.model.AppointmentSource;
 import com.rivoo.appointment.domain.model.AppointmentStatus;
+import com.rivoo.appointment.domain.model.BookingWindow;
 import com.rivoo.appointment.domain.model.CancelledBy;
 import com.rivoo.appointment.domain.port.in.AppointmentStatsUseCase;
 import com.rivoo.appointment.domain.port.in.CancelAppointmentUseCase;
@@ -38,6 +39,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -62,6 +64,7 @@ public class AppointmentService implements CreateAppointmentUseCase, GetAppointm
     private final NotificationServicePort notificationServicePort;
     private final SalonServicePort salonServicePort;
     private final AppointmentDtoMapper mapper;
+    private final Clock clock;
 
     @Override
     @Transactional
@@ -283,13 +286,16 @@ public class AppointmentService implements CreateAppointmentUseCase, GetAppointm
                     Instant.now(), Instant.now().plusSeconds(1800), "PENDING");
         }
 
-        // 2. Booking window: 1 hour to 60 days from now
-        LocalDateTime now = LocalDateTime.now(SALON_TIMEZONE);
+        // 2. Booking window: BookingWindow.MINIMUM_LEAD_TIME to 60 days from now.
+        // Only the clock's instant is used; the zone is always the salon's.
+        LocalDateTime now = LocalDateTime.now(clock.withZone(SALON_TIMEZONE));
         // clientSafe on an ANONYMOUS endpoint, deliberately: both messages describe only the date
         // the visitor themselves submitted, disclose nothing about the salon, and are the sole
         // instruction telling them how to fix the form. The generic fallback would leave the two
         // most common real failures of this endpoint indistinguishable from any other rejection.
-        if (request.requestedTime().isBefore(now.plusHours(1))) {
+        // Same rule, same object, as the slot calculation in AvailabilityService: whatever the
+        // availability endpoint offers, this endpoint accepts.
+        if (BookingWindow.isTooSoon(request.requestedTime(), now)) {
             throw BusinessValidationException.clientSafe("Booking must be at least 1 hour in the future");
         }
         if (request.requestedTime().isAfter(now.plusDays(60))) {

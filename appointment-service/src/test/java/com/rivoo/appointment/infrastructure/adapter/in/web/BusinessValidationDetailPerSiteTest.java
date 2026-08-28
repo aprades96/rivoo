@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -95,10 +96,11 @@ class BusinessValidationDetailPerSiteTest {
                 billingServicePort,
                 mock(NotificationServicePort.class),
                 salonServiceAdapter,
-                mock(AppointmentDtoMapper.class));
+                mock(AppointmentDtoMapper.class),
+                Clock.systemUTC());
 
         AvailabilityService availabilityService = new AvailabilityService(
-                appointmentPersistencePort, staffServicePort, salonServiceAdapter);
+                appointmentPersistencePort, staffServicePort, salonServiceAdapter, Clock.systemUTC());
 
         AppointmentController controller = new AppointmentController(
                 appointmentService, appointmentService, appointmentService, appointmentService,
