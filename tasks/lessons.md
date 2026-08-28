@@ -737,3 +737,49 @@ Todos daban "verde" o "muerto" cuando no lo era.
 **Regla:** nombres de test unicos POR FICHERO, no por clase anidada. Y contar siempre los
 elementos `<testcase>` del XML contrastandolos con la linea `Results:` impresa; si discrepan,
 la fila de la matriz es invalida hasta averiguar por que.
+
+## Un snippet de plan que declara variables pero no la condicion de render esta incompleto
+
+**Patron:** escribi el arreglo del portero como tres expresiones derivadas (`authReady`,
+`needsOnboarding`, `unavailable`) y una frase en prosa: "con `!authReady` se pinta el spinner".
+El revisor demostro que ninguna de las tres expresiones se vuelve cierta cuando `authReady` es
+falso, asi que con la composicion natural del render la sesion muerta acabaria pintando los
+hijos: exactamente el fallo que la variable existia para evitar. La prosa lo decia; el codigo
+que se copia, no.
+
+**Por que importa:** el implementador copia el bloque de codigo, no el parrafo de al lado. Una
+variable declarada y no cableada es peor que no declararla, porque parece cubierta.
+
+**Regla:** si un plan cambia una condicion de guarda, el snippet incluye la CADENA DE RENDER
+completa (`if (...) return X; if (...) return Y; return children`), no solo los booleanos.
+Y cada caso de test enumerado debe corresponder a una rama visible del snippet.
+
+## Anadir un campo al dominio rompe en silencio los fakes con @Builder de lista explicita
+
+**Patron:** anadir `onboardingCompletedAt` a `Salon` (que es `@Builder` con lista de campos
+explicita) no basta. El store en memoria de los tests reconstruye el objeto con un `copyOf`
+que enumera los campos a mano: el campo nuevo se descarta en cada `save` y cada
+`findByTenantId`. El compare-and-set escribiria bien y la lectura devolveria `null`, y el
+sintoma apuntaria al servicio, no al fake.
+
+**Por que importa:** MapStruct empareja por nombre y no hay que tocarlo — eso hace creer que
+"anadir un campo" es gratis en todas las capas. Los fakes escritos a mano son la excepcion, y
+fallan sin un solo error de compilacion.
+
+**Regla:** al anadir un campo a un modelo de dominio, `grep` por implementaciones a mano del
+puerto de persistencia y por cualquier `copyOf` / `builder()` con lista explicita en los tests,
+y actualizarlas EN EL MISMO PASO. Nunca cuando fallen los tests.
+
+## Escribir en la cache de React Query antes de navegar no basta con refetchOnWindowFocus
+
+**Patron:** propuse `setQueryData(clave, respuesta)` antes de `router.push` para que la
+pantalla destino no leyera un dato rancio. Correcto pero insuficiente: `refetchOnWindowFocus`
+esta en `true` global y la pantalla de origen monta la misma query, asi que puede haber un
+refetch EN VUELO que resuelve despues del `setQueryData` y pisa el dato con el payload viejo.
+
+**Por que importa:** la ventana no es teorica — basta que la pantalla lleve mas de `staleTime`
+abierta y el usuario cambie de pestana y vuelva antes de pulsar el boton.
+
+**Regla:** `await queryClient.cancelQueries({ queryKey })` ANTES del `setQueryData`, siempre que
+la escritura decida una navegacion. Y `["a"]` sirve de prefijo para `invalidateQueries` pero
+NO es clave valida para `setQueryData`: ahi la clave es la exacta.
