@@ -246,6 +246,39 @@ class NotificationServiceTest {
     }
 
     @Test
+    void templateEngine_registrationAttemptExistingAccount_saysNothingWasCreated() {
+        // This mail is the ONLY thing that distinguishes "your address is taken" from "your address
+        // is free" after POST /api/v1/salons stopped distinguishing them itself, so its wording is
+        // load-bearing: it must tell the recipient an account already exists and how to get in,
+        // WITHOUT claiming a salon was just created for them.
+        NotificationTemplateEngine.TemplateResult result = templateEngine.render(
+                NotificationType.REGISTRATION_ATTEMPT_EXISTING_ACCOUNT, Map.of());
+
+        assertThat(result.subject()).isEqualTo("Intento de registro en Rivoo");
+        assertThat(result.body())
+                .contains("Ya existe una cuenta")
+                .contains("no hemos creado ninguna nueva")
+                .contains("inicia sesion")
+                .contains("recuperarla");
+        assertThat(result.body())
+                .as("reusing the WELCOME copy here would tell the recipient their salon is active")
+                .doesNotContain("esta activo")
+                .doesNotContain("Bienvenido");
+    }
+
+    @Test
+    void templateEngine_registrationAttemptExistingAccount_toleratesAbsentTemplateData() {
+        // The sender passes no template data at all: it deliberately knows nothing about the
+        // recipient beyond the address. A template reading a missing key must not blow up, because
+        // an exception here would surface as a distinguishable failure on an anonymous endpoint.
+        NotificationTemplateEngine.TemplateResult result = templateEngine.render(
+                NotificationType.REGISTRATION_ATTEMPT_EXISTING_ACCOUNT, null);
+
+        assertThat(result.subject()).isEqualTo("Intento de registro en Rivoo");
+        assertThat(result.body()).isNotBlank();
+    }
+
+    @Test
     void templateEngine_nullTemplateData_usesEmptyDefaultsWithoutException() {
         // Must not throw NullPointerException when data is null
         NotificationTemplateEngine.TemplateResult result = templateEngine.render(

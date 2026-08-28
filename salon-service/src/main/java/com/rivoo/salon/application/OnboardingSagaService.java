@@ -34,6 +34,15 @@ public class OnboardingSagaService implements RegisterSalonUseCase {
     private static final LocalTime DEFAULT_SATURDAY_OPEN = LocalTime.of(9, 0);
     private static final LocalTime DEFAULT_SATURDAY_CLOSE = LocalTime.of(14, 0);
 
+    /**
+     * The ONLY body {@code POST /api/v1/salons} ever returns, for every outcome that is not an
+     * infrastructure failure — a free address and an address that already has an account included.
+     * A single shared constant rather than two equal literals: two literals drift, and the day they
+     * drift the endpoint goes back to being an account-enumeration oracle.
+     */
+    private static final RegisterSalonResponse REGISTRATION_ACCEPTED = new RegisterSalonResponse(
+            "Hemos recibido tu solicitud. Revisa tu correo para continuar.");
+
     private final SalonPersistencePort salonPersistencePort;
     private final BusinessHoursPersistencePort businessHoursPersistencePort;
     private final AuthServicePort authServicePort;
@@ -45,9 +54,15 @@ public class OnboardingSagaService implements RegisterSalonUseCase {
     public RegisterSalonResponse register(RegisterSalonRequest request) {
         log.atInfo().addKeyValue("salonName", request.name()).log("Starting salon registration");
 
-        // Step 0: Validate email uniqueness
+        // Step 0: an address that already has an account ends here, with the SAME response a free
+        // address gets. Nothing is created, nothing is changed, and the only trace the caller could
+        // read is a mail they can only read if the address is theirs. Note the early return happens
+        // BEFORE any id, slug or salon row is minted: for an existing address the saga must not
+        // execute even partially, not even inside a transaction that would roll back.
         if (salonPersistencePort.existsByEmail(request.email())) {
-            throw new EmailAlreadyInUseException(request.email());
+            log.atInfo().log("Registration attempted with an address that already has a salon");
+            notificationServicePort.sendExistingAccountRegistrationAttempt(request.email());
+            return REGISTRATION_ACCEPTED;
         }
 
         // Step 1: Generate IDs and slug
@@ -91,6 +106,15 @@ public class OnboardingSagaService implements RegisterSalonUseCase {
                     request.name(),
                     SubscriptionPlan.FREE_TRIAL.name());
             log.atInfo().addKeyValue("keycloakUserId", keycloakUserId).log("Owner registered in Keycloak");
+        } catch (EmailAlreadyInUseException e) {
+            // auth-service answered 409: the address IS a Keycloak user, it just has no salon row
+            // (an employee's address, or an orphan left by a compensated onboarding). Semantically
+            // identical to the Step 0 pre-check, so it must reach the identical outcome — otherwise
+            // this population would still be enumerable through the 422 the generic catch produces.
+            log.atInfo().log("Registration attempted with an address Keycloak already knows");
+            salonPersistencePort.deleteById(savedSalon.getId());
+            notificationServicePort.sendExistingAccountRegistrationAttempt(request.email());
+            return REGISTRATION_ACCEPTED;
         } catch (Exception e) {
             log.atError().setCause(e).addKeyValue("externalId", externalId).log("Failed to register owner in Keycloak, compensating");
             salonPersistencePort.deleteById(savedSalon.getId());
@@ -136,10 +160,10 @@ public class OnboardingSagaService implements RegisterSalonUseCase {
             log.atWarn().setCause(e).addKeyValue("externalId", externalId).log("Failed to send welcome email, continuing");
         }
 
-        return new RegisterSalonResponse(
-                savedSalon.getExternalId(),
-                savedSalon.getSlug(),
-                savedSalon.getStatus().name());
+        // Byte-identical to the two early returns above. The salon's id, slug and status are
+        // deliberately NOT echoed: each of them exists only on this path, and the owner cannot use
+        // them yet anyway — Keycloak blocks their login until they confirm the address.
+        return REGISTRATION_ACCEPTED;
     }
 
     // ── Private Helpers ─────────────────────────────────────────────────

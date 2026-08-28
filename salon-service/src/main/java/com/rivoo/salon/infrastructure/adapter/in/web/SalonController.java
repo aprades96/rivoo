@@ -47,11 +47,17 @@ public class SalonController {
 
     // ── Public ──────────────────────────────────────────────────────────
 
+    /**
+     * ANONYMOUS. Answers 202 rather than 201 because a salon is not always created: an address that
+     * already has an account gets this exact status and this exact body with nothing created at
+     * all, so claiming "Created" would be both a lie on one path and the difference an attacker
+     * needs to enumerate accounts. The outcome reaches the user by email either way.
+     */
     @PostMapping("/api/v1/salons")
     public ResponseEntity<RegisterSalonResponse> register(@Valid @RequestBody RegisterSalonRequest request) {
         log.atInfo().addKeyValue("salonName", request.name()).log("POST /api/v1/salons - Registering salon");
         RegisterSalonResponse response = registerSalonUseCase.register(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
     }
 
     @GetMapping("/api/v1/salons/public/{slug}")

@@ -23,6 +23,16 @@ import java.util.Map;
 public class AuthService implements RegisterOwnerUseCase, RegisterEmployeeUseCase,
         ManageTenantStatusUseCase, UpdateTenantAttributeUseCase, ListTenantUsersUseCase {
 
+    /**
+     * The owner picks their own password during registration, so the ONLY thing Keycloak has to
+     * ask them for is proof that the address is theirs. Deliberately not the employee's
+     * {@link #EMPLOYEE_REQUIRED_ACTIONS}.
+     */
+    private static final List<String> OWNER_REQUIRED_ACTIONS = List.of("VERIFY_EMAIL");
+
+    /** Unchanged: the employee gets a temporary password and must replace it. */
+    private static final List<String> EMPLOYEE_REQUIRED_ACTIONS = List.of("UPDATE_PASSWORD");
+
     private final KeycloakAdminPort keycloakAdminPort;
     private final OnboardingEventPort onboardingEventPort;
     private final TenantUserMappingPort tenantUserMappingPort;
@@ -51,6 +61,17 @@ public class AuthService implements RegisterOwnerUseCase, RegisterEmployeeUseCas
             onboardingEventPort.save(new OnboardingEvent(
                     request.tenantId(), keycloakUserId, request.email(),
                     EventType.OWNER_CREATED, null));
+
+            // Trigger Keycloak's VERIFY_EMAIL mail. Same shape as the employee flow: best-effort,
+            // because failing here would roll back an otherwise complete registration. The account
+            // stays unverified (and therefore unable to log in) until the address is confirmed;
+            // Keycloak re-offers the action on the next login attempt, so this is recoverable.
+            try {
+                keycloakAdminPort.sendRequiredActionsEmail(keycloakUserId, OWNER_REQUIRED_ACTIONS);
+            } catch (Exception emailError) {
+                log.atWarn().setCause(emailError).addKeyValue("keycloakUserId", keycloakUserId)
+                        .log("Failed to send verify-email action to owner, address stays unverified");
+            }
 
             log.atInfo().addKeyValue("keycloakUserId", keycloakUserId).log("Owner registered successfully");
 
@@ -87,7 +108,7 @@ public class AuthService implements RegisterOwnerUseCase, RegisterEmployeeUseCas
 
             // Send email with link to set password (fire-and-forget)
             try {
-                keycloakAdminPort.sendRequiredActionsEmail(keycloakUserId);
+                keycloakAdminPort.sendRequiredActionsEmail(keycloakUserId, EMPLOYEE_REQUIRED_ACTIONS);
             } catch (Exception emailError) {
                 log.atWarn().setCause(emailError).addKeyValue("keycloakUserId", keycloakUserId)
                         .log("Failed to send required actions email, employee can still use temp password");

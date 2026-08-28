@@ -32,11 +32,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * would be vacuous.
  * <p>
  * salon-service gets this guard because {@code POST /api/v1/salons} and
- * {@code GET /api/v1/salons/public/**} are anonymous. Note the single {@code true}:
- * EmailAlreadyInUseException publishes on an ANONYMOUS endpoint on purpose. It is an
- * account-enumeration oracle, kept because hiding it degrades registration UX for
- * legitimate users - a product decision pending review, not an oversight. Read the javadoc
- * on that exception before touching this entry.
+ * {@code GET /api/v1/salons/public/**} are anonymous. Every entry is now {@code false}, and the
+ * one that changed is EmailAlreadyInUseException: it used to publish "Email already in use:
+ * &lt;address&gt;" on the anonymous registration endpoint, which made that endpoint an
+ * account-enumeration oracle. The product decision landed (hide it), registration now answers
+ * identically either way, and the exception no longer overrides clientSafeDetail(). Flipping this
+ * entry back to {@code true} reopens the oracle - read the javadoc on the exception first.
  */
 class SalonExceptionDetailPolicyTest {
 
@@ -50,7 +51,7 @@ class SalonExceptionDetailPolicyTest {
     private static final Map<String, Boolean> EXPECTED = new TreeMap<>(Map.of(
             "AuthServiceException", false,
             "BillingServiceException", false,
-            "EmailAlreadyInUseException", true,
+            "EmailAlreadyInUseException", false,
             "SalonNotFoundException", false,
             "SlugAlreadyExistsException", false));
 

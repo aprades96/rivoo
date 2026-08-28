@@ -123,19 +123,21 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
     }
 
     @Override
-    public void sendRequiredActionsEmail(String keycloakUserId) {
-        log.atDebug().addKeyValue("keycloakUserId", keycloakUserId).log("Sending required actions email");
+    public void sendRequiredActionsEmail(String keycloakUserId, List<String> requiredActions) {
+        log.atDebug().addKeyValue("keycloakUserId", keycloakUserId)
+                .addKeyValue("requiredActions", requiredActions).log("Sending required actions email");
 
         executeKeycloakOperation("send required actions email", () -> {
             restClient.put()
                     .uri(baseUrl + "/users/" + keycloakUserId + "/execute-actions-email")
                     .headers(h -> h.setBearerAuth(tokenManager.getAccessToken()))
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(List.of("UPDATE_PASSWORD"))
+                    .body(requiredActions)
                     .retrieve()
                     .toBodilessEntity();
 
-            log.atInfo().addKeyValue("keycloakUserId", keycloakUserId).log("Required actions email sent");
+            log.atInfo().addKeyValue("keycloakUserId", keycloakUserId)
+                    .addKeyValue("requiredActions", requiredActions).log("Required actions email sent");
             return null;
         });
     }

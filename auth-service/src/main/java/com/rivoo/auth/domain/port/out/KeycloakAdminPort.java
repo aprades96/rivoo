@@ -17,9 +17,14 @@ public interface KeycloakAdminPort {
     String createEmployeeUser(String email, String password, String firstName, String lastName);
 
     /**
-     * Sends an email to the user to execute required actions (e.g., UPDATE_PASSWORD, VERIFY_EMAIL).
+     * Sends an email asking the user to execute the given required actions.
+     * <p>
+     * The actions are a PARAMETER, not a constant: the employee flow asks for UPDATE_PASSWORD
+     * (temporary password) and the owner flow asks for VERIFY_EMAIL only (the owner chose their
+     * own password). Sending an owner the employee's UPDATE_PASSWORD link would force a password
+     * change nobody asked for.
      */
-    void sendRequiredActionsEmail(String keycloakUserId);
+    void sendRequiredActionsEmail(String keycloakUserId, List<String> requiredActions);
 
     /**
      * Sets user attributes (tenant_id, subscription_plan, salon_name).

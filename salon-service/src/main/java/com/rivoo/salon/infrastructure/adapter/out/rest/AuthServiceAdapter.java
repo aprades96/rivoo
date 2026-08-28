@@ -1,11 +1,13 @@
 package com.rivoo.salon.infrastructure.adapter.out.rest;
 
 import com.rivoo.salon.domain.exception.AuthServiceException;
+import com.rivoo.salon.domain.exception.EmailAlreadyInUseException;
 import com.rivoo.salon.domain.port.out.AuthServicePort;
 import com.rivoo.salon.infrastructure.adapter.out.rest.dto.RegisterOwnerRequest;
 import com.rivoo.salon.infrastructure.adapter.out.rest.dto.RegisterOwnerResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
@@ -54,10 +56,21 @@ public class AuthServiceAdapter implements AuthServicePort {
             throw AuthServiceException.unavailable(
                     "Failed to register owner in auth-service for tenant: " + tenantId, e);
         } catch (HttpClientErrorException e) {
-            // auth-service worked and refused the request (409 for an email already in Keycloak,
-            // 400 for a password its policy rejects, ...). Flattening that into a 502 claimed the
-            // dependency was down, hid the real reason from the caller, and paged an operator over
-            // a healthy service. It surfaces as the business rejection it is (422).
+            if (e.getStatusCode() == HttpStatus.CONFLICT) {
+                // 409 means one specific thing here: Keycloak already has a user with this address.
+                // It must NOT become a 422 like every other 4xx, because a 422 for a taken address
+                // next to a 202 for a free one is an account-enumeration oracle on an anonymous
+                // endpoint. The saga catches this type and reaches the same silent outcome as its
+                // own existsByEmail pre-check. Logged at INFO, not ERROR: nothing is broken.
+                log.atInfo()
+                        .addKeyValue("targetTenantId", tenantId)
+                        .log("auth-service reports the owner address already exists in Keycloak");
+                throw new EmailAlreadyInUseException(email);
+            }
+            // auth-service worked and refused the request (400 for a password its policy rejects,
+            // ...). Flattening that into a 502 claimed the dependency was down, hid the real reason
+            // from the caller, and paged an operator over a healthy service. It surfaces as the
+            // business rejection it is (422).
             log.atError()
                     .setCause(e)
                     .addKeyValue("targetTenantId", tenantId)

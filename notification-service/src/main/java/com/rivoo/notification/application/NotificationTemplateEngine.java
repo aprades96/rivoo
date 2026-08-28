@@ -17,6 +17,14 @@ public class NotificationTemplateEngine {
                     "Bienvenido a Rivoo",
                     "Hola " + safeData.getOrDefault("salonName", "") + ", tu salón está activo en Rivoo."
             );
+            case REGISTRATION_ATTEMPT_EXISTING_ACCOUNT -> new TemplateResult(
+                    "Intento de registro en Rivoo",
+                    "Alguien ha intentado crear una cuenta en Rivoo con esta direccion de correo. " +
+                    "Ya existe una cuenta asociada a ella, asi que no hemos creado ninguna nueva. " +
+                    "Si has sido tu, inicia sesion con tus datos habituales; si no recuerdas la " +
+                    "contraseña, usa la opcion de recuperarla desde la pantalla de inicio de sesion. " +
+                    "Si no has sido tu, puedes ignorar este mensaje."
+            );
             case APPOINTMENT_CONFIRMATION -> new TemplateResult(
                     "Cita confirmada",
                     "Tu cita el " + safeData.getOrDefault("date", "") +

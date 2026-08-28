@@ -53,12 +53,22 @@ UNIQUE: `(salon_id, day_of_week)` — exactly 7 rows per salon.
 ## Onboarding Saga (salon-service orchestrates)
 
 ```
+STEP 0: Address already has an account?            → send "someone tried to register" mail, RETURN
 STEP 1: Create salon (status=ONBOARDING)           → local, if fails: nothing to compensate
 STEP 2: Create user in Keycloak via auth-service    → if fails: delete salon
 STEP 3: Create subscription in billing-service      → if fails: delete Keycloak user + salon
 STEP 4: Activate salon (status=ACTIVE)              → local
 STEP 5: Send welcome email (notification-service)   → fire-and-forget (non-critical)
 ```
+
+**Step 0 — no account enumeration (security, not UX)**: `POST /api/v1/salons` is ANONYMOUS, so it
+answers **202 Accepted with one fixed body** whether the address was free or already had an
+account, and never 201/409. The difference goes to the address owner by email
+(`REGISTRATION_ATTEMPT_EXISTING_ACCOUNT`) instead of to the caller. The same applies when
+auth-service answers 409 (address known to Keycloak but with no salon row): the saga rolls the
+salon back and returns that identical 202. Restoring a distinct status, body or error for the
+taken address reopens the oracle — see `EmailAlreadyInUseException` and
+`SalonRegistrationEnumerationTest`.
 
 **Compensations**:
 - Step 2 fails → delete salon from DB

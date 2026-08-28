@@ -14,13 +14,15 @@ import org.springframework.http.HttpStatus;
  * endpoint must not describe. The operator gets that distinction from the logs instead.
  * <p>
  * What this mapping achieves is precisely that and nothing more: it hides WHICH dependency
- * refused. It does NOT make this endpoint safe against account enumeration, and no comment here
- * should claim otherwise. The saga pre-checks the email and answers 409 with
- * "Email already in use: &lt;email&gt;" (see {@code EmailAlreadyInUseException} and
- * {@code SalonExceptionHandler#handleEmailAlreadyInUse}) before any dependency is called, so an
- * anonymous caller learns whether an address is registered without ever reaching a 422. That
- * oracle is a known, deliberate product trade-off pending a separate decision — it is simply not
- * something this constant closes.
+ * refused. Account enumeration is closed SEPARATELY and elsewhere — the saga now answers 202 with
+ * one fixed body whether or not the address already has an account, and tells the address owner by
+ * mail instead (see {@code OnboardingSagaService#register} and {@code EmailAlreadyInUseException}).
+ * Nothing about that lives in this constant, and no future change to it should be read as
+ * maintaining that property.
+ * <p>
+ * One consequence worth stating: a 422 carrying this identity now means a dependency refused for a
+ * reason that is NOT "the address exists" (a password the Keycloak policy rejects, for instance),
+ * because the 409 case is intercepted before it can reach here.
  * <p>
  * Not in {@code com.rivoo.common.web.RivooErrorTypes}: per that class's own javadoc, only values
  * a DIFFERENT service parses belong there, and no consumer branches on this one.

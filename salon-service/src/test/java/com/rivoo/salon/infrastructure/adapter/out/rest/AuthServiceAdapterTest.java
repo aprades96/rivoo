@@ -1,6 +1,7 @@
 package com.rivoo.salon.infrastructure.adapter.out.rest;
 
 import com.rivoo.salon.domain.exception.AuthServiceException;
+import com.rivoo.salon.domain.exception.EmailAlreadyInUseException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -11,6 +12,7 @@ import org.springframework.web.client.RestClient;
 import java.io.IOException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.springframework.http.HttpMethod.DELETE;
 import static org.springframework.http.HttpMethod.POST;
@@ -62,19 +64,21 @@ class AuthServiceAdapterTest {
     }
 
     @Test
-    void registerOwner_authServiceAnswers409_isNotFlattenedIntoBadGateway() {
-        // auth-service answered: this email already exists in Keycloak. Nothing is down.
+    void registerOwner_authServiceAnswers409_signalsAnExistingAccountInsteadOfARejection() {
+        // 409 from auth-service means one specific thing: Keycloak already has a user with this
+        // address. It is singled out from the other 4xx because the saga has to answer it exactly
+        // like a free address (202 + a mail to the address owner) - surfacing it as the 422 every
+        // other 4xx gets would leave POST /api/v1/salons an account-enumeration oracle for every
+        // address Keycloak knows but no salon row carries. See SalonRegistrationEnumerationTest.
         server.expect(requestTo(REGISTER_OWNER_URI))
                 .andExpect(method(POST))
                 .andRespond(withStatus(HttpStatus.CONFLICT));
 
-        AuthServiceException exception = catchThrowableOfType(this::registerOwner, AuthServiceException.class);
-
-        assertThat(exception.getHttpStatus())
-                .as("a dependency's business rejection must not be reported as a broken upstream")
-                .isNotEqualTo(HttpStatus.BAD_GATEWAY)
-                .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
-        assertThat(exception.getErrorType()).isEqualTo("salon-registration-rejected");
+        assertThatThrownBy(this::registerOwner)
+                .isInstanceOf(EmailAlreadyInUseException.class)
+                .as("it must NOT be an AuthServiceException, or the generic 4xx branch turns it "
+                        + "back into the 422 that gives the oracle away")
+                .isNotInstanceOf(AuthServiceException.class);
         server.verify();
     }
 

@@ -2,7 +2,6 @@ package com.rivoo.salon.infrastructure.adapter.in.web;
 
 import com.rivoo.salon.domain.exception.AuthServiceException;
 import com.rivoo.salon.domain.exception.BillingServiceException;
-import com.rivoo.salon.domain.exception.EmailAlreadyInUseException;
 import com.rivoo.salon.domain.exception.SalonNotFoundException;
 import com.rivoo.salon.domain.exception.SlugAlreadyExistsException;
 import com.rivoo.common.exception.RivooException;
@@ -18,7 +17,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.net.URI;
 import java.time.Instant;
 
-// Redundant since the five exceptions below now extend RivooException:
+// Redundant since the four exceptions below now extend RivooException:
 // GlobalExceptionHandler.handleRivooException(RivooException) matches them
 // at depth 1 regardless of which advice bean Spring visits first, so the
 // old failure mode (falling through to the generic
@@ -44,16 +43,6 @@ public class SalonExceptionHandler {
         // to recognize a genuine "no salon for this slug" 404 (see Bloque 3 / RivooErrorTypes).
         problem.setType(URI.create(RivooErrorTypes.SALON_NOT_FOUND));
         problem.setTitle("Salon Not Found");
-        enrichProblemDetail(problem);
-        return problem;
-    }
-
-    @ExceptionHandler(EmailAlreadyInUseException.class)
-    public ProblemDetail handleEmailAlreadyInUse(EmailAlreadyInUseException ex) {
-        log.atWarn().addKeyValue("detail", ex.getMessage()).log("Email conflict");
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
-        problem.setType(URI.create("https://rivoo.com/errors/email-already-in-use"));
-        problem.setTitle("Email Already In Use");
         enrichProblemDetail(problem);
         return problem;
     }

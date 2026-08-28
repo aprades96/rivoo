@@ -211,10 +211,15 @@ class SalonRegistrationDependencyContractTest {
     }
 
     @Test
-    void register_authServiceRejectsWith409_answers422NotBadGateway() throws Exception {
+    void register_authServiceRejectsWith400_answers422NotBadGateway() throws Exception {
+        // 400, not 409. A 409 from auth-service means "that address is already a Keycloak user",
+        // which is deliberately NOT a rejection any more: it takes the silent existing-account
+        // path and answers 202 exactly like a free address (see SalonRegistrationEnumerationTest).
+        // Every OTHER 4xx - a password the Keycloak policy refuses, a malformed payload - is still
+        // a business rejection and must keep its 422 rather than claiming an outage.
         authServer.expect(requestTo(REGISTER_OWNER_URI))
                 .andExpect(method(POST))
-                .andRespond(withStatus(HttpStatus.CONFLICT));
+                .andRespond(withStatus(HttpStatus.BAD_REQUEST));
 
         mockMvc.perform(post("/api/v1/salons")
                         .contentType(MediaType.APPLICATION_JSON)
