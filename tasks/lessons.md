@@ -702,3 +702,38 @@ se conecte. Insistir gasta la atencion del usuario y le hace repetirse.
 explicitamente, se registra ATADO a la tarea que lo desbloquea ("al conectar Stripe:
 verificar la firma"), no como prioridad suelta. Y no se vuelve a proponer como "lo primero"
 salvo que el usuario cambie el plan.
+
+## No devolver al usuario decisiones que son mias
+
+**Patron:** acumule tres preguntas para el usuario —separar o no la regla de antelacion,
+que arreglar primero, si rebasar una rama— sobre las tres YA tenia recomendacion formada y
+argumentada. El usuario respondio: "decisiones de que? has de solucionar los problemas, yo no
+tengo que solucionar nada, sigue tu recomendacion honesta".
+
+**Por que importa:** presentar una recomendacion y despues pedir permiso para seguirla no es
+prudencia, es devolverle el trabajo. Le obliga a reconstruir un contexto tecnico que yo ya
+tengo, para llegar a la conclusion que yo ya le he dado.
+
+**Regla:** si puedo formular una recomendacion con su razonamiento, la EJECUTO y la explico.
+Se pregunta solo cuando (a) la decision depende de informacion que solo tiene el usuario
+—prioridad de negocio, apetito de riesgo, planes futuros—, o (b) las opciones llevan a
+trabajos materialmente distintos y no hay una claramente mejor.
+
+**Prueba rapida antes de preguntar:** si ya se cual recomendaria y por que, no es una pregunta.
+Es un anuncio.
+
+## Surefire fusiona metodos con el mismo nombre en @Nested distintos
+
+**Patron:** el agregado final de Surefire imprimio `Tests run: 111, Failures: 8` mientras sus
+propias lineas por clase Y el XML decian 112 / 9. Causa: dos metodos con el MISMO nombre en
+dos clases `@Nested` distintas del mismo fichero se fusionan en una sola entrada
+`Run 1 / Run 2`, como si fuera un reintento por flake. Un test que falla desaparece del recuento.
+
+**Por que importa:** es el quinto mecanismo de verde falso que aparece en este proyecto. Los
+otros cuatro: un flag de runner inexistente, un fallo de codificacion cp1252, leer el bloque
+`Results:` del modulo equivocado, y un regex que pegaba tests auto-cerrados al siguiente.
+Todos daban "verde" o "muerto" cuando no lo era.
+
+**Regla:** nombres de test unicos POR FICHERO, no por clase anidada. Y contar siempre los
+elementos `<testcase>` del XML contrastandolos con la linea `Results:` impresa; si discrepan,
+la fila de la matriz es invalida hasta averiguar por que.
