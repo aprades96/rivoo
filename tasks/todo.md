@@ -1392,3 +1392,23 @@ Sin correo, Keycloak exige verificar y el enlace no llega: nadie puede entrar.
       credenciales de un proveedor transaccional (Brevo/Resend/Postmark valen), bloque
       `smtpServer` en el realm, y sustituir `MailStubAdapter` por un emisor real.
       Sin eso, el registro queda bloqueado en produccion.
+
+---
+
+# EN CURSO — Onboarding reanudable (2026-08-28)
+
+Plan: `docs/specs/onboarding-reanudable/IMPLEMENTATION_PLAN.md` (v3, dos revisiones independientes).
+Ramas: `feat/onboarding-reanudable` en los dos repos. Motor: `executing-plans`.
+
+- [ ] **T1** backend — migracion V4 + campo en entidad/dominio/SalonResponse + `copyOf` del fake
+- [ ] **T2** backend — endpoint idempotente `POST /api/v1/salons/me/onboarding/complete` + CAS
+- [ ] **T3** backend — aplicar la migracion en localhost arrancando el servicio (la hago yo)
+- [ ] **T4** frontend — tipo `onboardingCompletedAt` + `salonsApi.completeOnboarding`
+- [ ] **T5** frontend — 6 tokens nuevos + re-apuntar 2 existentes + `Switch` + `Progress`
+- [ ] **T6** frontend — portero: solo la marca, solo el dueno, y fallar hacia fuera **(panel de 3)**
+- [ ] **T7** frontend — chasis del asistente + borrar `salon-setup`
+- [ ] **T8** frontend — los 5 pasos contra los artboards, movil y escritorio **(panel de 3 en el paso 5)**
+- [ ] **T9** frontend — estados vacios en "Hoy" y en la pagina publica
+- [ ] **T10** verificacion: reactor + npm test + comparacion visual + recorrido con el bucle como prueba
+
+Regla en vigor: cada despacho es un agente NUEVO; el revisor nunca es el implementador.
