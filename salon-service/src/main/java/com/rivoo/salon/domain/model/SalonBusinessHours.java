@@ -26,19 +26,26 @@ public class SalonBusinessHours {
     private LocalTime breakStartTime;
     private LocalTime breakEndTime;
 
+    /**
+     * Reached only from {@code PUT /api/v1/salons/me/business-hours}, {@code hasRole('SALON_OWNER')},
+     * so every message below is published to the caller via
+     * {@link BusinessValidationException#clientSafe(String)}: each one describes the schedule the
+     * owner just submitted for their own salon, names nothing else, and is the only thing telling
+     * them which row to fix.
+     */
     public void validate() {
         if (dayOfWeek < 1 || dayOfWeek > 7) {
-            throw new BusinessValidationException("dayOfWeek must be 1-7, got: " + dayOfWeek);
+            throw BusinessValidationException.clientSafe("dayOfWeek must be 1-7, got: " + dayOfWeek);
         }
         if (open) {
             if (openTime == null || closeTime == null) {
-                throw new BusinessValidationException("Open days must have openTime and closeTime");
+                throw BusinessValidationException.clientSafe("Open days must have openTime and closeTime");
             }
             if (!closeTime.isAfter(openTime)) {
-                throw new BusinessValidationException("closeTime must be after openTime");
+                throw BusinessValidationException.clientSafe("closeTime must be after openTime");
             }
             if (breakStartTime != null && breakEndTime != null && !breakEndTime.isAfter(breakStartTime)) {
-                throw new BusinessValidationException("breakEndTime must be after breakStartTime");
+                throw BusinessValidationException.clientSafe("breakEndTime must be after breakStartTime");
             }
         }
     }

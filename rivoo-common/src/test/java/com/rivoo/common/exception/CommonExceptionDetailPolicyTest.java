@@ -30,27 +30,69 @@ import static org.assertj.core.api.Assertions.assertThat;
  * detect. Instantiating also guarantees the message is non-blank, without which the comparison
  * would be vacuous.
  * <p>
- * These are the SHARED BASE CLASSES, and for them the answer is a hard rule rather than a
- * per-site judgement: an override here is inherited by every subtype in every service,
- * present and future, whatever endpoint throws it. That is exactly the fail-open default
- * that let {@code AppointmentConflictException} - a {@link BusinessValidationException} -
- * hand an employee's full name to unauthenticated callers. A subtype opts in for itself or
- * not at all, so every entry below must stay {@code false}.
+ * These are the SHARED BASE CLASSES, and for them a blanket override is not an option: it would be
+ * inherited by every subtype in every service, present and future, whatever endpoint throws it.
+ * That is exactly the fail-open default that let {@code AppointmentConflictException} - a
+ * {@link BusinessValidationException} - hand an employee's full name to unauthenticated callers.
+ * So every entry below stays {@code false}: a subtype opts in for itself, or a single throw site
+ * does through a factory, but never the base class for all of them.
+ * <p>
+ * The map therefore pins DEFAULT CONSTRUCTION only, and that is a real limitation of it:
+ * {@link #instantiate} uses the first usable public constructor, so a per-site opt-in factory such
+ * as {@link BusinessValidationException#clientSafe(String)} is invisible here and the pinned value
+ * stays {@code false} either way. {@link #businessValidationExceptionPublishesOnlyWhenAThrowSiteOptsIn()}
+ * covers the other half - add the same kind of test alongside any future factory, otherwise this
+ * map silently stops describing what the type can do.
  */
 class CommonExceptionDetailPolicyTest {
 
     /**
-     * name -> does this subtype publish {@code getMessage()} to the caller?
+     * name -> does an instance built through the type's plain public constructor publish
+     * {@code getMessage()} to the caller?
      * <p>
-     * {@code false} means "reachable from an anonymous endpoint, so the message goes to the log
-     * only"; {@code true} means "every throw site is authenticated". The justification for each
-     * entry lives as javadoc on the exception itself - this map only pins the outcome.
+     * {@code false} means "publishes nothing by default, so the message goes to the log only";
+     * {@code true} means "every throw site is authenticated and the message is always published".
+     * For a base class with mixed reachability - {@link BusinessValidationException} is thrown
+     * both from the anonymous {@code POST /api/v1/appointments/book} and from endpoints behind
+     * {@code hasRole('SALON_OWNER')} - {@code false} is the only correct entry, and the
+     * authenticated sites opt in one by one. The justification for each entry lives as javadoc on
+     * the exception itself; this map only pins the outcome.
      */
     private static final Map<String, Boolean> EXPECTED = new TreeMap<>(Map.of(
             "BusinessValidationException", false,
             "PlanLimitExceededException", false,
             "ResourceNotFoundException", false,
             "TenantMismatchException", false));
+
+    /**
+     * The half {@link #EXPECTED} structurally cannot see. Both directions are asserted from the
+     * same message, so a mutation that makes the factory return {@code null}, or that makes the
+     * plain constructor publish, fails here even though the map above would stay green.
+     */
+    @Test
+    void businessValidationExceptionPublishesOnlyWhenAThrowSiteOptsIn() {
+        String message = "closeTime must be after openTime";
+
+        BusinessValidationException restrictiveByDefault = new BusinessValidationException(message);
+        assertThat(restrictiveByDefault.clientSafeDetail())
+                .as("the plain constructor is what every subtype reaches through super(message); "
+                        + "it must publish nothing, or the whole hierarchy fails open again")
+                .isNull();
+
+        BusinessValidationException optedIn = BusinessValidationException.clientSafe(message);
+        assertThat(optedIn.clientSafeDetail())
+                .as("clientSafe() exists to publish the message of an authenticated throw site")
+                .isEqualTo(message)
+                .isEqualTo(optedIn.getMessage());
+
+        assertThat(optedIn)
+                .as("opting in must change what is published and nothing else - same status, "
+                        + "same RFC 9457 type and title as any other business validation failure")
+                .extracting(RivooException::getHttpStatus, RivooException::getErrorType, RivooException::getErrorTitle)
+                .containsExactly(restrictiveByDefault.getHttpStatus(),
+                        restrictiveByDefault.getErrorType(),
+                        restrictiveByDefault.getErrorTitle());
+    }
 
     @Test
     void everySubtypeDeclaresItsDetailPolicyExplicitly() {

@@ -99,7 +99,7 @@ Manages subscriptions, plans, plan limits, and Stripe integration. Handles the f
 
 ### Webhook Handler
 
-**Endpoint**: `POST /api/webhooks/stripe` — public (no JWT), verified by Stripe signature.
+**Endpoint**: `POST /api/webhooks/stripe` — public (no JWT). **La firma NO se verifica hoy**: `WebhookController` recibe `Stripe-Signature` como `required = false` y `StripeStubAdapter.constructEvent` ignora la cabecera y parsea el body directamente. Verificar la firma con el endpoint secret es un ticket de seguridad aparte.
 
 **Events handled**:
 - `checkout.session.completed` → link stripe_subscription_id

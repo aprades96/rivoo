@@ -34,7 +34,14 @@ public class BillingSecurityConfig {
             .authorizeHttpRequests(auth -> {
                 auth.requestMatchers("/actuator/**").permitAll();
                 auth.requestMatchers("/api/internal/**").permitAll(); // authenticated by InternalEndpointFilter (PSK)
-                auth.requestMatchers("/api/webhooks/stripe").permitAll(); // Stripe webhook — verified by signature
+                // Stripe webhook — ANONYMOUS AND UNVERIFIED as of today. The comment here used to
+                // claim the signature was checked; nothing checks it. WebhookController accepts
+                // Stripe-Signature as required=false and StripeStubAdapter.constructEvent ignores
+                // the header entirely, extracting the event fields from the raw body instead, so
+                // anyone able to reach this path can forge a subscription event. Implementing
+                // Webhook.constructEvent with the endpoint secret is a separate security ticket;
+                // this comment states the real state until then.
+                auth.requestMatchers("/api/webhooks/stripe").permitAll();
                 auth.requestMatchers(HttpMethod.GET, "/api/v1/billing/plans").permitAll(); // Public — plan listing
                 auth.anyRequest().authenticated();
             })

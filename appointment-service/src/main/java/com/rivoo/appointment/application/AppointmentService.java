@@ -69,16 +69,20 @@ public class AppointmentService implements CreateAppointmentUseCase, GetAppointm
         // 1. Check plan limits (bypass cache for write operations)
         checkPlanLimits(tenantId);
 
-        // 2. Validate employee via staff-service
+        // 2. Validate employee via staff-service.
+        // The three clientSafe(...) rejections below carry the same strings as the ones in book(),
+        // but this method is POST /api/v1/appointments, hasAnyRole('SALON_OWNER','EMPLOYEE'): the
+        // only caller who can see them is the tenant they are about, and they are what tells the
+        // owner why the appointment was refused. In book() the same checks stay restrictive.
         StaffServicePort.StaffEmployeeInfo employee = staffServicePort.getEmployee(tenantId, request.employeeId());
         if (!employee.active()) {
-            throw new com.rivoo.common.exception.BusinessValidationException("Employee is not active");
+            throw BusinessValidationException.clientSafe("Employee is not active");
         }
 
         // 3. Validate service via staff-service
         StaffServicePort.StaffServiceInfo service = staffServicePort.getService(tenantId, request.serviceId());
         if (!service.active()) {
-            throw new com.rivoo.common.exception.BusinessValidationException("Service is not active");
+            throw BusinessValidationException.clientSafe("Service is not active");
         }
 
         // 4. Validate client if clientId provided
@@ -90,7 +94,7 @@ public class AppointmentService implements CreateAppointmentUseCase, GetAppointm
         if (clientId != null && !clientId.isBlank()) {
             ClientServicePort.ClientInfo client = clientServicePort.getClient(tenantId, clientId);
             if (!client.active()) {
-                throw new com.rivoo.common.exception.BusinessValidationException("Client is not active");
+                throw BusinessValidationException.clientSafe("Client is not active");
             }
             // Use client data as snapshot (override manual fields if client exists)
             clientName = client.fullName();
@@ -281,11 +285,15 @@ public class AppointmentService implements CreateAppointmentUseCase, GetAppointm
 
         // 2. Booking window: 1 hour to 60 days from now
         LocalDateTime now = LocalDateTime.now(SALON_TIMEZONE);
+        // clientSafe on an ANONYMOUS endpoint, deliberately: both messages describe only the date
+        // the visitor themselves submitted, disclose nothing about the salon, and are the sole
+        // instruction telling them how to fix the form. The generic fallback would leave the two
+        // most common real failures of this endpoint indistinguishable from any other rejection.
         if (request.requestedTime().isBefore(now.plusHours(1))) {
-            throw new BusinessValidationException("Booking must be at least 1 hour in the future");
+            throw BusinessValidationException.clientSafe("Booking must be at least 1 hour in the future");
         }
         if (request.requestedTime().isAfter(now.plusDays(60))) {
-            throw new BusinessValidationException("Booking cannot be more than 60 days in the future");
+            throw BusinessValidationException.clientSafe("Booking cannot be more than 60 days in the future");
         }
 
         // 3. Validate salon slug → get tenantId
@@ -301,6 +309,10 @@ public class AppointmentService implements CreateAppointmentUseCase, GetAppointm
         String tenantId = salon.tenantId();
 
         // 4. Validate employee + service
+        // Restrictive default kept on purpose, unlike the booking window above: these two
+        // messages describe the SALON's internal state, not the visitor's input. Publishing them
+        // would tell an unauthenticated caller which employees and services a salon has
+        // deactivated, for any salon whose public slug they know.
         StaffServicePort.StaffEmployeeInfo employee = staffServicePort.getEmployee(tenantId, request.employeeExternalId());
         if (!employee.active()) {
             throw new BusinessValidationException("Employee is not active");
