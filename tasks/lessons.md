@@ -783,3 +783,22 @@ abierta y el usuario cambie de pestana y vuelva antes de pulsar el boton.
 **Regla:** `await queryClient.cancelQueries({ queryKey })` ANTES del `setQueryData`, siempre que
 la escritura decida una navegacion. Y `["a"]` sirve de prefijo para `invalidateQueries` pero
 NO es clave valida para `setQueryData`: ahi la clave es la exacta.
+
+## Un encargo que pide un aspecto y prohibe tocar quien lo pinta es contradictorio
+
+**Patron:** el encargo de las cinco pantallas describia al detalle la anatomia de las filas de
+horario (interruptor, selectores sin cromo nativo, separador "a", rejilla de escritorio) y en
+el parrafo siguiente prohibia tocar `working-hours-editor.tsx`, que es el UNICO componente que
+renderiza esas filas. El implementador no improviso: hizo lo que podia, y devolvio la
+contradiccion escrita. Bien hecho por su parte; el fallo era del encargo.
+
+**Por que importa:** la prohibicion tenia un motivo real (ese editor tiene logica sutil de
+adopcion de props que no habia que tocar) pero se redacto como "no toques el fichero" en vez de
+"no toques ESE mecanismo". Un implementador obediente entrega una pantalla a medias, y uno
+desobediente rompe la logica sutil.
+
+**Regla:** antes de prohibir un fichero, comprobar si ese fichero es el que produce lo que
+estas pidiendo. Si lo es, la prohibicion se acota al mecanismo concreto ("no toques la logica
+de sincronizacion de `:53-58`") y se autoriza el resto. Y si el componente lo comparten varios
+consumidores, mirar PRIMERO el artboard del otro consumidor: aqui `Horario.dc.html` resulto
+tener la misma anatomia, asi que restilar servia a los dos y la prohibicion sobraba.
