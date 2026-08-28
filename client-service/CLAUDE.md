@@ -50,7 +50,7 @@ client.setEmail(null);
 client.setPhone(null);
 client.setDateOfBirth(null);
 client.setNotes(null);
-client.setIsActive(false);
+client.setActive(false);
 client.setGdprAnonymizedAt(Instant.now());
 ```
 
@@ -118,5 +118,5 @@ GET /api/internal/billing/tenants/{tenantId}/plan-limits
 ## Dependencies
 
 - **rivoo-common** (security, tenant, observability)
-- **Calls**: billing-service (plan limits), appointment-service (for GDPR export data)
+- **Calls**: appointment-service (for GDPR export data). **NOT billing-service** — see "Plan Limits Validation — NOT IMPLEMENTED" above; there is no billing adapter in this module.
 - **Called by**: appointment-service (validate client, find-or-create for public booking)
