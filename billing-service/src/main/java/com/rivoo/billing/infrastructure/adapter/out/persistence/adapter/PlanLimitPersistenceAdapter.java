@@ -7,6 +7,7 @@ import com.rivoo.billing.infrastructure.mapper.PlanLimitPersistenceMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,6 +21,16 @@ public class PlanLimitPersistenceAdapter implements PlanLimitPersistencePort {
     @Override
     public List<PlanLimit> findByPlanId(Long planId) {
         return repository.findByPlanId(planId).stream()
+                .map(mapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<PlanLimit> findByPlanIds(Collection<Long> planIds) {
+        if (planIds.isEmpty()) {
+            return List.of();
+        }
+        return repository.findByPlanIdIn(planIds).stream()
                 .map(mapper::toDomain)
                 .toList();
     }

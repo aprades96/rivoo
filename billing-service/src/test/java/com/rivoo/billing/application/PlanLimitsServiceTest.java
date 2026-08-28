@@ -140,6 +140,57 @@ class PlanLimitsServiceTest {
         assertThat(result.smsRemindersEnabled()).isTrue();
     }
 
+    // ── Missing plan_limits rows keep the enforcement-side defaults ─────
+
+    @Test
+    void getPlanLimits_missingRows_keepsTheEnforcementDefaults() {
+        Subscription subscription = buildSubscription(TENANT_ID, PLAN_ID);
+        SubscriptionPlan plan = buildPlan(PLAN_ID, PlanName.BASIC);
+
+        when(subscriptionPersistencePort.findByTenantId(TENANT_ID)).thenReturn(Optional.of(subscription));
+        when(planPersistencePort.findById(PLAN_ID)).thenReturn(Optional.of(plan));
+        when(planLimitPersistencePort.findByPlanId(PLAN_ID)).thenReturn(List.of());
+
+        PlanLimitsResponse result = planLimitsService.getPlanLimits(TENANT_ID, false);
+
+        // Characterisation test, pinning behaviour that predates the extraction of
+        // PlanLimits: on this INTERNAL endpoint a missing quota row still reads as -1
+        // (unlimited) and a missing flag as false. appointment-service and staff-service
+        // enforce against these values through a primitive-typed DTO, so this is the shape
+        // they have always been served and it is deliberately left unchanged here.
+        //
+        // The anonymous catalogue in SubscriptionService#listActivePlans makes the opposite
+        // choice (absent stays null). Both go through PlanLimits.from, so only the default
+        // policy differs -- never the key names or the int-to-boolean encoding. If someone
+        // "unifies" the two policies, this test and
+        // SubscriptionServiceTest#listActivePlans_planMissingALimitRow_reportsNullNotMinusOneNorZero
+        // cannot both stay green.
+        assertThat(result.planName()).isEqualTo("BASIC");
+        assertThat(result.maxEmployees()).isEqualTo(-1);
+        assertThat(result.maxAppointmentsPerMonth()).isEqualTo(-1);
+        assertThat(result.emailRemindersEnabled()).isFalse();
+        assertThat(result.smsRemindersEnabled()).isFalse();
+    }
+
+    @Test
+    void getPlanLimits_partialRows_defaultsOnlyTheMissingOnes() {
+        Subscription subscription = buildSubscription(TENANT_ID, PLAN_ID);
+        SubscriptionPlan plan = buildPlan(PLAN_ID, PlanName.BASIC);
+
+        when(subscriptionPersistencePort.findByTenantId(TENANT_ID)).thenReturn(Optional.of(subscription));
+        when(planPersistencePort.findById(PLAN_ID)).thenReturn(Optional.of(plan));
+        when(planLimitPersistencePort.findByPlanId(PLAN_ID)).thenReturn(List.of(
+                PlanLimit.builder().planId(PLAN_ID).limitKey("max_employees").limitValue(3).build(),
+                PlanLimit.builder().planId(PLAN_ID).limitKey("sms_reminders_enabled").limitValue(1).build()));
+
+        PlanLimitsResponse result = planLimitsService.getPlanLimits(TENANT_ID, false);
+
+        assertThat(result.maxEmployees()).isEqualTo(3);
+        assertThat(result.smsRemindersEnabled()).isTrue();
+        assertThat(result.maxAppointmentsPerMonth()).isEqualTo(-1);
+        assertThat(result.emailRemindersEnabled()).isFalse();
+    }
+
     // ── Subscription not found → throws ─────────────────────────────────
 
     @Test

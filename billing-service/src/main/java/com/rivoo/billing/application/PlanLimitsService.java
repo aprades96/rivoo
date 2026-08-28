@@ -5,6 +5,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.rivoo.billing.application.dto.PlanLimitsResponse;
 import com.rivoo.billing.domain.exception.SubscriptionNotFoundException;
 import com.rivoo.billing.domain.model.PlanLimit;
+import com.rivoo.billing.domain.model.PlanLimits;
 import com.rivoo.billing.domain.model.PlanName;
 import com.rivoo.billing.domain.model.Subscription;
 import com.rivoo.billing.domain.model.SubscriptionPlan;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -67,22 +69,27 @@ public class PlanLimitsService implements ManagePlanLimitsUseCase {
         return response;
     }
 
+    /**
+     * Enforcement-side defaults for a missing {@code plan_limits} row, unchanged from
+     * before {@link PlanLimits} was extracted: a missing quota reads as {@code -1}
+     * (unlimited) and a missing flag as {@code false}. That is permissive for quotas and
+     * restrictive for features, and it is what appointment-service and staff-service have
+     * always been served, so it is preserved verbatim here rather than "fixed" in passing.
+     * <p>
+     * The anonymous catalogue in {@code SubscriptionService#listActivePlans} deliberately
+     * does NOT apply these defaults — it reports an absent row as {@code null}. Both go
+     * through {@link PlanLimits#from}, so only the default policy differs, never the key
+     * names or the int-to-boolean encoding.
+     */
     private PlanLimitsResponse buildResponse(PlanName planName, List<PlanLimit> limits) {
-        int maxEmployees = getLimitValue(limits, "max_employees", -1);
-        int maxAppointments = getLimitValue(limits, "max_appointments_per_month", -1);
-        boolean emailReminders = getLimitValue(limits, "email_reminders_enabled", 0) == 1;
-        boolean smsReminders = getLimitValue(limits, "sms_reminders_enabled", 0) == 1;
+        PlanLimits flattened = PlanLimits.from(limits);
 
         return new PlanLimitsResponse(
-                planName.name(), maxEmployees, maxAppointments, emailReminders, smsReminders);
-    }
-
-    private int getLimitValue(List<PlanLimit> limits, String key, int defaultValue) {
-        return limits.stream()
-                .filter(l -> key.equals(l.getLimitKey()))
-                .map(PlanLimit::getLimitValue)
-                .findFirst()
-                .orElse(defaultValue);
+                planName.name(),
+                Objects.requireNonNullElse(flattened.maxEmployees(), -1),
+                Objects.requireNonNullElse(flattened.maxAppointmentsPerMonth(), -1),
+                Objects.requireNonNullElse(flattened.emailRemindersEnabled(), false),
+                Objects.requireNonNullElse(flattened.smsRemindersEnabled(), false));
     }
 
     public void evictCache(String tenantId) {
