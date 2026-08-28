@@ -128,9 +128,10 @@ public class OnboardingSagaService implements RegisterSalonUseCase {
         // the enumeration oracle - the response is identical either way, but a free address left a
         // slug the attacker had chosen answering 200 on GET /api/v1/salons/public/{slug} while a
         // taken address left nothing, which is the same yes/no in two anonymous requests.
-        // OwnerVerificationActivationService promotes it to ACTIVE once Keycloak reports the address
-        // confirmed. This is also the coherent behaviour on its own terms: the owner cannot even log
-        // in until then, so a salon of theirs taking public bookings would make no sense.
+        // SalonService#getByTenantId promotes it to ACTIVE the first time the owner turns up
+        // authenticated, which cannot happen until Keycloak has seen them complete VERIFY_EMAIL.
+        // This is also the coherent behaviour on its own terms: the owner cannot even log in until
+        // then, so a salon of theirs taking public bookings would make no sense.
         try {
             savedSalon.setOwnerUserId(keycloakUserId);
             savedSalon = salonPersistencePort.save(savedSalon);
@@ -163,8 +164,8 @@ public class OnboardingSagaService implements RegisterSalonUseCase {
         }
 
         // Step 8 used to send the WELCOME mail here. It does not any more, and this is not an
-        // omission: that template reads "tu salon esta activo", which is false until the address is
-        // confirmed. It is sent by OwnerVerificationActivationService at the moment it becomes true.
+        // omission: that template reads "tu salon esta activo", which is false until the salon is
+        // published. It is sent by SalonService#getByTenantId at the moment it becomes true.
         // The mail this path produces right now is Keycloak's VERIFY_EMAIL, which is the one the
         // fixed 202 body ("revisa tu correo") actually refers to.
 

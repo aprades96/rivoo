@@ -173,8 +173,8 @@ class SalonRegistrationEnumerationTest {
      * <p>
      * No notification expectation on purpose: this path sends none from salon-service at
      * registration time. The mail it produces is Keycloak's VERIFY_EMAIL (triggered inside
-     * auth-service), and the WELCOME one waits until the address is actually confirmed - see
-     * {@code OwnerVerificationActivationService}. An unexpected POST to notification-service here
+     * auth-service), and the WELCOME one waits until the salon is actually published - see
+     * {@code SalonService#getByTenantId}. An unexpected POST to notification-service here
      * would fail the request itself.
      */
     private static Fixture free() {

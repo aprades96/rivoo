@@ -17,6 +17,7 @@ import com.rivoo.salon.domain.port.in.ManageBusinessHoursUseCase;
 import com.rivoo.salon.domain.port.in.ManageSalonStatusUseCase;
 import com.rivoo.salon.domain.port.in.UpdateSalonUseCase;
 import com.rivoo.salon.domain.port.out.BusinessHoursPersistencePort;
+import com.rivoo.salon.domain.port.out.NotificationServicePort;
 import com.rivoo.salon.domain.port.out.SalonPersistencePort;
 import com.rivoo.salon.domain.port.out.StaffServicePort;
 import com.rivoo.salon.infrastructure.mapper.SalonDtoMapper;
@@ -41,15 +42,72 @@ public class SalonService implements GetSalonUseCase, UpdateSalonUseCase,
     private final StaffServicePort staffServicePort;
     private final SalonDtoMapper salonDtoMapper;
     private final SalonPublicSnapshotLoader salonPublicSnapshotLoader;
+    private final NotificationServicePort notificationServicePort;
 
     // ── Get Salon ───────────────────────────────────────────────────────
 
+    /**
+     * Reads the caller's own salon and, the first time an authenticated caller arrives, publishes it.
+     * <p>
+     * <b>Why a read publishes anything.</b> Registration is anonymous, so the address on the form is
+     * unproven and the salon is left {@code ONBOARDING} — invisible on every anonymous surface — on
+     * purpose. What ends that wait is proof that the owner controls the address, and that proof is
+     * already in the request: the owner is created in Keycloak with a pending {@code VERIFY_EMAIL}
+     * required action, Keycloak refuses to complete a login while a required action is pending, so a
+     * token for this tenant cannot exist unless the address was confirmed. Asking anyone is
+     * redundant — the token IS the answer, and it arrives on its own.
+     * <p>
+     * <b>Not {@code @Transactional}.</b> Two reasons. The promotion is a single atomic conditional
+     * statement that needs no transaction of its own to be correct, and the welcome mail is an HTTP
+     * call that must not run while a JDBC connection is held — the rule
+     * {@link SalonPublicSnapshotLoader} exists to enforce on the public read path.
+     */
     @Override
-    @Transactional(readOnly = true)
-    public SalonResponse getByTenantId(String tenantId) {
+    public SalonResponse getByTenantId(String tenantId, Boolean ownerEmailVerifiedClaim) {
         Salon salon = salonPersistencePort.findByTenantId(tenantId)
                 .orElseThrow(() -> new SalonNotFoundException(tenantId));
-        return salonDtoMapper.toResponse(salon);
+
+        // The overwhelmingly common case - an already published salon whose owner is opening their
+        // dashboard for the thousandth time - leaves here having issued ONE read and no write at
+        // all. The write is reachable only from the single ONBOARDING row, once in its lifetime.
+        if (salon.getStatus() != SalonStatus.ONBOARDING || Boolean.FALSE.equals(ownerEmailVerifiedClaim)) {
+            return salonDtoMapper.toResponse(salon);
+        }
+
+        return salonDtoMapper.toResponse(publishOnOwnerArrival(tenantId, salon));
+    }
+
+    /**
+     * Turns the ONBOARDING salon into a published one, exactly once however many callers arrive
+     * together.
+     * <p>
+     * The database arbitrates, not this code: {@code activateIfOnboarding} is a conditional update
+     * and only the caller whose statement changed a row is told so. Two dashboard loads racing (two
+     * tabs, a refresh, a retried fetch) therefore produce one promotion and one welcome mail, and
+     * the loser re-reads rather than assuming what the winner wrote — the status may also have moved
+     * somewhere else entirely, since billing-service can suspend a tenant at any moment.
+     */
+    private Salon publishOnOwnerArrival(String tenantId, Salon salon) {
+        if (salonPersistencePort.activateIfOnboarding(tenantId) == 0) {
+            return salonPersistencePort.findByTenantId(tenantId)
+                    .orElseThrow(() -> new SalonNotFoundException(tenantId));
+        }
+
+        salon.setStatus(SalonStatus.ACTIVE);
+        log.atInfo().addKeyValue("externalId", salon.getExternalId())
+                .log("Owner reached their dashboard with a verified address, salon is now publicly visible");
+
+        // The welcome template reads "tu salon esta activo", so it belongs here and not at
+        // registration: until this moment the statement was false. Fire-and-forget like every other
+        // notification in this flow — a mail that does not go out must not undo a publication that
+        // did, and must not turn the owner's dashboard into an error either.
+        try {
+            notificationServicePort.sendWelcomeEmail(salon.getTenantId(), salon.getEmail(), salon.getName());
+        } catch (Exception e) {
+            log.atWarn().setCause(e).addKeyValue("externalId", salon.getExternalId())
+                    .log("Failed to send welcome email after publishing the salon, continuing");
+        }
+        return salon;
     }
 
     @Override

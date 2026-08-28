@@ -66,8 +66,8 @@ public class SalonPersistenceAdapter implements SalonPersistencePort {
     }
 
     @Override
-    public List<Salon> findByStatus(SalonStatus status) {
-        return salonJpaRepository.findByStatus(status)
-                .stream().map(mapper::toDomain).toList();
+    public int activateIfOnboarding(String tenantId) {
+        return salonJpaRepository.updateStatusIfCurrentlyIs(
+                tenantId, SalonStatus.ONBOARDING, SalonStatus.ACTIVE, Instant.now());
     }
 }

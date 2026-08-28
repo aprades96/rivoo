@@ -21,8 +21,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Service
 public class AuthService implements RegisterOwnerUseCase, RegisterEmployeeUseCase,
-        ManageTenantStatusUseCase, UpdateTenantAttributeUseCase, ListTenantUsersUseCase,
-        CheckEmailVerificationUseCase {
+        ManageTenantStatusUseCase, UpdateTenantAttributeUseCase, ListTenantUsersUseCase {
 
     /**
      * The owner picks their own password during registration, so the ONLY thing Keycloak has to
@@ -182,14 +181,6 @@ public class AuthService implements RegisterOwnerUseCase, RegisterEmployeeUseCas
                         mapping.getRole().name(),
                         mapping.isActive()))
                 .toList();
-    }
-
-    @Override
-    public boolean isEmailVerified(String keycloakUserId) {
-        boolean verified = keycloakAdminPort.isEmailVerified(keycloakUserId);
-        log.atDebug().addKeyValue("keycloakUserId", keycloakUserId).addKeyValue("emailVerified", verified)
-                .log("Read email verification state from Keycloak");
-        return verified;
     }
 
     private void compensateUserCreation(String keycloakUserId) {

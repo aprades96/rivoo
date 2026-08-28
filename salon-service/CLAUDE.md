@@ -64,45 +64,88 @@ The saga ENDS there. It does not activate the salon and it sends no mail of its 
 this path produces is Keycloak's `VERIFY_EMAIL`, which is what the fixed 202 body ("revisa tu
 correo") refers to.
 
-**Between registration and verification** the salon exists but is not published: `status=ONBOARDING`,
-`owner_user_id` set, slug and address reserved, FREE_TRIAL subscription created in billing-service.
-It is absent from `GET /api/v1/salons/public/{slug}` (404), from public availability and from public
-booking in appointment-service (404, same exception as an unknown slug). The owner cannot log in
-either — Keycloak blocks them until `VERIFY_EMAIL` is done — so nothing of theirs is unreachable that
-they could otherwise reach. Admin surfaces (`GET /api/internal/admin/salons`) and the internal
-by-slug lookup still show it, with its real status.
+**Between registration and the owner's first authenticated call** the salon exists but is not
+published: `status=ONBOARDING`, `owner_user_id` set, slug and address reserved, FREE_TRIAL
+subscription created in billing-service. It is absent from `GET /api/v1/salons/public/{slug}` (404),
+from public availability and from public booking in appointment-service (404, same exception as an
+unknown slug). The owner cannot log in either — Keycloak blocks them until `VERIFY_EMAIL` is done —
+so nothing of theirs is unreachable that they could otherwise reach. Admin surfaces
+(`GET /api/internal/admin/salons`) and the internal by-slug lookup still show it, with its real
+status.
 
-**Activation — owner email verification**: `OwnerVerificationActivationService`, on a 1-minute
-`@Scheduled` tick, asks auth-service whether each ONBOARDING salon's owner has confirmed their
-address (`GET /api/internal/auth/users/{keycloakUserId}/email-verified`, which reads Keycloak's
-`emailVerified`) and promotes the ones that have to `ACTIVE`, then sends the `WELCOME` mail — whose
-copy says "tu salón está activo", true only from that moment. Polling rather than a Keycloak event
-listener SPI or a browser callback: Keycloak notifies nobody, an SPI means shipping a JAR into the
-identity provider for one boolean, and a browser callback would put the trigger back in the hands of
-an anonymous caller. Only an explicit `true` promotes; a salon that cannot be checked is left
-pending and retried.
+**Publication — the owner's first authenticated request**: `GET /api/v1/salons/me` publishes the
+salon. Keycloak creates the owner with a pending `VERIFY_EMAIL` required action and refuses to
+complete a login while any required action is pending, so a token for this tenant **cannot exist**
+unless the owner confirmed the address. The proof therefore arrives with the request; nothing has to
+go and ask, and there is no timer, no polling and no state machine. `SalonService.getByTenantId`
+promotes the salon to `ACTIVE` and sends the `WELCOME` mail — whose copy says "tu salón está
+activo", true only from that moment — and then serves the dashboard as usual.
 
-**What is closed, and what is not**
+Three properties of that promotion, all pinned by `SalonRegistrationPublicVisibilityTest`:
 
-- **Closed — the response**: `POST /api/v1/salons` answers **202 Accepted with one fixed body**
-  whether the address was free or already had an account, and never 201/409. The difference goes to
-  the address owner by email (`REGISTRATION_ATTEMPT_EXISTING_ACCOUNT`) instead of to the caller. The
-  same applies when auth-service answers 409 (address known to Keycloak but with no salon row): the
-  saga rolls the salon back and returns that identical 202. See `SalonRegistrationEnumerationTest`.
-- **Closed — the side effect**: this used to be open, and the uniform response above did NOT close
-  it. Registration published the salon immediately (`status=ACTIVE`) under a slug derived from the
-  attacker-supplied `name`, so `POST /api/v1/salons {email: victim, name: "probe-aaa-111"}` followed
-  by `GET /api/v1/salons/public/probe-aaa-111` answered **200 for a FREE address and 404 for a TAKEN
-  one** — the same yes/no, one anonymous request later, no timing analysis, ~50 addresses a minute
-  under the gateway's general tier. Registering into ONBOARDING closes it: an unverified probe and a
-  taken address both yield 404. See `SalonRegistrationPublicVisibilityTest`, which drives the real
-  saga down both paths and compares the public surface.
-- **NOT closed — timing**: the free path does DB writes plus three synchronous inter-service calls
-  (auth-service alone makes ≥ 4 Keycloak round trips) while the taken path does one query and one
-  notification POST. That is a difference in ROUND-TRIP COUNT, not a statistical residue —
-  discriminable from a single sample in most deployments. Closing it needs asynchronous registration
-  (accept, queue, answer immediately, do the work off the request thread), which is a redesign.
-  **Do not describe the endpoint as non-enumerable without qualification.**
+- **Conditional.** The write is reachable only from a salon that is still `ONBOARDING`. Every later
+  dashboard load is a plain read: no update statement is issued at all.
+- **Concurrency-safe.** The promotion is one conditional statement
+  (`SalonPersistencePort.activateIfOnboarding` → `UPDATE ... WHERE tenant_id = ? AND status =
+  'ONBOARDING'`) and the caller acts on the rows-affected count, never on its own earlier read. Two
+  simultaneous dashboard loads therefore produce one promotion and **one** welcome mail; the loser
+  re-reads the row rather than assuming what the winner wrote.
+- **`email_verified` is belt and braces, not the gate.** The claim reaches the controller through
+  `KeycloakJwtConverter` → `TenantAwareJwtAuthenticationToken.getEmailVerified()` (three-valued:
+  `TRUE` / `FALSE` / `null` when the realm does not map it). An explicit `FALSE` withholds the
+  promotion. An **absent** claim does not: the token's existence is the real proof, and failing
+  closed there would strand every owner on a realm whose `email` client scope is not default. In
+  the `rivoo` realm the claim IS mapped and IS in the access token — `email` is listed in
+  `defaultDefaultClientScopes` and carries the `email verified` protocol mapper
+  (`infrastructure/keycloak/rivoo-realm.json`).
+
+`GET /api/v1/salons/me` also allows `EMPLOYEE`, and that cannot be used to publish a salon early: an
+employee account only exists because a `SALON_OWNER` of the same tenant created it through
+staff-service, which needs an owner token, which needs the owner to have completed `VERIFY_EMAIL` —
+by which time the salon is already published. Were that ever to stop holding, an employee arriving
+first would still be sound proof of the same fact.
+
+**An owner who never opens their dashboard keeps an invisible salon for ever.** That is the accepted
+outcome, not an oversight: they cannot take a booking anyway without first adding services, which is
+done from that same dashboard. The row is kept (see the cleanup rule below) so its address and slug
+stay reserved.
+
+**Account enumeration is NOT closed.** What is closed is one specific channel; two remain, and both
+are real.
+
+- **Closed — the registration response itself.** `POST /api/v1/salons` answers **202 Accepted with
+  one fixed body**, byte-identical across all three outcomes (address free, address already has a
+  salon, address known to Keycloak with no salon row), and never 201/409. The difference goes to the
+  address owner by email (`REGISTRATION_ATTEMPT_EXISTING_ACCOUNT`) instead of to the caller. Pinned
+  by `SalonRegistrationEnumerationTest`. **That is the whole of what is closed. Nothing else.**
+- **OPEN — the slug-allocation oracle.** Slugs are derived from the attacker-supplied `name` and
+  de-duplicated by appending `-2`, `-3`, … (`OnboardingSagaService#generateUniqueSlug`), so slug
+  allocation leaks whether the previous registration created a row:
+  1. `POST /api/v1/salons {email: victim, name: "probe-x"}` → always 202.
+  2. `POST /api/v1/salons {email: <disposable mailbox the attacker controls>, name: "probe-x"}` →
+     always 202. This one gets `probe-x` if the first attempt created **nothing** (address TAKEN)
+     and `probe-x-2` if it created a row (address FREE).
+  3. The attacker verifies their own disposable address, opens the dashboard once (which publishes
+     their salon) and reads the answer off `GET /api/v1/salons/me` — or simply off the public page:
+     200 on `probe-x-2` means the victim's address was free, 200 on `probe-x` means it was taken.
+
+  Two anonymous POSTs, one disposable mailbox, one click. Deterministic, no timing analysis. Making
+  registration end in `ONBOARDING` did NOT close this: the row still exists and still holds the slug.
+- **OPEN — the timing channel.** Three distinguishable classes of work, differing in ROUND-TRIP
+  COUNT rather than by a statistical residue, so discriminable from a single sample in most
+  deployments:
+  1. *Address already has a salon* (`existsByEmail` is true): one query, plus one notification POST.
+  2. *Address known to Keycloak but with no salon row* (auth-service answers 409): the slug
+     existence queries, the salon INSERT, seven business-hours rows, the auth-service call (≥ 4
+     Keycloak round trips inside it), the compensating DELETE, plus one notification POST.
+  3. *Address free*: as (2) minus the DELETE and minus the notification POST, plus the second salon
+     UPDATE that links the owner and one billing-service call.
+
+  Closing it needs asynchronous registration (accept, queue, answer immediately, do the work off the
+  request thread), which is a redesign.
+
+**Do not describe this endpoint as non-enumerable, closed, or safe against enumeration.** Only the
+response body is uniform.
 
 **Compensations**:
 - Step 2 fails → delete salon from DB
@@ -110,10 +153,10 @@ pending and retried.
 
 **Stale onboarding cleanup**: `@Scheduled` job finds salons with `status=ONBOARDING` older than 1
 hour **and no `owner_user_id`** → marks as `FAILED`. The owner-less condition is load-bearing:
-ONBOARDING now also means "waiting for the owner to click the link", and reaping that after an hour
-would leave an owner who reads their mail in the evening with a permanently invisible salon and no
-self-service way out. Such a salon waits indefinitely and keeps its address and slug — releasing
-them would let the next probe re-create it. Pinned by `SalonSchedulingConfigTest`.
+ONBOARDING now also means "waiting for the owner to turn up authenticated", and reaping that after
+an hour would leave an owner who reads their mail in the evening with a permanently invisible salon
+and no self-service way out. Such a salon waits indefinitely and keeps its address and slug —
+releasing them would let the next probe re-create it. Pinned by `SalonSchedulingConfigTest`.
 
 ---
 
@@ -143,9 +186,6 @@ them would let the next probe re-create it. Pinned by `SalonSchedulingConfigTest
 | GET | `/api/internal/salons/by-slug/{slug}` | Get salon by slug | appointment-service (public booking) |
 | GET | `/api/internal/admin/salons` | List all salons | admin-service |
 
-**Consumed** from auth-service: `GET /api/internal/auth/users/{keycloakUserId}/email-verified` — the
-activation tick's only input.
-
 ---
 
 ## Business Rules
@@ -153,8 +193,9 @@ activation tick's only input.
 1. Salon `external_id` = `tenant_id` (the salon IS the tenant)
 2. `subscription_plan` in salon is a **cache** — source of truth is billing-service
 3. Slug must be unique and URL-safe
-3b. A salon is **not publicly visible until its owner has verified their email address**. Registration
-   is anonymous, so until then nobody has proved they control the address that was submitted.
+3b. A salon is **not publicly visible until its owner makes an authenticated request**
+   (`GET /api/v1/salons/me`). Registration is anonymous, so until then nobody has proved they
+   control the address that was submitted; a Keycloak token for the tenant is that proof.
 4. Business hours: exactly 7 rows (Mon-Sun), created on salon registration
 
 ---

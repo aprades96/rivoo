@@ -4,6 +4,7 @@ import com.rivoo.salon.domain.model.Salon;
 import com.rivoo.salon.domain.model.SalonStatus;
 import com.rivoo.salon.domain.port.in.GetSalonUseCase;
 import com.rivoo.salon.domain.port.out.BusinessHoursPersistencePort;
+import com.rivoo.salon.domain.port.out.NotificationServicePort;
 import com.rivoo.salon.domain.port.out.SalonPersistencePort;
 import com.rivoo.salon.domain.port.out.StaffServicePort;
 import com.rivoo.salon.infrastructure.mapper.SalonDtoMapper;
@@ -63,7 +64,7 @@ class SalonServiceTransactionBoundaryTest {
     private static final String TENANT_ID = "sal_demo";
 
     // Autowired by the port interface (not the concrete SalonService class):
-    // SalonService also has other @Transactional methods (getByTenantId, update...),
+    // SalonService also has other @Transactional methods (getBySlug, update...),
     // so Spring's default (non-CGLIB) auto-proxying wraps it in a JDK dynamic proxy
     // that implements GetSalonUseCase and friends, but is not assignable to the
     // concrete SalonService type.
@@ -146,8 +147,11 @@ class SalonServiceTransactionBoundaryTest {
                                    StaffServicePort staffServicePort,
                                    SalonDtoMapper salonDtoMapper,
                                    SalonPublicSnapshotLoader salonPublicSnapshotLoader) {
+            // The welcome mail is irrelevant to this test's subject (the transaction boundary of
+            // getPublicBySlug) and is never reached from it: an ACTIVE salon read by slug never
+            // touches the publication path.
             return new SalonService(salonPersistencePort, businessHoursPersistencePort, staffServicePort,
-                    salonDtoMapper, salonPublicSnapshotLoader);
+                    salonDtoMapper, salonPublicSnapshotLoader, mock(NotificationServicePort.class));
         }
 
         private static Salon activeSalon() {

@@ -2,7 +2,6 @@ package com.rivoo.salon.infrastructure.config;
 
 import com.rivoo.salon.domain.model.Salon;
 import com.rivoo.salon.domain.model.SalonStatus;
-import com.rivoo.salon.domain.port.in.ActivateVerifiedSalonsUseCase;
 import com.rivoo.salon.domain.port.out.SalonPersistencePort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,10 +15,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -30,9 +27,10 @@ import static org.mockito.Mockito.when;
  *   <li>No {@code ownerUserId}: the saga died before it could create the Keycloak user. Nothing is
  *       ever going to finish it — reap it.</li>
  *   <li>An {@code ownerUserId}: the registration completed and the salon is waiting for its owner
- *       to click the link in their mail. Reaping THAT after an hour would mean anyone who reads
- *       their mail in the evening ends up with a permanently invisible salon and no self-service
- *       way out — the exact outcome the whole change exists to prevent.</li>
+ *       to confirm their address and open their dashboard, which is what publishes it. Reaping THAT
+ *       after an hour would mean anyone who reads their mail in the evening ends up with a
+ *       permanently invisible salon and no self-service way out — the exact outcome the whole
+ *       change exists to prevent.</li>
  * </ul>
  */
 @ExtendWith(MockitoExtension.class)
@@ -41,14 +39,11 @@ class SalonSchedulingConfigTest {
     @Mock
     private SalonPersistencePort salons;
 
-    @Mock
-    private ActivateVerifiedSalonsUseCase activation;
-
     private SalonSchedulingConfig config;
 
     @BeforeEach
     void setUp() {
-        config = new SalonSchedulingConfig(salons, activation);
+        config = new SalonSchedulingConfig(salons);
     }
 
     private static Salon stale(String externalId, String ownerUserId) {
@@ -85,21 +80,5 @@ class SalonSchedulingConfigTest {
         verify(salons).save(saved.capture());
         assertThat(saved.getValue().getStatus()).isEqualTo(SalonStatus.FAILED);
         assertThat(saved.getValue().getExternalId()).isEqualTo("sal_corpse");
-    }
-
-    @Test
-    void activationTickDelegatesToTheUseCase() {
-        config.activateVerifiedOwners();
-
-        verify(activation).activateVerifiedOwners();
-    }
-
-    @Test
-    void aFailingActivationPassDoesNotEscapeTheScheduler() {
-        // A scheduled method that throws is not retried by every executor, and owners staying
-        // invisible for ever is the failure that must be logged rather than silently fatal.
-        doThrow(new RuntimeException("auth-service is down")).when(activation).activateVerifiedOwners();
-
-        assertThatCode(() -> config.activateVerifiedOwners()).doesNotThrowAnyException();
     }
 }

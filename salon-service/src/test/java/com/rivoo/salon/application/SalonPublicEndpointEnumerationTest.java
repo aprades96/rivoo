@@ -9,6 +9,7 @@ import com.rivoo.salon.domain.port.in.ManageSalonStatusUseCase;
 import com.rivoo.salon.domain.port.in.RegisterSalonUseCase;
 import com.rivoo.salon.domain.port.in.UpdateSalonUseCase;
 import com.rivoo.salon.domain.port.out.BusinessHoursPersistencePort;
+import com.rivoo.salon.domain.port.out.NotificationServicePort;
 import com.rivoo.salon.domain.port.out.SalonPersistencePort;
 import com.rivoo.salon.domain.port.out.StaffServicePort;
 import com.rivoo.salon.infrastructure.adapter.in.web.SalonController;
@@ -94,7 +95,8 @@ class SalonPublicEndpointEnumerationTest {
                 mock(BusinessHoursPersistencePort.class),
                 mock(StaffServicePort.class),
                 mock(SalonDtoMapper.class),
-                loader);
+                loader,
+                mock(NotificationServicePort.class));
 
         SalonController controller = new SalonController(
                 mock(RegisterSalonUseCase.class),

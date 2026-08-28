@@ -8,6 +8,7 @@ import com.rivoo.salon.domain.model.SalonBusinessHours;
 import com.rivoo.salon.domain.port.in.ListSalonsUseCase;
 import com.rivoo.salon.domain.port.in.RegisterSalonUseCase;
 import com.rivoo.salon.domain.port.out.BusinessHoursPersistencePort;
+import com.rivoo.salon.domain.port.out.NotificationServicePort;
 import com.rivoo.salon.domain.port.out.SalonPersistencePort;
 import com.rivoo.salon.domain.port.out.StaffServicePort;
 import com.rivoo.salon.infrastructure.adapter.in.web.SalonController;
@@ -74,7 +75,8 @@ class BusinessHoursValidationDetailTest {
                 businessHoursPersistencePort,
                 mock(StaffServicePort.class),
                 mock(SalonDtoMapper.class),
-                mock(SalonPublicSnapshotLoader.class));
+                mock(SalonPublicSnapshotLoader.class),
+                mock(NotificationServicePort.class));
 
         SalonController controller = new SalonController(
                 mock(RegisterSalonUseCase.class), salonService, salonService, salonService,

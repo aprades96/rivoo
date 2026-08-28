@@ -6,6 +6,7 @@ import com.rivoo.salon.domain.model.Salon;
 import com.rivoo.salon.domain.model.SalonBusinessHours;
 import com.rivoo.salon.domain.model.SalonStatus;
 import com.rivoo.salon.domain.port.out.BusinessHoursPersistencePort;
+import com.rivoo.salon.domain.port.out.NotificationServicePort;
 import com.rivoo.salon.domain.port.out.SalonPersistencePort;
 import com.rivoo.salon.domain.port.out.StaffServicePort;
 import com.rivoo.salon.infrastructure.mapper.SalonDtoMapper;
@@ -57,6 +58,9 @@ class SalonServicePublicAggregateTest {
     @Mock
     private SalonPublicSnapshotLoader salonPublicSnapshotLoader;
 
+    @Mock
+    private NotificationServicePort notificationServicePort;
+
     private SalonService salonService;
 
     @BeforeEach
@@ -64,7 +68,7 @@ class SalonServicePublicAggregateTest {
         // Real mapper (not mocked) so we exercise the actual isOpen/open MapStruct mapping.
         SalonDtoMapper mapper = new SalonDtoMapperImpl();
         salonService = new SalonService(salonPersistencePort, businessHoursPersistencePort, staffServicePort,
-                mapper, salonPublicSnapshotLoader);
+                mapper, salonPublicSnapshotLoader, notificationServicePort);
     }
 
     // ── the aggregate this task exists for ────────────────────────────────

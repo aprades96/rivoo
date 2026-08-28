@@ -1,5 +1,6 @@
 package com.rivoo.salon.infrastructure.adapter.in.web;
 
+import com.rivoo.common.security.TenantAwareJwtAuthenticationToken;
 import com.rivoo.common.tenant.TenantContext;
 import com.rivoo.salon.application.dto.BusinessHoursRequest;
 import com.rivoo.salon.application.dto.BusinessHoursResponse;
@@ -24,6 +25,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -69,12 +72,22 @@ public class SalonController {
 
     // ── Authenticated ───────────────────────────────────────────────────
 
+    /**
+     * The owner's dashboard read — and the only thing that ever publishes a salon.
+     * <p>
+     * {@code EMPLOYEE} is allowed here too and cannot short-circuit that: an employee account only
+     * exists because a {@code SALON_OWNER} of the same tenant created it through staff-service,
+     * which needs an owner token, which needs the owner to have completed {@code VERIFY_EMAIL} — by
+     * which time this endpoint has already published the salon. Should that ever stop holding, an
+     * employee arriving first would still be sound proof: their own token cannot exist without
+     * someone having authenticated as the owner of this tenant to create them.
+     */
     @GetMapping("/api/v1/salons/me")
     @PreAuthorize("hasAnyRole('SALON_OWNER', 'EMPLOYEE')")
     public ResponseEntity<SalonResponse> getMe() {
         String tenantId = TenantContext.getCurrentTenantId();
         log.atInfo().log("GET /api/v1/salons/me");
-        SalonResponse response = getSalonUseCase.getByTenantId(tenantId);
+        SalonResponse response = getSalonUseCase.getByTenantId(tenantId, currentEmailVerifiedClaim());
         return ResponseEntity.ok(response);
     }
 
@@ -129,6 +142,25 @@ public class SalonController {
         log.atInfo().log("GET /api/internal/admin/salons");
         Page<SalonResponse> response = listSalonsUseCase.listAll(pageable);
         return ResponseEntity.ok(response);
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────
+
+    /**
+     * The caller's {@code email_verified} claim, or {@code null} when there is nothing to read it
+     * from.
+     * <p>
+     * Null covers two cases and both mean the same thing here — "the token asserts nothing about
+     * it": a realm that does not map the claim, and an authentication that is not a Keycloak JWT at
+     * all. Neither is a denial, and treating them as one would strand every owner on such a realm
+     * with a salon nobody can find and no way to fix it themselves. The token's mere existence is
+     * the real proof; the claim is belt and braces on top of it.
+     */
+    private static Boolean currentEmailVerifiedClaim() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return authentication instanceof TenantAwareJwtAuthenticationToken token
+                ? token.getEmailVerified()
+                : null;
     }
 
 }

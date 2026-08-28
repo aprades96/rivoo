@@ -25,14 +25,17 @@ import org.springframework.http.HttpStatus;
  * That escape is a bug, not a fallback — {@code SalonRegistrationEnumerationTest} pins that both
  * paths answer 202.
  * <p>
- * <b>Scope, precisely.</b> Hiding this exception makes the RESPONSE uniform, and that alone left the
- * oracle open: registration also used to PUBLISH the new salon immediately, under a slug derived
- * from the attacker-supplied name, so one extra anonymous {@code GET /api/v1/salons/public/{slug}}
- * answered 200 for a free address and 404 for a taken one. That half is closed separately, by
- * registering into {@code ONBOARDING} and only promoting to {@code ACTIVE} once the owner confirms
- * the address (see {@code OwnerVerificationActivationService} and
- * {@code SalonRegistrationPublicVisibilityTest}). A TIMING difference between the two paths remains
- * open and is not addressed anywhere — see {@code OnboardingRejection} and the module CLAUDE.md.
+ * <b>Scope, precisely — and it is narrow.</b> Hiding this exception makes the RESPONSE uniform. It
+ * does NOT make {@code POST /api/v1/salons} safe against account enumeration, and nothing else does
+ * either. Registration used to PUBLISH the new salon immediately under a slug derived from the
+ * attacker-supplied name, so one extra anonymous {@code GET /api/v1/salons/public/{slug}} answered
+ * 200 for a free address and 404 for a taken one; registering into {@code ONBOARDING} and only
+ * publishing on the owner's first authenticated call closes THAT read (see
+ * {@code SalonService#getByTenantId} and {@code SalonRegistrationPublicVisibilityTest}) — but the row
+ * is still created and still consumes the slug, so a second registration under the same name gets
+ * {@code probe-x-2} instead of {@code probe-x} and says the same thing. That oracle, and a timing
+ * one in three classes, are both still OPEN: see {@code OnboardingRejection} and the module
+ * CLAUDE.md before describing this endpoint as non-enumerable.
  */
 public class EmailAlreadyInUseException extends RivooException {
 

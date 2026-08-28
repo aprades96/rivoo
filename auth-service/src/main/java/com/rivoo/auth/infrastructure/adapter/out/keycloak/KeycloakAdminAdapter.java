@@ -248,16 +248,6 @@ public class KeycloakAdminAdapter implements KeycloakAdminPort {
     }
 
     @Override
-    public boolean isEmailVerified(String keycloakUserId) {
-        log.atDebug().addKeyValue("keycloakUserId", keycloakUserId).log("Reading Keycloak emailVerified flag");
-
-        KeycloakUserRepresentation user = getUser(keycloakUserId);
-        // Keycloak omits the field rather than sending false on some representations, and a missing
-        // flag is NOT proof of verification: only an explicit true may promote a salon.
-        return Boolean.TRUE.equals(user.emailVerified());
-    }
-
-    @Override
     public void deleteUser(String keycloakUserId) {
         log.atWarn().addKeyValue("keycloakUserId", keycloakUserId).log("Deleting Keycloak user (compensation)");
 

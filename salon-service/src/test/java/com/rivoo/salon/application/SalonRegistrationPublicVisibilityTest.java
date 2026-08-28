@@ -1,5 +1,7 @@
 package com.rivoo.salon.application;
 
+import com.rivoo.common.security.KeycloakJwtConverter;
+import com.rivoo.common.tenant.TenantContext;
 import com.rivoo.common.web.GlobalExceptionHandler;
 import com.rivoo.salon.domain.model.Salon;
 import com.rivoo.salon.domain.model.SalonBusinessHours;
@@ -10,6 +12,7 @@ import com.rivoo.salon.domain.port.in.ManageBusinessHoursUseCase;
 import com.rivoo.salon.domain.port.in.ManageSalonStatusUseCase;
 import com.rivoo.salon.domain.port.in.UpdateSalonUseCase;
 import com.rivoo.salon.domain.port.out.BusinessHoursPersistencePort;
+import com.rivoo.salon.domain.port.out.NotificationServicePort;
 import com.rivoo.salon.domain.port.out.SalonPersistencePort;
 import com.rivoo.salon.domain.port.out.StaffServicePort;
 import com.rivoo.salon.infrastructure.adapter.in.web.SalonController;
@@ -18,12 +21,15 @@ import com.rivoo.salon.infrastructure.adapter.out.rest.AuthServiceAdapter;
 import com.rivoo.salon.infrastructure.adapter.out.rest.BillingServiceAdapter;
 import com.rivoo.salon.infrastructure.adapter.out.rest.NotificationServiceAdapter;
 import com.rivoo.salon.infrastructure.mapper.SalonDtoMapperImpl;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
@@ -37,9 +43,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.http.HttpMethod.GET;
 import static org.springframework.http.HttpMethod.POST;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
@@ -60,11 +69,14 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
  * </ol>
  * The same yes/no, one request later, with no timing analysis at all.
  * <p>
- * This test drives the REAL saga on both paths - real {@link OnboardingSagaService}, real outbound
- * adapters, a persistence port that is a genuine in-memory store rather than a stub, so what the
- * saga writes is what the public read sees - and asserts the public surface cannot tell them apart.
- * Then it asserts the salon DOES become visible once the owner confirms the address, because a fix
- * that simply never publishes anything would pass the first half and break the product.
+ * The property pinned here is the whole invariant, end to end: <b>a salon is invisible on every
+ * anonymous surface until its owner makes an authenticated request, and visible immediately
+ * afterwards.</b> This test drives the REAL saga on both paths - real {@link OnboardingSagaService},
+ * real outbound adapters, a persistence port that is a genuine in-memory store rather than a stub,
+ * so what the saga writes is what the public read sees - and asserts the public surface cannot tell
+ * them apart. Then it asserts the salon DOES become visible on the owner's first authenticated call,
+ * because a fix that simply never publishes anything would pass the first half and break the
+ * product.
  * <p>
  * The two worlds are set up differently on purpose (empty store + auth-service accepting, versus a
  * store that already holds a salon for that address and an auth-service that is never contacted): a
@@ -83,8 +95,6 @@ class SalonRegistrationPublicVisibilityTest {
     private static final String NOTIFY_URI = NOTIFICATION_URL + "/api/internal/notifications/send";
 
     private static final String KEYCLOAK_USER_ID = "9f1c2d3e-0000-4444-8888-aaaabbbbcccc";
-    private static final String EMAIL_VERIFIED_URI =
-            AUTH_URL + "/api/internal/auth/users/" + KEYCLOAK_USER_ID + "/email-verified";
 
     /** The address being probed. In one world it already has a salon, in the other it does not. */
     private static final String VICTIM_EMAIL = "victim@x.com";
@@ -112,6 +122,12 @@ class SalonRegistrationPublicVisibilityTest {
     private static final String OWNER_REGISTERED_BODY = """
             {"keycloakUserId":"%s","email":"%s","role":"SALON_OWNER"}
             """.formatted(KEYCLOAK_USER_ID, VICTIM_EMAIL);
+
+    @AfterEach
+    void clearAmbientState() {
+        SecurityContextHolder.clearContext();
+        TenantContext.clear();
+    }
 
     // -- The property --------------------------------------------------------
 
@@ -145,7 +161,7 @@ class SalonRegistrationPublicVisibilityTest {
     void freePathReallyDidCreateASalonUnderTheAttackersSlug() throws Exception {
         // Guards the test above against passing for the wrong reason. The free path DOES persist a
         // salon carrying the attacker's slug and the victim's address - what changed is that the
-        // salon is not publicly visible while its owner has not confirmed the address.
+        // salon is not publicly visible while its owner has not turned up authenticated.
         World free = worldWhereAddressIsFree();
 
         free.register();
@@ -159,39 +175,163 @@ class SalonRegistrationPublicVisibilityTest {
     }
 
     @Test
-    void ownerConfirmsTheAddress_salonBecomesPubliclyVisibleWithNoManualStep() throws Exception {
-        World free = worldWhereTheOwnerWillVerify();
+    void ownerOpensTheirDashboard_salonBecomesPubliclyVisibleWithNoManualStep() throws Exception {
+        World free = worldWhereAddressIsFree();
+        free.expectWelcomeNotification();
 
         free.register();
         assertThat(free.lookUpProbeSlug().getStatus())
-                .as("invisible while the address is unconfirmed")
+                .as("invisible while nobody has authenticated as its owner")
                 .isEqualTo(HttpStatus.NOT_FOUND.value());
 
-        int activated = free.activation.activateVerifiedOwners();
+        MockHttpServletResponse dashboard = free.openDashboard(Boolean.TRUE);
 
-        assertThat(activated).isEqualTo(1);
-        MockHttpServletResponse afterVerification = free.lookUpProbeSlug();
-        assertThat(afterVerification.getStatus())
-                .as("confirming the address must publish the salon with nobody touching anything")
+        assertThat(dashboard.getStatus()).isEqualTo(HttpStatus.OK.value());
+        assertThat(bodyOf(dashboard)).contains("\"status\":\"ACTIVE\"");
+        MockHttpServletResponse afterDashboard = free.lookUpProbeSlug();
+        assertThat(afterDashboard.getStatus())
+                .as("the owner's own first authenticated call must publish the salon, with nobody"
+                        + " touching anything")
                 .isEqualTo(HttpStatus.OK.value());
-        assertThat(bodyOf(afterVerification)).contains(PROBE_SLUG);
+        assertThat(bodyOf(afterDashboard)).contains(PROBE_SLUG);
         free.auth.verify();
         free.notifications.verify();
     }
 
     @Test
-    void ownerHasNotConfirmedYet_salonStaysInvisibleAndNoWelcomeMailGoesOut() throws Exception {
-        World free = worldWhereTheOwnerWillNotVerify();
+    void ownerNeverOpensTheirDashboard_salonStaysInvisibleForEverAndNoWelcomeMailGoesOut() throws Exception {
+        // Recorded deliberately: this salon waits indefinitely. It is the right outcome — its owner
+        // cannot take a booking without first adding services from the very dashboard they never
+        // opened — and it keeps its slug and address, which releasing would let the next probe
+        // re-create.
+        World free = worldWhereAddressIsFree();
 
         free.register();
 
-        int activated = free.activation.activateVerifiedOwners();
-
-        assertThat(activated).isZero();
         assertThat(free.lookUpProbeSlug().getStatus()).isEqualTo(HttpStatus.NOT_FOUND.value());
+        assertThat(free.salons.findBySlug(PROBE_SLUG).orElseThrow().getStatus())
+                .isEqualTo(SalonStatus.ONBOARDING);
         // notifications holds no expectation: a welcome mail here would have failed the call itself.
         free.notifications.verify();
         free.auth.verify();
+    }
+
+    @Test
+    void dashboardTokenWithNoEmailVerifiedClaim_stillPublishesTheSalon() throws Exception {
+        // A realm that does not map the claim issues perfectly valid tokens without it. Refusing to
+        // publish there would strand every owner on that realm with an invisible salon and no
+        // self-service way out — a far worse error than trusting the token, which Keycloak would not
+        // have issued while a VERIFY_EMAIL required action was still pending.
+        World free = worldWhereAddressIsFree();
+        free.expectWelcomeNotification();
+
+        free.register();
+        free.openDashboard(null);
+
+        assertThat(free.lookUpProbeSlug().getStatus()).isEqualTo(HttpStatus.OK.value());
+        free.notifications.verify();
+    }
+
+    @Test
+    void dashboardTokenSayingTheAddressIsNotVerified_doesNotPublishTheSalon() throws Exception {
+        // The one case where the claim overrides the token's existence. An explicit false is the
+        // identity provider actively saying "no", which is not the same as saying nothing.
+        World free = worldWhereAddressIsFree();
+
+        free.register();
+        MockHttpServletResponse dashboard = free.openDashboard(Boolean.FALSE);
+
+        assertThat(dashboard.getStatus())
+                .as("the owner still gets their dashboard; it is the PUBLICATION that is withheld")
+                .isEqualTo(HttpStatus.OK.value());
+        assertThat(bodyOf(dashboard)).contains("\"status\":\"ONBOARDING\"");
+        assertThat(free.lookUpProbeSlug().getStatus()).isEqualTo(HttpStatus.NOT_FOUND.value());
+        assertThat(free.salons.activateAttempts.get())
+                .as("an explicit denial must not even reach the database")
+                .isZero();
+        // No welcome expectation registered: sending one would have failed the request outright.
+        free.notifications.verify();
+    }
+
+    @Test
+    void dashboardLoadOnAnAlreadyPublishedSalon_performsNoWriteAtAll() throws Exception {
+        // Writing on a GET is only defensible while it is strictly conditional. Every load after the
+        // first is a plain read: no conditional update statement, no row touched.
+        World free = worldWhereAddressIsFree();
+        free.expectWelcomeNotification();
+
+        free.register();
+        free.openDashboard(Boolean.TRUE);
+
+        int attemptsAfterPublication = free.salons.activateAttempts.get();
+        int writesAfterPublication = free.salons.writes.get();
+        assertThat(attemptsAfterPublication).isEqualTo(1);
+
+        free.openDashboard(Boolean.TRUE);
+        free.openDashboard(Boolean.TRUE);
+
+        assertThat(free.salons.activateAttempts.get())
+                .as("an ACTIVE salon must not send a conditional update on every dashboard load")
+                .isEqualTo(attemptsAfterPublication);
+        assertThat(free.salons.writes.get())
+                .as("nor touch the row by any other route")
+                .isEqualTo(writesAfterPublication);
+        // A second WELCOME would have hit the notification server with no expectation left, failing
+        // the request; verify() then also asserts the first one really did go out.
+        free.notifications.verify();
+    }
+
+    @Test
+    void twoDashboardLoadsAtOnce_publishTheSalonOnceAndSendOneWelcomeMail() throws Exception {
+        // Two tabs, a refresh, a retried fetch. A read-decide-write implementation lets both callers
+        // observe ONBOARDING and both believe they published the salon, which is two welcome mails.
+        // The barrier below forces exactly that interleaving: neither thread may proceed past its
+        // read until the other has read too.
+        RacingSalonStore salons = new RacingSalonStore();
+        salons.seed(onboardingSalon());
+        CountingNotificationService notifications = new CountingNotificationService();
+        BusinessHoursStore businessHours = new BusinessHoursStore();
+        SalonService salonService = new SalonService(
+                salons,
+                businessHours,
+                new EmptyCatalogueStaffService(),
+                new SalonDtoMapperImpl(),
+                new SalonPublicSnapshotLoader(salons, businessHours),
+                notifications);
+
+        CountDownLatch done = new CountDownLatch(2);
+        List<Throwable> failures = new ArrayList<>();
+        Runnable dashboardLoad = () -> {
+            try {
+                salonService.getByTenantId("sal_racing", Boolean.TRUE);
+            } catch (Throwable t) {
+                synchronized (failures) {
+                    failures.add(t);
+                }
+            } finally {
+                done.countDown();
+            }
+        };
+        Thread first = new Thread(dashboardLoad, "dashboard-load-1");
+        Thread second = new Thread(dashboardLoad, "dashboard-load-2");
+        first.start();
+        second.start();
+
+        assertThat(done.await(10, TimeUnit.SECONDS))
+                .as("both dashboard loads must finish; a deadlock here is a failure, not a pass")
+                .isTrue();
+        assertThat(failures).isEmpty();
+        assertThat(salons.bothReadBeforeEitherWrote)
+                .as("the race the test claims to exercise must actually have happened")
+                .isTrue();
+        assertThat(salons.activateAttempts.get())
+                .as("both callers must genuinely have tried; one winning by not trying proves nothing")
+                .isEqualTo(2);
+        assertThat(salons.findByTenantId("sal_racing").orElseThrow().getStatus())
+                .isEqualTo(SalonStatus.ACTIVE);
+        assertThat(notifications.welcomeMails.get())
+                .as("exactly one welcome mail, however many callers arrived together")
+                .isEqualTo(1);
     }
 
     // -- Worlds --------------------------------------------------------------
@@ -207,29 +347,7 @@ class SalonRegistrationPublicVisibilityTest {
                 .andRespond(withSuccess());
         // No notification expectation: at REGISTRATION time this path sends none. The mail the
         // owner receives is Keycloak's VERIFY_EMAIL, and the WELCOME one only goes out once the
-        // salon is really active. An unexpected POST here fails the request itself.
-        return world;
-    }
-
-    /**
-     * As above, plus the activation pass finding the address confirmed.
-     * <p>
-     * Every expectation is registered before the first request on purpose: {@code
-     * MockRestServiceServer} refuses to accept new ones once traffic has started, and registering
-     * them up front also pins the ORDER the two auth-service calls happen in (register the owner,
-     * then ask about them).
-     */
-    private static World worldWhereTheOwnerWillVerify() {
-        World world = worldWhereAddressIsFree();
-        world.expectEmailVerifiedQuery(true);
-        world.expectWelcomeNotification();
-        return world;
-    }
-
-    /** As above, but Keycloak still reports the address unconfirmed. */
-    private static World worldWhereTheOwnerWillNotVerify() {
-        World world = worldWhereAddressIsFree();
-        world.expectEmailVerifiedQuery(false);
+        // salon is really published. An unexpected POST here fails the request itself.
         return world;
     }
 
@@ -260,11 +378,31 @@ class SalonRegistrationPublicVisibilityTest {
         return world;
     }
 
+    private static Salon onboardingSalon() {
+        return Salon.builder()
+                .externalId("sal_racing")
+                .tenantId("sal_racing")
+                .name("Racing Salon")
+                .slug("racing-salon")
+                .ownerUserId(KEYCLOAK_USER_ID)
+                .email(VICTIM_EMAIL)
+                .phone("+34600111222")
+                .addressStreet("Carrer Demo 1")
+                .addressCity("Barcelona")
+                .addressPostalCode("08001")
+                .timezone("Europe/Madrid")
+                .currency("EUR")
+                .subscriptionPlan(SubscriptionPlan.FREE_TRIAL)
+                .status(SalonStatus.ONBOARDING)
+                .build();
+    }
+
     /**
-     * One wiring of the whole slice: the real saga, the real activation pass, the real public read
-     * path, the real outbound adapters. Only the HTTP edge and the two persistence ports are
-     * doubled, and the persistence double is a real store, not a stub - the whole point is that the
-     * public read observes what the registration actually wrote.
+     * One wiring of the whole slice: the real saga, the real publication path, the real public read
+     * path, the real outbound adapters, and the real {@link KeycloakJwtConverter} turning a token
+     * into the {@code email_verified} claim the controller reads. Only the HTTP edge and the two
+     * persistence ports are doubled, and the persistence double is a real store, not a stub - the
+     * whole point is that the public read observes what the registration actually wrote.
      */
     private static final class World {
 
@@ -273,7 +411,6 @@ class SalonRegistrationPublicVisibilityTest {
         final MockRestServiceServer auth;
         final MockRestServiceServer billing;
         final MockRestServiceServer notifications;
-        final OwnerVerificationActivationService activation;
         final MockMvc mockMvc;
 
         World() {
@@ -295,14 +432,13 @@ class SalonRegistrationPublicVisibilityTest {
                     new BillingServiceAdapter(billingBuilder, BILLING_URL),
                     notificationAdapter);
 
-            activation = new OwnerVerificationActivationService(salons, authAdapter, notificationAdapter);
-
             SalonService salonService = new SalonService(
                     salons,
                     businessHours,
                     new EmptyCatalogueStaffService(),
                     new SalonDtoMapperImpl(),
-                    new SalonPublicSnapshotLoader(salons, businessHours));
+                    new SalonPublicSnapshotLoader(salons, businessHours),
+                    notificationAdapter);
 
             SalonController controller = new SalonController(
                     saga,
@@ -329,13 +465,37 @@ class SalonRegistrationPublicVisibilityTest {
                     .andReturn().getResponse();
         }
 
-        void expectEmailVerifiedQuery(boolean verified) {
-            auth.expect(requestTo(EMAIL_VERIFIED_URI))
-                    .andExpect(method(GET))
-                    .andRespond(withSuccess(
-                            "{\"keycloakUserId\":\"%s\",\"emailVerified\":%s}"
-                                    .formatted(KEYCLOAK_USER_ID, verified),
-                            MediaType.APPLICATION_JSON));
+        /**
+         * The owner's first authenticated call. The security filter chain does not run under
+         * {@code standaloneSetup}, so the two things it would leave behind are placed by hand: the
+         * tenant in {@link TenantContext} (the gateway header the interceptor reads) and the
+         * authentication in the context. The authentication is built by the REAL
+         * {@link KeycloakJwtConverter}, so the claim actually travels the production route rather
+         * than being handed to the controller pre-digested.
+         *
+         * @param emailVerifiedClaim {@code null} to issue a token with no such claim at all
+         */
+        MockHttpServletResponse openDashboard(Boolean emailVerifiedClaim) throws Exception {
+            String tenantId = salons.findBySlug(PROBE_SLUG).orElseThrow().getTenantId();
+            Jwt.Builder jwt = Jwt.withTokenValue("header.payload.signature")
+                    .header("alg", "RS256")
+                    .subject(KEYCLOAK_USER_ID)
+                    .claim("tenant_id", tenantId)
+                    .claim("email", VICTIM_EMAIL)
+                    .claim("realm_access", Map.of("roles", List.of("SALON_OWNER")));
+            if (emailVerifiedClaim != null) {
+                jwt.claim("email_verified", emailVerifiedClaim);
+            }
+            SecurityContextHolder.getContext()
+                    .setAuthentication(new KeycloakJwtConverter().convert(jwt.build()));
+            TenantContext.setCurrentTenantId(tenantId);
+            try {
+                return mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/salons/me"))
+                        .andReturn().getResponse();
+            } finally {
+                TenantContext.clear();
+                SecurityContextHolder.clearContext();
+            }
         }
 
         void expectWelcomeNotification() {
@@ -352,11 +512,16 @@ class SalonRegistrationPublicVisibilityTest {
     /**
      * A real in-memory store, not a stub. Rows go in and come out through copies, so nothing passes
      * between the saga and the public read by object aliasing - the same way a JPA adapter maps to
-     * an entity and back.
+     * an entity and back. {@link #activateIfOnboarding(String)} is a genuine compare-and-set, which
+     * is what the JPQL {@code UPDATE ... WHERE status = ONBOARDING} behind it is.
      */
-    private static final class SalonStore implements SalonPersistencePort {
+    private static class SalonStore implements SalonPersistencePort {
 
-        private final Map<Long, Salon> rows = new LinkedHashMap<>();
+        final Map<Long, Salon> rows = new LinkedHashMap<>();
+        /** How many times the conditional update statement was issued at all. */
+        final AtomicInteger activateAttempts = new AtomicInteger();
+        /** Every row-touching operation: {@code save} plus each successful promotion. */
+        final AtomicInteger writes = new AtomicInteger();
         private long sequence = 0L;
 
         void seed(Salon salon) {
@@ -364,7 +529,8 @@ class SalonRegistrationPublicVisibilityTest {
         }
 
         @Override
-        public Salon save(Salon salon) {
+        public synchronized Salon save(Salon salon) {
+            writes.incrementAndGet();
             if (salon.getId() == null) {
                 salon.setId(++sequence);
                 salon.setCreatedAt(Instant.now());
@@ -375,7 +541,7 @@ class SalonRegistrationPublicVisibilityTest {
         }
 
         @Override
-        public Optional<Salon> findByTenantId(String tenantId) {
+        public synchronized Optional<Salon> findByTenantId(String tenantId) {
             return rows.values().stream()
                     .filter(s -> tenantId.equals(s.getTenantId()))
                     .findFirst()
@@ -383,7 +549,7 @@ class SalonRegistrationPublicVisibilityTest {
         }
 
         @Override
-        public Optional<Salon> findBySlug(String slug) {
+        public synchronized Optional<Salon> findBySlug(String slug) {
             return rows.values().stream()
                     .filter(s -> slug.equals(s.getSlug()))
                     .findFirst()
@@ -391,17 +557,17 @@ class SalonRegistrationPublicVisibilityTest {
         }
 
         @Override
-        public boolean existsBySlug(String slug) {
+        public synchronized boolean existsBySlug(String slug) {
             return rows.values().stream().anyMatch(s -> slug.equals(s.getSlug()));
         }
 
         @Override
-        public boolean existsByEmail(String email) {
+        public synchronized boolean existsByEmail(String email) {
             return rows.values().stream().anyMatch(s -> email.equals(s.getEmail()));
         }
 
         @Override
-        public void deleteById(Long id) {
+        public synchronized void deleteById(Long id) {
             rows.remove(id);
         }
 
@@ -411,7 +577,7 @@ class SalonRegistrationPublicVisibilityTest {
         }
 
         @Override
-        public List<Salon> findByStatusAndCreatedAtBefore(SalonStatus status, Instant before) {
+        public synchronized List<Salon> findByStatusAndCreatedAtBefore(SalonStatus status, Instant before) {
             return rows.values().stream()
                     .filter(s -> s.getStatus() == status
                             && s.getCreatedAt() != null && s.getCreatedAt().isBefore(before))
@@ -420,11 +586,18 @@ class SalonRegistrationPublicVisibilityTest {
         }
 
         @Override
-        public List<Salon> findByStatus(SalonStatus status) {
-            return rows.values().stream()
-                    .filter(s -> s.getStatus() == status)
-                    .map(SalonStore::copyOf)
-                    .toList();
+        public synchronized int activateIfOnboarding(String tenantId) {
+            activateAttempts.incrementAndGet();
+            Optional<Salon> match = rows.values().stream()
+                    .filter(s -> tenantId.equals(s.getTenantId()) && s.getStatus() == SalonStatus.ONBOARDING)
+                    .findFirst();
+            if (match.isEmpty()) {
+                return 0;
+            }
+            match.get().setStatus(SalonStatus.ACTIVE);
+            match.get().setUpdatedAt(Instant.now());
+            writes.incrementAndGet();
+            return 1;
         }
 
         private static Salon copyOf(Salon s) {
@@ -441,23 +614,69 @@ class SalonRegistrationPublicVisibilityTest {
         }
     }
 
+    /**
+     * Forces the interleaving the concurrency test is about: the first two reads of the salon both
+     * complete before either caller is allowed to act on what it read. Without this the two threads
+     * would almost always run one after the other and a read-decide-write bug would survive.
+     */
+    private static final class RacingSalonStore extends SalonStore {
+
+        private final AtomicInteger reads = new AtomicInteger();
+        volatile boolean bothReadBeforeEitherWrote;
+
+        /**
+         * The barrier ACTION records the state, not the threads: it runs exactly once, while both
+         * threads are still parked, so the observation cannot itself race with the promotion.
+         */
+        private final CyclicBarrier bothHaveRead =
+                new CyclicBarrier(2, () -> bothReadBeforeEitherWrote = activateAttempts.get() == 0);
+
+        @Override
+        public Optional<Salon> findByTenantId(String tenantId) {
+            Optional<Salon> found = super.findByTenantId(tenantId);
+            if (reads.incrementAndGet() <= 2) {
+                try {
+                    bothHaveRead.await(10, TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    throw new IllegalStateException("the two dashboard loads never met at the barrier", e);
+                }
+            }
+            return found;
+        }
+    }
+
+    private static final class CountingNotificationService implements NotificationServicePort {
+
+        final AtomicInteger welcomeMails = new AtomicInteger();
+
+        @Override
+        public void sendWelcomeEmail(String tenantId, String recipientEmail, String salonName) {
+            welcomeMails.incrementAndGet();
+        }
+
+        @Override
+        public void sendExistingAccountRegistrationAttempt(String recipientEmail) {
+            throw new AssertionError("the publication path must never send a registration-attempt mail");
+        }
+    }
+
     private static final class BusinessHoursStore implements BusinessHoursPersistencePort {
 
         private final List<SalonBusinessHours> rows = new ArrayList<>();
 
         @Override
-        public List<SalonBusinessHours> findBySalonId(Long salonId) {
+        public synchronized List<SalonBusinessHours> findBySalonId(Long salonId) {
             return rows.stream().filter(h -> salonId.equals(h.getSalonId())).toList();
         }
 
         @Override
-        public List<SalonBusinessHours> saveAll(List<SalonBusinessHours> hours) {
+        public synchronized List<SalonBusinessHours> saveAll(List<SalonBusinessHours> hours) {
             rows.addAll(hours);
             return List.copyOf(hours);
         }
 
         @Override
-        public void deleteBySalonId(Long salonId) {
+        public synchronized void deleteBySalonId(Long salonId) {
             rows.removeIf(h -> salonId.equals(h.getSalonId()));
         }
     }

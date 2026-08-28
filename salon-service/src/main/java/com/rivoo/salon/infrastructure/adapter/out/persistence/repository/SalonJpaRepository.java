@@ -5,8 +5,10 @@ import com.rivoo.salon.infrastructure.adapter.out.persistence.entity.SalonJpaEnt
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -30,6 +32,21 @@ public interface SalonJpaRepository extends JpaRepository<SalonJpaEntity, Long> 
             @Param("status") SalonStatus status,
             @Param("before") Instant before);
 
-    @Query("SELECT s FROM SalonJpaEntity s WHERE s.status = :status")
-    List<SalonJpaEntity> findByStatus(@Param("status") SalonStatus status);
+    /**
+     * Compare-and-set on {@code status}. The {@code expectedStatus} predicate is the whole point:
+     * it makes the check and the write one statement, so concurrent callers cannot both observe the
+     * old status and both act on it. Returns the number of rows the database actually changed.
+     * <p>
+     * {@code updatedAt} is set explicitly because a bulk JPQL update bypasses the {@code @PreUpdate}
+     * callback that normally maintains it. {@code tenant_id} is in the predicate, so this does not
+     * depend on the Hibernate tenant {@code @Filter} - which bulk update statements ignore anyway.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Transactional
+    @Query("UPDATE SalonJpaEntity s SET s.status = :newStatus, s.updatedAt = :now "
+            + "WHERE s.tenantId = :tenantId AND s.status = :expectedStatus")
+    int updateStatusIfCurrentlyIs(@Param("tenantId") String tenantId,
+                                  @Param("expectedStatus") SalonStatus expectedStatus,
+                                  @Param("newStatus") SalonStatus newStatus,
+                                  @Param("now") Instant now);
 }
