@@ -1,7 +1,10 @@
 # Onboarding reanudable — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `executing-plans` to implement this plan task by task. The steps use checkbox syntax (`- [ ]`) for tracking.
-> **Regla del usuario que anula la skill:** cada despacho —implementador O revisor— es un agente NUEVO. Nunca se reanuda el que ya trabajó. El que revisa nunca es el que implementó.
+> **Reglas del usuario que anulan la skill:**
+> 1. Cada despacho —implementador O revisor— es un agente NUEVO. Nunca se reanuda el que ya trabajó. El que revisa nunca es el que implementó.
+> 2. **La revisión NO va tarea a tarea: va por bloque terminado.** Una pasada de revisión sobre el backend completo (T1-T3) y otra sobre el frontend completo (T4-T9), más el panel de tres sobre los dos puntos críticos. Motivo del usuario, aceptado: el ciclo implementador→revisor→implementador por cada tarea multiplica el tiempo de reloj sin multiplicar la calidad, en un plan que ya lleva dos revisiones independientes encima.
+> 3. La red de seguridad que sustituye a la revisión por tarea: **cada implementador pega la salida real de sus tests**, y el orquestador lee los informes enteros —incluida la parte donde el agente dice lo que NO hizo— antes de encadenar la tarea siguiente.
 
 **Objective:** Que un dueño que omite pasos del alta llegue al panel en vez de quedar atrapado en un bucle, y que las cinco pantallas del asistente existan en móvil y escritorio tal como están dibujadas.
 
