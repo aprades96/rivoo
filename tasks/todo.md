@@ -1409,6 +1409,24 @@ Ramas: `feat/onboarding-reanudable` en los dos repos. Motor: `executing-plans`.
 - [x] **T7** frontend — chasis del asistente + borrar `salon-setup`
 - [x] **T8** frontend — los 5 pasos contra los artboards, movil y escritorio **(panel de 3 en el paso 5)**
 - [x] **T9** frontend — estados vacios en "Hoy" y en la pagina publica
-- [ ] **T10** verificacion: reactor + npm test + comparacion visual + recorrido con el bucle como prueba
+- [x] **T10** verificacion: reactor + npm test + comparacion visual + recorrido con el bucle como prueba
 
 Regla en vigor: cada despacho es un agente NUEVO; el revisor nunca es el implementador.
+
+**CERRADO 2026-08-28.** master backend `a6b70ba`, frontend `36f397a`, ambos empujados.
+426 tests backend + 6 de integracion (MySQL local, `@Tag("integration")`), 203 frontend.
+Verificado de punta a punta contra la pila real: alta -> omitir empleado y servicio ->
+cerrar -> entrar, y la marca no se mueve al repetir.
+
+**Queda pendiente de este bloque:**
+- [ ] Comparacion visual artboard a artboard de las 5 pantallas (movil y escritorio).
+      NO se pudo hacer: no hay Playwright ni Cypress en el repo. Es lo unico del plan
+      sin verificar; los valores estan puestos por lectura del artboard, no por pixel.
+- [ ] `infrastructure/scripts/dev-full-stack.sh` mide la salud de Keycloak en
+      `/health/ready` del puerto 9080, pero en Keycloak 26 eso vive en el puerto de
+      gestion: el script se rinde a los 60s aunque Keycloak arranque bien.
+- [ ] La pantalla de Ajustes de horarios no cumple su artboard `Horario.dc.html`:
+      sin columna de descanso, sin boton de copiar lunes, y en escritorio el artboard
+      pone el interruptor antes del nombre del dia. Pertenece al bloque de pantallas.
+- [ ] Salon de pruebas `salon-e2e-bucle` creado por la verificacion. Borrarlo requiere
+      Keycloak levantado para no dejar el usuario huerfano.
