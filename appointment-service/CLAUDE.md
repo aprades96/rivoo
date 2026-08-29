@@ -52,13 +52,13 @@ idx_appointments_reminder           (start_time, reminder_sent, status)
 ## State Machine
 
 ```
-PENDING → CONFIRMED → IN_PROGRESS → COMPLETED
-             ↓
-          CANCELLED       NO_SHOW
+PENDING ─┬─→ CONFIRMED ─┬─→ IN_PROGRESS → COMPLETED
+         ├─→ CANCELLED  ├─→ CANCELLED
+         └─→ NO_SHOW    └─→ NO_SHOW
 ```
 
 Valid transitions:
-- PENDING → CONFIRMED, CANCELLED
+- PENDING → CONFIRMED, CANCELLED, NO_SHOW (una reserva online a la que el cliente no acude es un no-show sin haber pasado nunca por confirmada)
 - CONFIRMED → IN_PROGRESS, CANCELLED, NO_SHOW
 - IN_PROGRESS → COMPLETED
 - COMPLETED, CANCELLED, NO_SHOW → terminal (no further transitions)
