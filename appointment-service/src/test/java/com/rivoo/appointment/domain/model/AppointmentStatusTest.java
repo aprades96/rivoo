@@ -88,9 +88,9 @@ class AppointmentStatusTest {
         }
 
         @Test
-        @DisplayName("PENDING -> NO_SHOW is invalid")
+        @DisplayName("PENDING -> NO_SHOW is valid")
         void pendingToNoShow() {
-            assertFalse(AppointmentStatus.PENDING.canTransitionTo(AppointmentStatus.NO_SHOW));
+            assertTrue(AppointmentStatus.PENDING.canTransitionTo(AppointmentStatus.NO_SHOW));
         }
     }
 

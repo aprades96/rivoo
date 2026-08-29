@@ -19,7 +19,8 @@ public enum AppointmentStatus {
 
     public boolean canTransitionTo(AppointmentStatus target) {
         return switch (this) {
-            case PENDING -> target == CONFIRMED || target == CANCELLED;
+            // Una reserva online a la que el cliente no acude es un no-show sin haber pasado nunca por confirmada
+            case PENDING -> target == CONFIRMED || target == CANCELLED || target == NO_SHOW;
             case CONFIRMED -> target == IN_PROGRESS || target == CANCELLED || target == NO_SHOW;
             case IN_PROGRESS -> target == COMPLETED;
             case COMPLETED, CANCELLED, NO_SHOW -> false;
