@@ -851,3 +851,65 @@ Una guarda que solo distingue "hay datos / no hay datos" siempre deja uno de los
 salida. Al escribir la guarda, preguntarse: **"si esta peticion falla para siempre, ¿que ve el
 usuario y como sale de ahi?"**. Si la respuesta es un esqueleto, falta la rama de error con
 reintento.
+
+---
+
+## Una entrada sin tachar en `todo.md` no es una entrada viva
+
+**Patron:** el 2026-08-29 recomende al usuario priorizar el bucle infinito de
+`AvailabilityService` "porque una peticion anonima cuelga un hilo". Estaba corregido desde el
+dia anterior en `07e14fb`. Dos mensajes despues volvi a hacerlo con la ventana de 1 hora, tambien
+cerrada, en `11d099d` + `4b7646e`. Las dos entradas seguian con la casilla vacia porque nadie
+las tacho al arreglarlas, y yo lei la casilla como si fuera el estado del codigo.
+
+**Por que importa:** el usuario tuvo que corregirme las dos veces ("pero de que bucle hablas??",
+"hemos dicho antes que ya lo habiamos solucionado"). Peor que perder tiempo: le propuse un ORDEN
+DE TRABAJO entero —adelantar disponibilidad al detalle de cita— construido sobre un hecho falso.
+Una recomendacion de prioridad es exactamente donde mas caro sale equivocarse, porque el usuario
+la ejecuta sin volver a comprobarla.
+
+**Regla:** `tasks/todo.md` registra INTENCION, no ESTADO. Antes de citar cualquier entrada suya
+como trabajo pendiente —y con mas motivo antes de priorizarla— verificarla contra el codigo o
+contra `git log -- <fichero>`. Si la entrada cita `fichero:lineas`, abrir esas lineas. Y al
+cerrar un arreglo, tachar la entrada en el mismo commit: dejarla viva convierte el fichero en
+una trampa para la siguiente sesion.
+
+---
+
+## El hallazgo de un subagente vale para el fichero que cito, no para el que se le parece
+
+**Patron:** un barrido reporto que "los empleados inactivos se filtran y desaparecen" en el
+asistente de nueva cita (`src/components/appointments/wizard/employee-step.tsx`). Escribi ese
+hallazgo en el plan del carril B como si fuera del paso publico
+(`src/components/booking/public-employee-step.tsx`), que es otro fichero y que YA atenua
+correctamente en `:52` con un test que lo fija en `:172-173`. El revisor del plan lo cazo.
+
+**Por que importa:** el brief le habria pedido a un implementador "arregla el filtrado" sobre
+codigo que funciona. En el mejor caso pierde el tiempo; en el peor reescribe una rama correcta y
+rompe el test que la protegia. Y el fallo es invisible: los dos ficheros hacen lo mismo, se
+llaman casi igual y viven en carpetas hermanas.
+
+**Regla:** cuando un subagente devuelve un hallazgo, lo que se copia al plan es su
+`fichero:lineas`, no su descripcion. Antes de convertirlo en tarea, abrir ESE fichero y
+confirmar que es el que se va a modificar. Si dos componentes tienen nombres parecidos
+(`employee-step` / `public-employee-step`), asumir que el hallazgo es del otro hasta demostrar
+lo contrario.
+
+---
+
+## No afirmar en un brief que un campo existe sin haberlo abierto
+
+**Patron:** escribi en el brief del paso 1 "el campo de categoria existe en el tipo del servicio
+— compruebalo en `src/types/salon.ts`". `ServicePublic` no tiene `category`: cero apariciones en
+todo el fichero. El campo vive en `ServiceOffering` (`src/types/service.ts`), el tipo privado del
+backoffice, y nunca se propaga al endpoint publico. El implementador lo comprobo y me lo devolvio.
+
+**Por que importa:** el propio brief le pedia agrupar los servicios por categoria. Un agente
+menos disciplinado habria inferido la categoria del nombre del servicio para cumplir el encargo,
+y eso se ve bien en la captura y es mentira en produccion. La instruccion "si algo de este brief
+resulta falso, dilo en vez de improvisar" es lo unico que lo evito.
+
+**Regla:** una afirmacion sobre la forma de un tipo en un brief es una cita, y las citas se
+verifican: `grep` antes de escribirla. Y mantener en todos los briefs la clausula que autoriza
+al implementador a devolver el brief en vez de cumplirlo — es la red que recoge los errores que
+esta regla no llegue a evitar.

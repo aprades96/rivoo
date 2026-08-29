@@ -1314,9 +1314,18 @@ Salieron de la auditoria de contratos backend/frontend. Verificados por mi, no s
       record. **Merece revisarse si hay mas listas negras** en el proyecto haciendo de guardian
       de seguridad: por construccion solo protegen de lo que alguien ya penso.
 
-## CRITICO — bucle infinito alcanzable sin autenticarse
+## CORREGIDO — bucle infinito alcanzable sin autenticarse (commit `07e14fb`)
 
-- [ ] `AvailabilityService.java:150-162`: `cursor.plusMinutes(serviceDuration)` da la vuelta
+> **Cerrado.** `07e14fb` "stop the slot loop from running for ever past midnight".
+> El cursor ya no es un `LocalTime`: es un `LocalDateTime` anclado a la fecha pedida
+> (`AvailabilityService:175-177`), y el limite `intervalEnd` tambien, asi que el cursor
+> crece estrictamente hacia una cota fija y el bucle no puede dar mas de
+> (largo del intervalo / granularidad) + 1 vueltas, sea cual sea el horario.
+> Lo dejo escrito porque el 2026-08-29 lei esta entrada sin tachar y llegue a recomendar
+> priorizarlo como si siguiera vivo. **Una entrada sin tachar no es una entrada viva:
+> comprobar contra el codigo antes de priorizar.**
+
+- [x] `AvailabilityService.java:150-162`: `cursor.plusMinutes(serviceDuration)` da la vuelta
       pasada medianoche porque `LocalTime` es circular. Si ningun paso de la rejilla llega a
       falsear `cursor + duracion <= cierre`, el `while` NO TERMINA y `slots.add(...)` crece sin
       limite. Reproducido: 09:00-23:59 con d=30 y 10:00-23:45 con d=30 no terminan; 09:00-18:00
@@ -1327,17 +1336,27 @@ Salieron de la auditoria de contratos backend/frontend. Verificados por mi, no s
       hilo y agota la memoria. El filtro de antelacion NO salva: el `continue` tambien avanza
       el cursor. Preexistente, identico antes y despues del arreglo de la ventana.
 
-## La ventana de 1 hora se estrecho, no se cerro
+## CORREGIDA — la ventana de 1 hora (commits `11d099d` + `4b7646e`)
 
-- [ ] La disponibilidad se calcula en T1 y la reserva se valida en T2 > T2 (lo que tarda el
+> **Cerrada.** `BookingWindow` es fuente unica: las DOS partes —la que OFRECE el hueco
+> (`AvailabilityService`) y la que lo ACEPTA (`AppointmentService#book`)— llaman a la misma
+> `isTooSoon(...)`, asi que comparten umbral **y** operador de comparacion y no pueden
+> divergir sin editar ese fichero. `4b7646e` ademas separo las dos audiencias: el visitante
+> anonimo debe `MINIMUM_LEAD_TIME`, el asistente del salon `Duration.ZERO`, y el tiempo de
+> antelacion viaja como argumento justo para que ninguna de las dos vuelva a criar su copia.
+> Segunda entrada de esta seccion que estaba sin tachar estando muerta (la otra era el bucle
+> infinito). Ver la leccion en la seccion del bucle: **comprobar contra el codigo antes de
+> priorizar**.
+
+- [x] La disponibilidad se calcula en T1 y la reserva se valida en T2 > T2 (lo que tarda el
       visitante en rellenar). Todo hueco en `[T1+1h, T2+1h)` se ofrece y se rechaza — o sea,
       el PRIMER hueco de la lista siempre falla si el visitante tarda algo.
-      `appointment-service/CLAUDE.md:77` afirma ahora que eso nunca pasa. Es falso.
-      Arreglo: filtrar en `now + MINIMUM_LEAD_TIME + SLOT_GRANULARITY` (un escalon de holgura),
-      o dar tolerancia al `book()`. Y suavizar la frase del doc.
-- [ ] Sin `serviceId` la disponibilidad publica devuelve intervalos crudos SIN filtrar nada,
-      incluidos dias enteros pasados, a un caller anonimo. `serviceId` es opcional en el
-      endpoint publico.
+- [ ] SIGUE VIVO (comprobado 2026-08-29): sin `serviceId` la disponibilidad publica devuelve
+      intervalos crudos SIN filtrar nada,
+      incluidos dias enteros pasados, a un caller anonimo. `AppointmentController.java:125`
+      sigue declarandolo `@RequestParam(required = false)`, y `AvailabilityService:154` sigue
+      devolviendo `freeIntervals` en crudo cuando la duracion es <= 0. El frontend siempre lo
+      manda, asi que no se ve desde la pagina; se alcanza llamando al endpoint a pelo.
 - [ ] El dia del cambio de hora de primavera, "una hora" se queda en ~1 minuto real: la
       comparacion es en `LocalDateTime`, no en instantes.
 
@@ -1395,7 +1414,7 @@ Sin correo, Keycloak exige verificar y el enlace no llega: nadie puede entrar.
 
 ---
 
-# EN CURSO — Onboarding reanudable (2026-08-28)
+# CERRADO — Onboarding reanudable (2026-08-28)
 
 Plan: `docs/specs/onboarding-reanudable/IMPLEMENTATION_PLAN.md` (v3, dos revisiones independientes).
 Ramas: `feat/onboarding-reanudable` en los dos repos. Motor: `executing-plans`.
@@ -1413,15 +1432,17 @@ Ramas: `feat/onboarding-reanudable` en los dos repos. Motor: `executing-plans`.
 
 Regla en vigor: cada despacho es un agente NUEVO; el revisor nunca es el implementador.
 
-**CERRADO 2026-08-28.** master backend `a6b70ba`, frontend `36f397a`, ambos empujados.
-426 tests backend + 6 de integracion (MySQL local, `@Tag("integration")`), 203 frontend.
+**CERRADO 2026-08-28.** master backend `e895c38`, frontend `43ff432`, ambos empujados.
+(El codigo del bloque entro en `a6b70ba` / `36f397a`; encima van los dos arreglos que
+destapo la comparacion visual y las capturas.)
+426 tests backend + 6 de integracion (MySQL local, `@Tag("integration")`), 208 frontend.
 Verificado de punta a punta contra la pila real: alta -> omitir empleado y servicio ->
 cerrar -> entrar, y la marca no se mueve al repetir.
 
 **Queda pendiente de este bloque:**
 - [x] Comparacion visual artboard a artboard de las 5 pantallas (movil y escritorio).
-      NO se pudo hacer: no hay Playwright ni Cypress en el repo. Es lo unico del plan
-      sin verificar; los valores estan puestos por lectura del artboard, no por pixel.
+      HECHA con Playwright (ver el bloque de abajo). La nota previa que decia
+      "no se pudo hacer, no hay Playwright en el repo" ya no vale: se anadio.
 - [ ] `infrastructure/scripts/dev-full-stack.sh` mide la salud de Keycloak en
       `/health/ready` del puerto 9080, pero en Keycloak 26 eso vive en el puerto de
       gestion: el script se rinde a los 60s aunque Keycloak arranque bien.
@@ -1436,3 +1457,189 @@ cerrar -> entrar, y la marca no se mueve al repetir.
 del diseno. Encontro dos defectos que ni cinco revisores ni 203 tests vieron, ya corregidos:
 el pie sin pegar al fondo en movil (`min-h-full` es un porcentaje y `body` no tiene `height`),
 y un desajuste de hidratacion en la barra de progreso por el formato regional del porcentaje.
+
+---
+
+# Fuera de bloque — hallazgos sueltos (2026-08-28/29)
+
+- [x] **El 500 de staff-service era del entorno, no del codigo.** En el puerto 8083 vivia
+      un proceso anterior a la sesion. Tras reiniciar la pila entera, el endpoint interno
+      `/api/internal/staff/{tenantId}/public/services` responde 200, y el agregado publico
+      de `test-barbershop-e2e` devuelve 1 servicio y 1 empleado con
+      `servicesUnavailable=false` y `employeesUnavailable=false`. Eso confirma de paso que
+      la distincion de T9 entre "no hay servicios" y "no se pudo cargar el catalogo"
+      funciona con datos reales: `barberia-elegante` sale vacio pero con las banderas a
+      false, porque de verdad no tiene catalogo.
+      Leccion: antes de depurar un 500, comprobar que el proceso que responde es el del
+      codigo actual (comparar contra el puerto del build recien arrancado).
+- [x] **`public-datetime-step.test.tsx` era intermitente.** Verde aislado (3/3), rojo en la
+      suite completa: `findBy*` se rinde a los 1000 ms y el primer render de ese componente
+      se iba a ~1,5 s con los 40 ficheros compitiendo. No era un fallo del componente ni del
+      reloj del calendario. Arreglado en la raiz subiendo `asyncUtilTimeout` a 5 s en
+      `src/test/setup.ts`, que cubre toda la suite, no solo ese fichero.
+      208/208 en verde dos ejecuciones seguidas.
+
+---
+
+# Inventario canvas <-> codigo (2026-08-29)
+
+Barrido de los **74 artboards** del canvas "Rivoo Terracota" contra el codigo construido,
+en cuatro pasadas paralelas e independientes. Aqui va SOLO lo que no estaba ya en este
+fichero; lo que ya estaba apuntado se confirmo vigente y no se repite.
+
+**Metodo y limite.** Cada fila se verifico contra `fichero:lineas` del artboard y del codigo.
+Los cinco hallazgos mas graves los volvi a comprobar a mano antes de escribirlos aqui.
+NO es una comparacion de pixeles: nadie ha abierto todavia un navegador contra estas
+pantallas. En el alta reanudable, hacer eso con Playwright destapo dos defectos que no
+vieron ni cinco revisores ni 203 tests. Asumir que esta lista esta completa seria repetir
+ese error.
+
+**El canvas y `design/` estan sincronizados**: los 73 artboards previos son identicos byte a
+byte entre el repo y la version publicada. `design/` es la fuente, se puede editar ahi.
+
+## P0 — Estructural: sin esto no hay ninguna pantalla de escritorio
+
+- [ ] **CV.1** El shell de escritorio no existe. `src/app/(app)/layout.tsx:13-32` es una
+      columna centrada `max-w-3xl` con cabecera movil y barra inferior, identica a cualquier
+      ancho. Los artboards `*Desktop` dibujan barra lateral de 248px + barra superior de 72px
+      (`design/EquipoDesktop.dc.html:37,82`).
+      Ya estaba como "bloque 6 del roadmap", pero sin el dato que lo convierte en
+      prerrequisito y no en remate: **treinta y tantos artboards de escritorio dependen de el**,
+      y ninguna pantalla Desktop se puede construir bien antes. Es lo primero.
+
+## P1 — Construidas contra el diseno ANTERIOR: falta contenido, no estilo
+
+- [ ] **CV.2** **Calendario** (`a34c157`, marzo 2026, contra artboards de agosto). No estaba
+      registrado en este fichero que sus artboards fueran nuevos. Ocho huecos de contenido:
+      - `day-view.tsx:27` pinta UNA sola columna para todas las citas;
+        `CalendarioDesktop.dc.html:152-235` pide una columna por empleado.
+      - `calendar/page.tsx:35` hace `all.filter(a => a.status !== "CANCELLED")`: las citas
+        canceladas NO se ven. El artboard las pinta atenuadas (`:225-228`).
+      - `appointment-block.tsx:4` importa `StatusBadge` y **nunca lo usa**; el artboard pide
+        la pildora de estado dentro del bloque.
+      - El bloque tiene 2 lineas; el artboard pide 3, con duracion y precio ("60min - 35,00 EUR").
+      - No hay boton de crear cita en ningun breakpoint (el artboard movil pide un FAB de 56px
+        `#B4522F`, el de escritorio un boton "Nueva cita").
+      - No hay resumenes por empleado bajo la cabecera, ni selector Dia/Semana.
+      - No hay bloques de descanso: el tipo `Appointment` no los contempla.
+      - Los huecos libres son un borde discontinuo; el artboard pide caja con "Libre - toca para crear".
+- [ ] **CV.3** **Reserva publica: no existe el escritorio.** `grep "md:|lg:"` sobre
+      `src/app/book/` y `src/components/booking/` devuelve **cero**. Hay 12 artboards Desktop
+      (`ReservaDesktopPaso1..6`) sin contrapartida: hoy en escritorio se ve la maqueta movil
+      estirada sin limite de ancho. El flujo funciona, pero solo esta disenado a medias.
+- [ ] **CV.4** **Ficha de cliente sin historial de citas.** `DetalleCliente.dc.html:82-109` y
+      `DetalleClienteDesktop.dc.html:100-243` piden el historial (fecha, servicio, profesional,
+      importe, estado). En `clients/[id]/page.tsx` no hay ni tabla, ni lista, ni import
+      relacionado. Falta en las DOS versiones, no solo en escritorio.
+- [ ] **CV.5** **Paso 3 de la reserva cambia el patron de interaccion.**
+      `public-datetime-step.tsx:68-71` llama a `nextStep()` en el propio click del hueco.
+      `ReservaPaso3.dc.html:101-104` pide que el hueco solo se resalte y que haya un boton
+      "Continuar" con resumen. Faltan tambien las secciones Manana/Tarde, los huecos ocupados
+      visibles y tachados, y marcar los dias cerrados.
+- [ ] **CV.6** **Asistente de nueva cita: se filtra lo que el diseno quiere atenuar.**
+      `employee-step.tsx` filtra los empleados inactivos y `service-step.tsx` los servicios no
+      asignados: desaparecen. Los artboards los pintan atenuados con explicacion ("Estilista -
+      hoy no trabaja"), que es informacion distinta de la ausencia. Faltan tambien los chips de
+      contexto en los pasos 2-4 y el total en la confirmacion.
+
+## P2 — Pantallas o funciones dibujadas que no existen en el codigo
+
+- [ ] **CV.7** **"Cambiar de plan"** (`CambiarPlan.dc.html` + Desktop) no existe: ni ruta ni
+      componente. `billing/page.tsx:122-160` mezcla plan actual y lista de planes en una sola
+      pantalla, sin comparativa de limites ni bloqueo de bajada de plan. `PlanLimitsResponse`
+      esta tipado en `types/billing.ts:34-42` pero **no hay ningun `getPlanLimits`** en
+      `lib/api/billing.ts` ni se usa en ningun sitio.
+- [ ] **CV.8** **El alta contradice su propio diseno.** `Registro.dc.html:31` dice literalmente
+      "Tu salon y tu usuario, en un solo paso" y no dibuja seleccion de plan.
+      `register/page.tsx:7-23` arranca en `step="plans"` y obliga a pasar por `PlanComparison`.
+      DECISION DE PRODUCTO, no un arreglo: o se quita el paso, o se corrige el artboard.
+- [ ] **CV.9** **Formularios: hoja inferior tambien en escritorio.** `employee-form.tsx:127` y
+      `client-form.tsx:108` usan `Sheet side="bottom"` fijo. Los artboards de escritorio piden
+      dialogo modal centrado de 512px. Mismo caso en `appointment-detail-sheet.tsx:84`, que en
+      escritorio se convierte en modal con overlay cuando el artboard pide un panel acoplado de
+      360px junto al calendario.
+- [ ] **CV.10** **Equipo y ficha de empleado en escritorio reusan la tarjeta movil.**
+      `EquipoDesktop.dc.html:100-204` pide tabla con Puesto / Contacto / Color / Estado;
+      `staff/page.tsx:94` reusa `EmployeeCard` sin variante. `DetalleEmpleadoDesktop` pide tres
+      tarjetas lado a lado; `staff/[id]/page.tsx:116-201` usa pestanas igual que en movil.
+- [ ] **CV.11** **El color identificativo del empleado no se muestra nunca.** `colorHex` solo se
+      usa como fondo del avatar (`staff/[id]/page.tsx:127-135`). Los artboards lo piden como
+      dato visible: cuadro de color mas el hex en texto.
+- [ ] **CV.12** **Ajustes sin tarjeta de cabecera ni secciones.** `Ajustes.dc.html:35-44` pide
+      logo + nombre + slug + insignia de plan arriba, y el menu agrupado en tres secciones
+      (Salon / Negocio / Cuenta) con el valor a la derecha de cada linea ("Lun-Vie 9-20",
+      "59 EUR/mes"). `settings/page.tsx:23-35` es una lista plana de icono + etiqueta + chevron.
+
+## P3 — Sistema de diseno: lo que falla en silencio
+
+- [ ] **CV.13** **Ningun boton llega a los 44px que exige el propio sistema.**
+      `Estilo.dc.html:107-109` fija 44px como minimo tactil en movil. El tope de
+      `button.tsx:24-36` es `lg` = `h-9` = **36px**. Afecta a todos los CTA principales del
+      movil, incluida la reserva publica. Es del sistema, no de una pantalla: arreglarlo una vez
+      las corrige todas.
+- [ ] **CV.14** Dos colores del canvas no tienen equivalente en `globals.css`, asi que hoy se
+      aproximan mal o no se usan: el terracota oscuro de pulsacion `#8F3F24` (el codigo lo
+      simula con `bg-primary/80`, que es opacidad, no ese hex) y el ambar de acento `#D9A441`
+      (no aparece en `src/`). El resto de tokens del canvas SI existen y coinciden: 24 de 26
+      comprobados uno a uno (color, tipografia, radios, las 4 duraciones y las 3 curvas).
+
+## P4 — Menores visuales
+
+Unas 25 diferencias de valor (tamanos de insignia, cajas de los botones de navegacion,
+"27 agosto" en vez de "27 de agosto", "45 min" en vez de "45min", "Confirmar cita" en vez de
+"Crear cita", amarillos genericos de Tailwind donde ya hay tokens de marca en
+`globals.css:13-24`). No se listan una a una a proposito: son ruido hasta que exista el shell
+y las pantallas se reconstruyan, y entonces conviene resolverlas mirando el artboard, no esta
+lista.
+
+## Dibujado en esta pasada
+
+- [x] **ClientesDesktop** (`design/ClientesDesktop.dc.html`). Era la unica pantalla sin dibujar
+      de las 74: todas las demas ya tenian par movil/escritorio, `Main.dc.html` resulta ser
+      "Hoy" en movil, y la raiz `/` solo redirige a `/today`.
+      Hecho contra el codigo real: la tabla usa `totalVisits` y `lastVisitAt`, que existen en
+      `src/types/client.ts`, en vez de inventar campos. Mismo chasis que `EquipoDesktop`.
+      Canvas republicado con 74 artboards.
+
+---
+
+# EN CURSO — Carril B: reserva publica en escritorio (2026-08-29)
+
+Plan: `docs/specs/reserva-escritorio/IMPLEMENTATION_PLAN.md` (v2, revisado por un agente
+independiente que encontro 26 defectos, 4 bloqueantes; los cuatro verificados a mano).
+Motor: `executing-plans`. Repo: `E:\IdeaProjects\rivoo-frontend`, solo frontend.
+
+Regla en vigor: el revisor se lanza al terminar el BLOQUE ENTERO, no por tarea.
+Cada despacho es un agente NUEVO; el revisor nunca es el implementador.
+
+- [ ] **T1** sistema — 6 tokens + botones 44/50px + estado deshabilitado solido + variante de
+      insignia + **crear** `ui/checkbox.tsx` (no existia) + `lib/utils/business-hours.ts` +
+      arreglar `min-h-full` del layout de reserva
+- [ ] **T2** los dos chasis — `BookingStepShell` (pasos 1-5, 1120px) y `BookingResultShell`
+      (paso 6 y error, 860px, sin stepper) + stepper + estado `conflict` en el store
+- [ ] **T3** los dos asides — "El salon" (paso 1) y "Tu reserva" (pasos 2-5) + CTA
+- [ ] **T4** paso 1 servicio — grid de 2 columnas con categorias; quitar el horario semanal
+- [ ] **T5** paso 2 profesional — PRESERVAR el atenuado que ya funciona; opacidad 0.55 en movil
+- [ ] **T6** paso 3 fecha y hora — "Continuar" en vez de auto-avanzar, franjas Manana/Tarde,
+      huecos ocupados tachados, dias cerrados, navegador de mes
+- [ ] **T7** paso 4 tus datos — consumir el `checkbox` de T1
+- [ ] **T8** paso 5 confirmar — grid de 3 columnas en escritorio, aviso ambar, fila Total
+- [ ] **T9** paso 6 hecha — `BookingResultShell`, dos columnas, `.ics` en cliente
+- [ ] **T10** pantalla de "ese hueco se acaba de ocupar" (no existia) — **espera a T8**
+- [ ] **T11** verificacion — suite + tsc + lint + Playwright a 390/768/1024/1440 contra los
+      14 artboards + panel de 3 revisores + recorrido real
+
+**Olas:** T1 -> T2 -> T3 -> (T4..T9 en paralelo) -> T10 -> T11.
+
+**Fuera de alcance, por necesitar backend. Van a esta lista al cerrar el bloque:**
+1. Primer hueco libre por profesional (`ReservaPaso2.dc.html:66-88`): `EmployeePublic`
+   (`src/types/salon.ts:31-37`) no transporta disponibilidad.
+2. Numero de huecos por dia (`ReservaDesktopPaso3.dc.html:90-124`): `getPublicAvailability`
+   recibe UN `date`; serian 7 llamadas. **Consecuencia asumida:** un dia abierto pero lleno
+   se pintara como disponible, porque el artboard da a "Sin huecos" el mismo tratamiento
+   visual que a "Cerrado".
+3. El backend NO distingue el conflicto de hueco de ningun otro fallo de negocio:
+   `AppointmentConflictException:16` extiende `BusinessValidationException`, que fija 422 con
+   `type` `business-validation` para todo. Lo correcto seria darle su propio `type` de Problem
+   Details. T10 lo esquiva re-consultando la disponibilidad, que es mas robusto, pero el
+   backend deberia arreglarse igual.
