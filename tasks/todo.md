@@ -766,7 +766,7 @@ así que el paso 1 sale siempre vacío.
 > frontend distinga y reintente. (b) cambia el contrato contra el que el frontend YA esta
 > escrito (`salon.ts:41-63`), asi que no lo aplico sin decidirlo antes.
 
-### 2. Onboarding reanudable — PENDIENTE · opción B decidida
+### 2. Onboarding reanudable — HECHO (verificado en codigo 2026-08-30)
 
 También roto en producción, para usuarios nuevos: `onboarding-gate.tsx:41` deduce el
 estado contando empleados y servicios, y si faltan te manda a `/welcome`. Como los pasos
@@ -776,14 +776,27 @@ Además guarda en cada paso pero reempieza en el 1: la única combinación sin d
 No sirve mirar `status` (la saga deja el salón ACTIVE ya en el registro) ni "¿tiene
 horarios?" (la saga crea horarios por defecto en el paso 4 del registro).
 
-- [ ] **ON.1** Campo `onboarding_completed_at` en salón + migración Flyway
-- [ ] **ON.2** Endpoint para marcarlo, y exponerlo en SalonResponse
-- [ ] **ON.3** El gate mira solo ese flag; fuera la lógica de contar empleados/servicios
-- [ ] **ON.4** "Ir al dashboard" y "Omitir" marcan el flag
-- [ ] **ON.5** El paso de horarios precarga los que ya existen
-- [ ] **ON.6** Estados vacíos: "Hoy" sin servicios, y página pública "aún no acepta reservas"
-- [ ] **ON.7** Decidir qué se hace con `salon-setup` (huérfana, se numera como paso 2)
-- [ ] **ON.8** Pantallas ya dibujadas: página "Alta de negocio" del canvas (12 artboards)
+- [x] **ON.1** Campo `onboarding_completed_at` en salón + migración Flyway
+- [x] **ON.2** Endpoint para marcarlo, y exponerlo en SalonResponse
+- [x] **ON.3** El gate mira solo ese flag; fuera la lógica de contar empleados/servicios
+- [x] **ON.4** "Ir al dashboard" y "Omitir" marcan el flag
+- [x] **ON.5** El paso de horarios precarga los que ya existen
+> Comprobado contra el CODIGO, no contra estas casillas: migracion
+> `V4__add_salon_onboarding_completed_at.sql` con compare-and-set (idempotente, el
+> `WHERE ... IS NULL` de `SalonJpaRepository`), `SalonResponse.onboardingCompletedAt`
+> con test que fija su nombre en el JSON, `onboarding-gate.tsx:43` decidiendo por el
+> flag (fuera el contar empleados y servicios), `(onboarding)/business-hours/page.tsx:31`
+> precargando los horarios, y `salon-setup` borrada.
+> El gate distingue ademas el 404 irrecuperable de "necesita onboarding", que antes
+> paseaba al dueno por cuatro pasos hasta un segundo 404 sin salida.
+> ON.6: `book/[slug]/page.tsx:101` dice "Este salon aun no acepta reservas online" y
+> distingue el catalogo caido (`servicesUnavailable`) para no costarle una reserva al
+> salon por un fallo de red; con test de las dos ramas. ON.8: doce commits sobre
+> `(onboarding)` y `register`, incluido `feat(onboarding): salon listo contra el diseno`.
+
+- [x] **ON.6** Estados vacíos: "Hoy" sin servicios, y página pública "aún no acepta reservas"
+- [x] **ON.7** Decidir qué se hace con `salon-setup` (huérfana, se numera como paso 2)
+- [x] **ON.8** Pantallas ya dibujadas: página "Alta de negocio" del canvas (12 artboards)
 
 ### 3. Detalle de cita — PENDIENTE
 
@@ -803,7 +816,13 @@ de Ajustes.
 ### 6. Shell de escritorio — PENDIENTE
 
 Hoy `(app)/layout.tsx` es solo una columna centrada. Sidebar 248px + topbar 72px.
-El bloque más grande; merece plan propio.
+El bloque más grande; merece plan propio. **Es el siguiente**: unos treinta artboards
+`*Desktop` dependen de el (CV.1).
+
+> **Se lleva ademas el `min-h-full` de `(app)/layout.tsx:21`**, mismo bug que ya arreglamos
+> en el alta y en la reserva: `min-h-full` es un porcentaje y `html`/`body` no tienen `height`,
+> asi que la regla es inerte y el pie no se pega abajo en movil. Se corrige aqui y no como
+> tarea suelta porque este bloque reescribe ese fichero de todas formas.
 
 ### 7. Pantallas sin dibujar — DIBUJADAS 2026-08-28 · canvas: 6 paginas, 71 artboards
 
@@ -1497,6 +1516,50 @@ ese error.
 **El canvas y `design/` estan sincronizados**: los 73 artboards previos son identicos byte a
 byte entre el repo y la version publicada. `design/` es la fuente, se puede editar ahi.
 
+## EL ARTBOARD ES LA FUENTE — vale para TODOS los bloques
+
+**Decision del usuario, 2026-08-29. No se reabre.**
+
+Las pantallas que hay que construir son **las del canvas** (`rivoo-frontend/design/*.dc.html`, 74
+artboards, sincronizados byte a byte con el canvas publicado "Rivoo Terracota"). **Lo que hay
+hoy en el codigo y no coincide con su artboard es lo ANTIGUO** — se hizo antes que estos
+disenos — y hay que cambiarlo. Movil y escritorio, los dos.
+
+**La consecuencia practica, que es donde se falla:** "no tocar lo que ya funciona" NO es un
+objetivo. Preservar el codigo actual solo es correcto cuando el codigo actual YA coincide con
+su artboard. Cuando no coincide, preservarlo es conservar la version vieja.
+
+> Esto costo tres rondas de revision en el bloque 2. El plan protegia el chasis movil existente
+> como intocable ("byte a byte") e intentaba modelar con propiedades las TRES formas de cabecera
+> que tenia el codigo. Los artboards moviles dibujan **una sola** cabecera de 56px con una
+> variante (con o sin boton de volver). No habia que modelar tres formas: habia que sustituirlas
+> por la dibujada. La pregunta correcta no es "¿que hay en el codigo?" sino "¿que hay en el
+> artboard, y en que se diferencia lo construido?".
+
+**Antes de planificar cualquier bloque:** abrir los artboards de sus pantallas —**el movil y el
+de escritorio**— y hacer el inventario de valores contra `fichero:linea`. Lo que no este dibujado
+no se inventa; lo que este dibujado y no exista en el codigo, se construye.
+
+---
+
+## Condiciones de cierre de CADA bloque de pantalla
+
+Esto **no es un bloque**. Son tres cosas del sistema de diseno que no se pueden hacer de una
+sentada porque no viven en un sitio: viven en cada pantalla. Van copiadas en el brief de cada
+bloque (2 a 7), junto a "leer el artboard" y "comparar con Playwright", y se comprueban al
+cerrarlo. Si se dejan como lista aparte se cumplen en el primer bloque que la lea y se olvidan
+en los cuatro siguientes, y acabas con media aplicacion a 36px y la otra media a 44.
+
+- **Altura tactil.** Todo CTA principal de movil a 44px (`size="xl"`), y el de ancho completo a
+  50px (`size="2xl"`). Las dos tallas ya existen en `ui/button.tsx`; hoy solo las usa
+  `components/booking/`. Cada bloque las aplica en las pantallas que reconstruye. Ver CV.13.
+- **Ambar de acento.** `#D9A441` sigue sin token. Se anade a `globals.css` **el dia que una
+  pantalla lo pida**, no antes; hasta entonces no hay nada que arreglar. Ver CV.14.
+- **Comparacion visual real.** Playwright contra el artboard a 390 y 1440 antes de dar el
+  bloque por cerrado. Es lo que destapo defectos que ni cinco revisores ni la suite vieron.
+  A 390 no es un control de regresion: es la verificacion principal, porque el movil tambien
+  tiene que converger hacia su artboard (ver la nota de arriba).
+
 ## P0 — Estructural: sin esto no hay ninguna pantalla de escritorio
 
 - [ ] **CV.1** El shell de escritorio no existe. `src/app/(app)/layout.tsx:13-32` es una
@@ -1504,8 +1567,15 @@ byte entre el repo y la version publicada. `design/` es la fuente, se puede edit
       ancho. Los artboards `*Desktop` dibujan barra lateral de 248px + barra superior de 72px
       (`design/EquipoDesktop.dc.html:37,82`).
       Ya estaba como "bloque 6 del roadmap", pero sin el dato que lo convierte en
-      prerrequisito y no en remate: **treinta y tantos artboards de escritorio dependen de el**,
-      y ninguna pantalla Desktop se puede construir bien antes. Es lo primero.
+      prerrequisito y no en remate: **17 artboards llevan el sidebar dibujado** y ninguno se
+      puede construir bien antes. Es lo primero.
+      **Son 17, no "treinta y tantos"** (contado uno a uno, `grep "width: 248px" design/*Desktop*`):
+      de los 36 artboards Desktop, 19 van a PANTALLA COMPLETA sin shell — los 7 de reserva
+      publica, los 5 de onboarding, Registro, Login y **los 5 de `NuevaCitaDesktop`**, que
+      llevan cabecera propia de 68px y contenedor de 1120px, el mismo chasis que la reserva
+      (`NuevaCitaDesktopPaso1.dc.html:29,42-43`).
+      **Consecuencia para el bloque:** `/appointments/new` esta hoy DENTRO de `(app)/layout.tsx`
+      y tiene que quedar fuera del shell, o saldra con sidebar contra su artboard.
 
 ## P1 — Construidas contra el diseno ANTERIOR: falta contenido, no estilo
 
@@ -1531,11 +1601,14 @@ byte entre el repo y la version publicada. `design/` es la fuente, se puede edit
       `DetalleClienteDesktop.dc.html:100-243` piden el historial (fecha, servicio, profesional,
       importe, estado). En `clients/[id]/page.tsx` no hay ni tabla, ni lista, ni import
       relacionado. Falta en las DOS versiones, no solo en escritorio.
-- [ ] **CV.5** **Paso 3 de la reserva cambia el patron de interaccion.**
-      `public-datetime-step.tsx:68-71` llama a `nextStep()` en el propio click del hueco.
-      `ReservaPaso3.dc.html:101-104` pide que el hueco solo se resalte y que haya un boton
-      "Continuar" con resumen. Faltan tambien las secciones Manana/Tarde, los huecos ocupados
-      visibles y tachados, y marcar los dias cerrados.
+- [~] **CV.5** **Paso 3 de la reserva** — CORREGIDO casi entero en el carril B (`c174e46`).
+      Ya no auto-avanza: el hueco solo se resalta y hay "Continuar"
+      (`public-datetime-step.tsx:243`, y el gemelo del aside en `:226-228`); estan las
+      secciones Mañana/Tarde (`:279,:282`) y los dias cerrados se marcan desde
+      `salon.businessHours` (`:454`).
+      **Queda solo** pintar los huecos OCUPADOS tachados: el backend devuelve unicamente los
+      libres, asi que no hay dato con el que tacharlos. Ver el punto 4 de la lista de backend
+      al final del fichero.
 - [ ] **CV.6** **Asistente de nueva cita: se filtra lo que el diseno quiere atenuar.**
       `employee-step.tsx` filtra los empleados inactivos y `service-step.tsx` los servicios no
       asignados: desaparecen. Los artboards los pintan atenuados con explicacion ("Estilista -
@@ -1572,16 +1645,26 @@ byte entre el repo y la version publicada. `design/` es la fuente, se puede edit
 
 ## P3 — Sistema de diseno: lo que falla en silencio
 
-- [ ] **CV.13** **Ningun boton llega a los 44px que exige el propio sistema.**
-      `Estilo.dc.html:107-109` fija 44px como minimo tactil en movil. El tope de
-      `button.tsx:24-36` es `lg` = `h-9` = **36px**. Afecta a todos los CTA principales del
-      movil, incluida la reserva publica. Es del sistema, no de una pantalla: arreglarlo una vez
-      las corrige todas.
-- [ ] **CV.14** Dos colores del canvas no tienen equivalente en `globals.css`, asi que hoy se
-      aproximan mal o no se usan: el terracota oscuro de pulsacion `#8F3F24` (el codigo lo
-      simula con `bg-primary/80`, que es opacidad, no ese hex) y el ambar de acento `#D9A441`
-      (no aparece en `src/`). El resto de tokens del canvas SI existen y coinciden: 24 de 26
-      comprobados uno a uno (color, tipografia, radios, las 4 duraciones y las 3 curvas).
+- [~] **CV.13** **Los 44px que exige el propio sistema: la talla ya existe, falta aplicarla.**
+      `Estilo.dc.html:107-109` fija 44px como minimo tactil en movil, y el tope de
+      `button.tsx` era `lg` = `h-9` = 36px. El carril B anadio `size="xl"` (44px) y
+      `size="2xl"` (50px, ancho completo). **Pero solo las usa `components/booking/`**: cero
+      apariciones fuera.
+      Lo que queda **no se puede hacer como bloque propio**, porque los CTA no estan en un
+      fichero: estan uno en cada pantalla. Se aplica en los bloques 3 a 7, cuando cada pantalla
+      se reconstruye contra su artboard. Ver "Condiciones de cierre de CADA bloque de pantalla"
+      arriba.
+- [~] **CV.14** Eran dos colores del canvas sin equivalente en `globals.css`. Queda uno.
+      - `#8F3F24`, terracota de pulsacion: **HECHO** en el carril B. Es
+        `--primary-pressed` (`globals.css:149`, expuesto como `--color-primary-pressed:77`) y
+        lo usa la variante `default` del boton. Antes se simulaba con `bg-primary/80`, que es
+        opacidad, no ese hex.
+      - `#D9A441`, ambar de acento: **sin token, a proposito**. No aparece en `src/` y ninguna
+        pantalla construida lo necesita todavia; anadirlo ahora seria un token muerto. Entra
+        cuando un bloque reconstruya una pantalla que lo pida. Ver las condiciones de cierre.
+
+      El resto de tokens del canvas SI existen y coinciden: 24 de 26 comprobados uno a uno
+      (color, tipografia, radios, las 4 duraciones y las 3 curvas).
 
 ## P4 — Menores visuales
 
@@ -1603,7 +1686,12 @@ lista.
 
 ---
 
-# EN CURSO — Carril B: reserva publica en escritorio (2026-08-29)
+# CERRADO — Carril B: reserva publica en escritorio (2026-08-29)
+
+Mergeado en `master`: frontend `c174e46`, backend `891221b`, los dos empujados.
+**275 tests en 50 ficheros**, `tsc` limpio, lint 0 errores (25 avisos preexistentes),
+38 capturas de Playwright. La pantalla de conflicto se probo contra la pila real robando
+el hueco con un POST directo mientras el asistente estaba en el paso 5.
 
 Plan: `docs/specs/reserva-escritorio/IMPLEMENTATION_PLAN.md` (v2, revisado por un agente
 independiente que encontro 26 defectos, 4 bloqueantes; los cuatro verificados a mano).
@@ -1612,21 +1700,21 @@ Motor: `executing-plans`. Repo: `E:\IdeaProjects\rivoo-frontend`, solo frontend.
 Regla en vigor: el revisor se lanza al terminar el BLOQUE ENTERO, no por tarea.
 Cada despacho es un agente NUEVO; el revisor nunca es el implementador.
 
-- [ ] **T1** sistema — 6 tokens + botones 44/50px + estado deshabilitado solido + variante de
+- [x] **T1** sistema — 6 tokens + botones 44/50px + estado deshabilitado solido + variante de
       insignia + **crear** `ui/checkbox.tsx` (no existia) + `lib/utils/business-hours.ts` +
       arreglar `min-h-full` del layout de reserva
-- [ ] **T2** los dos chasis — `BookingStepShell` (pasos 1-5, 1120px) y `BookingResultShell`
+- [x] **T2** los dos chasis — `BookingStepShell` (pasos 1-5, 1120px) y `BookingResultShell`
       (paso 6 y error, 860px, sin stepper) + stepper + estado `conflict` en el store
-- [ ] **T3** los dos asides — "El salon" (paso 1) y "Tu reserva" (pasos 2-5) + CTA
-- [ ] **T4** paso 1 servicio — grid de 2 columnas con categorias; quitar el horario semanal
-- [ ] **T5** paso 2 profesional — PRESERVAR el atenuado que ya funciona; opacidad 0.55 en movil
-- [ ] **T6** paso 3 fecha y hora — "Continuar" en vez de auto-avanzar, franjas Manana/Tarde,
+- [x] **T3** los dos asides — "El salon" (paso 1) y "Tu reserva" (pasos 2-5) + CTA
+- [x] **T4** paso 1 servicio — grid de 2 columnas con categorias; quitar el horario semanal
+- [x] **T5** paso 2 profesional — PRESERVAR el atenuado que ya funciona; opacidad 0.55 en movil
+- [x] **T6** paso 3 fecha y hora — "Continuar" en vez de auto-avanzar, franjas Manana/Tarde,
       huecos ocupados tachados, dias cerrados, navegador de mes
-- [ ] **T7** paso 4 tus datos — consumir el `checkbox` de T1
-- [ ] **T8** paso 5 confirmar — grid de 3 columnas en escritorio, aviso ambar, fila Total
-- [ ] **T9** paso 6 hecha — `BookingResultShell`, dos columnas, `.ics` en cliente
-- [ ] **T10** pantalla de "ese hueco se acaba de ocupar" (no existia) — **espera a T8**
-- [ ] **T11** verificacion — suite + tsc + lint + Playwright a 390/768/1024/1440 contra los
+- [x] **T7** paso 4 tus datos — consumir el `checkbox` de T1
+- [x] **T8** paso 5 confirmar — grid de 3 columnas en escritorio, aviso ambar, fila Total
+- [x] **T9** paso 6 hecha — `BookingResultShell`, dos columnas, `.ics` en cliente
+- [x] **T10** pantalla de "ese hueco se acaba de ocupar" (no existia) — **espera a T8**
+- [x] **T11** verificacion — suite + tsc + lint + Playwright a 390/768/1024/1440 contra los
       14 artboards + panel de 3 revisores + recorrido real
 
 **Olas:** T1 -> T2 -> T3 -> (T4..T9 en paralelo) -> T10 -> T11.
@@ -1643,3 +1731,362 @@ Cada despacho es un agente NUEVO; el revisor nunca es el implementador.
    `type` `business-validation` para todo. Lo correcto seria darle su propio `type` de Problem
    Details. T10 lo esquiva re-consultando la disponibilidad, que es mas robusto, pero el
    backend deberia arreglarse igual.
+4. Huecos OCUPADOS tachados (`ReservaPaso3.dc.html:101-104`): `getPublicAvailability` devuelve
+   solo los libres. Para tachar los ocupados hace falta que el endpoint los emita tambien, o
+   que devuelva la rejilla completa con una bandera por hueco. Es lo unico que quedo abierto
+   de CV.5.
+5. Categoria en la reserva publica (T4): `ServicePublic` (`src/types/salon.ts`) tiene id,
+   name, description, durationMinutes, price y currency — **no category**. El backend SI la
+   tiene desde MON.3 (`2ab50af`), pero solo en la superficie autenticada; el agregado publico
+   no la expone. El paso 1 quedo con una sola rejilla, sin agrupar. Es exponerla, no crearla.
+
+---
+
+# CERRADO — Bloque 2: shell de escritorio (2026-08-29)
+
+Mergeado en `master`: `6ec0e26`, empujado. **343 tests en 57 ficheros**, `tsc` limpio,
+lint 0 errores (25 avisos preexistentes), `npm run build` compila y genera 23 paginas.
+Panel de 3 revisores (correccion / fidelidad movil / fidelidad escritorio) = 13 defectos,
+los 13 corregidos; un verificador independiente reviso los arreglos mutando el codigo.
+
+**PENDIENTE, y esta anotado en el mensaje del merge:** nadie ha comparado las pantallas
+contra los artboards en un navegador. `visual/shell-vs-artboards.spec.ts` esta escrito y
+commiteado, pero necesita `RIVOO_E2E_EMAIL`/`RIVOO_E2E_PASSWORD` en el entorno.
+
+Plan: `docs/specs/shell-escritorio/IMPLEMENTATION_PLAN.md` (v6, reescrito de cero tras cinco
+revisiones bloqueantes; el historico esta en `_v5-descartado.md`).
+Motor: `executing-plans`. Repo: `E:\IdeaProjects\rivoo-frontend`, rama `feat/shell-escritorio`
+desde `c174e46`.
+
+Regla en vigor: el revisor se lanza al terminar el BLOQUE ENTERO, no por tarea (T8 = panel de 3).
+Cada despacho es un agente NUEVO; el revisor nunca es el implementador.
+
+- [x] **T1** el token `--nav-foreground` + extraer `SalonMark` a `components/brand/`
+- [x] **T2** `lib/nav/app-nav.ts` — los 6 destinos con su predicado de activo (Equipo vs Servicios)
+- [x] **T3** `layout/user-card.tsx` — iniciales + etiqueta de rol neutra
+- [x] **T4** `layout/page-shell.tsx` — cabecera 56px (movil) + barra 72px (escritorio) + contenedor
+- [x] **T5** `layout/app-sidebar.tsx` — 248px, 6 destinos, tarjeta de usuario, **con su `<Suspense>`**
+- [x] **T6** `(app)/layout.tsx` — chasis por breakpoint, `min-h-dvh`, **borrar `AppHeader`**,
+      `sticky top-14` -> `top-0` en `appointments/new`
+- [x] **T7a** `today` + `calendar` adoptan `PageShell`
+- [x] **T7b** `clients` + `clients/[id]`
+- [x] **T7c** `staff` + `staff/[id]` + `Tabs` controlados + **crear `staff/page.test.tsx`**
+- [x] **T7d** `settings` + sus cinco subpaginas
+- [x] **T8** verificacion: suite + tsc + lint + **build** + Playwright 390/768/1024/1440 +
+      panel de 3 revisores
+
+**Olas:** (T1 ‖ T2 ‖ T3 ‖ T4) -> T5 -> T6 -> (T7a ‖ T7b ‖ T7c ‖ T7d) -> T8.
+
+
+## Deudas que deja el bloque 2, con destinatario
+
+- [ ] **Cobertura:** 8 de los 13 arreglos del panel no tienen test. No existe fichero de test
+      para `clients/page.tsx`, `clients/[id]`, `calendar/page.tsx` ni para ninguna de las seis
+      de `settings/`. Son los arreglos cosmeticos: los que un refactor revierte sin que nadie
+      se entere. Va con el bloque que reconstruya cada pantalla.
+- [ ] **`/appointments/new`** (bloque del asistente): cabecera propia de 68px
+      (`NuevaCitaDesktopPaso1:29`), el `min-h-[calc(100vh-8rem)]` de `:30`, y sacarlo del shell
+      por `(fullscreen)/appointments/new` — comprobado que NO colisiona con `[id]`.
+- [ ] **`day-view.tsx:21`** (bloque 3): `h-[calc(100vh-16rem)]` descuenta 256px de cromo movil
+      que en escritorio no existe.
+- [ ] **Fecha duplicada en `/calendar`** (bloque 3): el titulo unificado es la fecha, y
+      `DateNavigator` la vuelve a pintar en el cuerpo. Ademas sus botones no tienen `aria-label`,
+      asi que en escritorio hay dos "Hoy" indistinguibles para un lector de pantalla.
+- [ ] **AMBIGUEDAD DEL CANVAS** (bloque 7): `AjustesDesktop.dc.html` y `AjustesSalonDesktop.dc.html`
+      describen la misma pantalla con anchos y formularios distintos (800px a 2-3 columnas con
+      "Email de contacto"/"Zona horaria"/"Moneda", contra 554px a una columna con Nombre/Telefono/
+      Descripcion, que es lo implementado). **Ya costo un defecto**: se midio contra el equivocado.
+      Decidir cual manda y borrar o renombrar el otro.
+- [ ] **Copy compartido** (bloque 7): `working-hours-editor.tsx` dice "Guardar horarios" y
+      `HorarioDesktop:126` dice "Guardar cambios". No se toco por ser un componente compartido
+      con `staff/[id]` y el onboarding.
+- [ ] **Talla `action`** (menor): clava los CTA primarios (38px/18/14px/600) pero los artboards
+      piden padding 16 y fuente 13px en los botones secundarios de las fichas. La altura, que era
+      el defecto, es correcta en todos.
+
+---
+
+# CERRADO — Bloque 3: Calendario (2026-08-29)
+
+Plan: `docs/specs/calendario/IMPLEMENTATION_PLAN.md`. El artboard es la fuente:
+`design/CalendarioDesktop.dc.html` (1440) y `design/Calendario.dc.html` (390).
+
+Hallazgo que decide la arquitectura: **en escritorio hay una columna por empleado**
+(rejilla de N columnas con su fila de cabeceras), y el filtro de pildoras es **solo movil**.
+Las citas canceladas y completadas **se pintan** — hoy `page.tsx:46` las descarta.
+
+## Tareas
+
+- [x] **T1** Tokens: los cinco que faltan (`--hairline-strong`, `--warning`, `--warning-soft`, — 7fa37d9
+      `--destructive-tint`, `--border-dashed`) en `:root` y en `@theme inline`.
+- [x] **T2** Calculo y datos: `groupByEmployee`, `employeeDaySummary`, `nextFreeSlot`, — 6335120
+      `breakPosition` + `useEmployeesWorkingHours`. Con tests: hoy `lib/utils/calendar.ts`
+      no tiene ninguno.
+- [x] **T3** `PageShell` gana `layout="fill"` (sin padding exterior, contenido a alto completo). — 2f8a3f7 + 56c6b2e
+      Es lo que mata el `h-[calc(100vh-16rem)]` sin poner otro numero magico.
+- [x] **T4** Rejilla horaria: canal 46/64px, linea de hora en punto distinta de la de media hora. — ce74be8
+- [x] **T5** Bloques: cita (5 estados + compacto), descanso rayado, hueco libre discontinuo. — 490e431
+- [ ] **T6** `DayView` a N columnas + cabecera de empleado con su `colorHex` y su resumen.
+- [x] **T7** Filtro de pildoras recalibrado + navegador de fecha (fila movil / cluster escritorio). — 0420350
+- [x] **T8** La pagina: titulo "Citas" en movil y la fecha en escritorio, buscador, y adios a la
+      fecha duplicada.
+- [x] **T9** Comparacion visual + panel de 3 revisores que refutan.
+
+## Deudas del bloque 2 que este bloque salda
+
+- `day-view.tsx:21` `h-[calc(100vh-16rem)]` -> T3 + T6.
+- Fecha duplicada en `/calendar` y `aria-label` ausentes en `DateNavigator` -> T7 + T8.
+- Cobertura cero de `calendar/page.tsx` -> T8.
+
+## Deuda NUEVA que este bloque deja anotada
+
+- [ ] **Falta artboard de la vista de semana.** El segmentado Dia/Semana esta dibujado
+      (`CalendarioDesktop:89-92`) pero su destino no existe en el canvas. No se monta un control
+      cuya segunda opcion no lleva a ninguna parte. Hace falta `CalendarioSemanaDesktop.dc.html`.
+
+## Cierre del bloque 3
+
+18 commits sobre `master`, de `6ec0e26` a `18e3b06`. **574 tests en 66 ficheros**, `tsc` limpio,
+`npm run build` compila y genera 23 paginas, arbol limpio.
+
+**Nadie ha comparado la pantalla contra los artboards en un navegador.** Toda la fidelidad esta
+comprobada por aritmetica de clases en jsdom, que no calcula maquetacion: un `shrink-0` presente
+pero anulado por el padre se cuela entero. El spec existe (`visual/calendar-vs-artboards.spec.ts`,
+commit `abd860c`) y solo lo puede ejecutar el dueno, con sus credenciales por variable de entorno.
+
+Tres rondas de revision independiente, todas con veredicto BLOCK, mas una cuarta de cierre:
+panel de 3 lentes (fidelidad · correccion · tests por mutacion) -> verificador de las
+correcciones -> verificador final. **51 mutaciones en la primera auditoria, 20 supervivientes.**
+Al cerrar, cada arreglo tiene su mutacion demostrada en rojo.
+
+## Deudas que deja el bloque 3, con destinatario
+
+- [ ] **Comparacion visual, sin ejecutar** (dueno del repo). `npx playwright test
+      visual/calendar-vs-artboards.spec.ts` con `RIVOO_E2E_EMAIL`/`RIVOO_E2E_PASSWORD`. El dia
+      capturado necesita varios empleados con citas, una de cada estado y un descanso, o
+      `RIVOO_E2E_CALENDAR_DATE=yyyy-MM-dd`. **Ademas: ningun script de npm ni CI lo ejecuta**
+      — `package.json` no tiene script de playwright y no hay `.github/workflows`.
+- [ ] **Peticion desperdiciada en el arranque frio de movil** (bloque 3, menor). `useAppointments`
+      no esta desactivado mientras viaja la lista de empleados: sale una consulta del dia entero
+      sin `employeeId` que se descarta al aterrizar la lista. `waitingForFilter` esconde el
+      fotograma, no la peticion. Arreglo natural: `enabled` en el hook, que es API nueva en un
+      hook compartido con `/today`.
+- [ ] **Callejon si el empleado elegido desaparece de la lista** (bloque 3). Se elige a alguien, una
+      recarga lo deja fuera (baja, borrado) y la consulta queda clavada en un id que ya no existe:
+      ninguna pildora marcada, rejilla vacia y muda, ni un "Sin citas". La proteccion "una recarga
+      no pisa la eleccion" no distingue entre pisar una eleccion valida y conservar una muerta.
+- [ ] **El filtro no anuncia su seleccion** (accesibilidad). Las pildoras expresan el estado SOLO
+      con color: sin `aria-pressed`, `aria-current` ni `role="tab"`. Con la pantalla arrancando ya
+      filtrada, un lector de pantalla no puede saber de quien es la agenda que lee.
+- [ ] **`startDate`/`endDate` fuera del prestamo de datos** (`use-appointments.ts`). Solo se
+      exceptua `date`; el dia que alguien use el rango, cambiar de rango dejara de prestar y
+      volvera el parpadeo que ese arreglo existe para evitar.
+- [ ] **`assignLanes` compara la fecha completa y `calculateBlockPosition` solo la hora del dia.**
+      Dos citas de dias distintos a la misma hora no solapan para el reparto y se pintarian encima.
+      Hoy inalcanzable porque la consulta lleva `date` y el backend filtra, pero lo unico que lo
+      sostiene es esa promesa del backend, que ninguna de las dos funciones comprueba.
+- [ ] **CONTRADICCION DEL CANVAS** (bloque 6 o quien retoque el diseno): la cabecera de Laura
+      (`CalendarioDesktop.dc.html:110`) dice `4 citas · 5h 30min` y su columna dibuja DOS citas mas
+      el almuerzo. `employeeDaySummary` se anclo en la de Marc (`:124`), que si cuadra.
+- [ ] **Falta artboard de la vista de semana y del conmutador de agenda movil.** El segmentado
+      `CalendarioDesktop:89-92` y su gemelo `Calendario.dc.html:31-33` estan dibujados pero su
+      destino no existe. No se monta un control cuya segunda opcion no lleva a ninguna parte.
+- [ ] **Desfase de una linea** en `calendar.test.ts:129,135`: citan `:161`/`:167`, que son lineas
+      en blanco; los bloques estan en `:162`/`:168`. Cosmetico, misma clase de defecto.
+- [ ] **`NaNh NaNmin` en la cabecera de columna** (bloque 3, tercer camino de la MISMA causa raiz).
+      Con una cita de hora ilegible, `employeeDaySummary` (`calendar.ts:240-255`) devuelve
+      `"2 citas · NaNh NaNmin"` y la cabecera de escritorio pinta `LMLaura M2 citas · NaNh NaNmin`:
+      `differenceInMinutes` da `NaN`, `Math.max(0, NaN)` es `NaN`, y en `formatMinutes` no se
+      cumple ni `hours === 0` ni `minutes === 0`. **Antes de `18e3b06` era inalcanzable** — la
+      pantalla caia con `RangeError` primero —, asi que el arreglo del bloqueante lo hizo visible.
+      Ademas la cabecera cuenta "2 citas" mientras se pinta UN bloque: es la cita invisible que la
+      doc vecina (`calendar.ts:175-180`) declara inaceptable. Ningun test lo cubre: el caso nuevo
+      usa `variant="mobile"`, que no tiene cabeceras. Direccion: defender `formatMinutes` del
+      `NaN`, o alinear el recuento con lo pintado.
+- [ ] **Un docblock que afirma mas de lo que su test demuestra** (`day-view.test.tsx:716-722`).
+      Dice que el `useMemo` evita rehacer el reparto en cada tecla del buscador. No lo evita:
+      `page.tsx:177-186` reconstruye `columns` en cada cambio de busqueda y `groupByEmployee`
+      asigna un `appointments: []` nuevo por columna, asi que la dependencia falla igual. Lo que
+      el `useMemo` compra son los renders que NO tocan `columns`, que es justo lo que el test
+      mide. El test es honesto; el motivo escrito encima, no — misma clase de defecto que las
+      citas falsas al artboard que este bloque vino a corregir.
+- [ ] **El test de memoizacion de escritorio se vuelve vacuo bajo `React.memo`**
+      (`day-view.test.tsx:723-742`). Comprobado: envolviendo `ColumnBody` en `memo()` y borrando
+      los dos `useMemo`, solo cae el de movil. Quitar ese `React.memo` mas tarde restauraria el
+      O(k³) en silencio.
+
+---
+
+# ESTADO REAL — verificado contra el CODIGO el 2026-08-30
+
+Dos verificadores independientes, de solo lectura, con prohibicion expresa de mirar este
+fichero. Sustituye a las casillas de las secciones de arriba, que estaban desfasadas.
+
+## Bloques de pantalla pendientes
+
+**4 · Detalle de cita — A MEDIAS.** `appointments/[id]/page.tsx` sigue siendo un stub de 13
+lineas, y **no lo enlaza nadie** (cero `href` a esa ruta en `src/`). Lo que funciona hoy es
+`appointment-detail-sheet.tsx:84-172`, que cubre estructuralmente el artboard MOVIL (hoja
+inferior con velo, `DetalleCita.dc.html:34-41`). Falta el panel acoplado de escritorio:
+`DetalleCitaDesktop.dc.html:249` lo dibuja de `360px` con `border-left`, sobre la rejilla del
+calendario — **no es una ruta**. Decidir ademas que se hace con `/appointments/[id]`, que
+existe sin artboard que la respalde.
+
+**5 · Hoy — A MEDIAS.** Ojo con el NOMBRE DEL FICHERO, no con la pantalla: el artboard movil
+de "Hoy" existe y en el canvas se llama asi, pero su fichero es **`Main.dc.html`** —
+`canvas.json` le pone el titulo `'Hoy'` (y a `HoyDesktop.dc.html`, `'Hoy - escritorio'`).
+Buscar `Hoy.dc.html` no encuentra nada y NO significa que falte el diseno.
+`today/page.tsx:188-196` pinta UNA "Proxima cita" (`:72-76`, un solo `find`) y el artboard no
+dibuja esa tarjeta en ningun sitio: dibuja "Ahora mismo" con **una fila por empleado**
+(`HoyDesktop.dc.html:191-231`, `Main.dc.html:75-108`). Faltan ademas el 4o KPI
+"Facturacion prevista" (el codigo pinta 3, `HoyDesktop:91-108` dibuja 4), la tarjeta
+"2 reservas online sin confirmar" con su CTA (`:234-238`) y las dos columnas `1.6fr / 1fr`
+(`:111`) — el codigo es una sola.
+
+**6 · Equipo y clientes — A MEDIAS, con dos huecos concretos.**
+- `staff/page.tsx` renderiza las tarjetas MOVILES tambien en escritorio; `EquipoDesktop.dc.html`
+  dibuja una **tabla** con columnas Empleado / Puesto / Contacto / Color / Estado, y el contador
+  "5 empleados · 4 activos" (el codigo pone solo "N empleados", `:106-108`).
+- `clients/[id]` **no tiene Historial de citas**, que los dos artboards dibujan (tabla
+  Fecha/Servicio/Profesional/Importe/Estado + "14 citas · 612,00 € facturados"). Faltan tambien
+  "Nueva cita", el badge "Reserva online" y "Llamar" en movil.
+- `staff/[id]`: falta la seccion "Color identificativo" (hoy solo vive en el formulario,
+  `employee-form.tsx:157`), el contador "4 de 6" y el encabezado "Horas propias de Laura". El
+  artboard apila las secciones y el codigo usa pestanas (`:214-218`).
+- **CORRECCION DE MAPEADO:** `Horario*.dc.html` NO es el horario del empleado — dibuja el
+  **horario de apertura del salon**, con descanso y "Copiar lunes al resto". Corresponde a
+  `settings/business-hours`, no a este bloque.
+
+**7 · Ajustes — A MEDIAS. La ambiguedad del canvas ESTA RESUELTA y no bloquea.**
+No eran dos artboards de la misma pantalla: `AjustesDesktop.dc.html` es el del **indice** de
+Ajustes (lo cita `settings/page.tsx:21-23` para su ancho de 800px) y `AjustesSalonDesktop.dc.html`
+es el del **perfil del salon** (554px, 3 campos + bloque de solo lectura). El codigo sigue el
+segundo y lo documenta en `settings/salon/page.tsx:70-77`.
+Lo que falta por pantalla:
+- **Salon**: el bloque "Tu pagina publica" con el slug y el boton "Ver pagina de reservas".
+- **Reservas**: el interruptor "Aceptar reservas online", la tarjeta "Codigo QR", la
+  previsualizacion "Lo que ve tu cliente" y el panel "Si lo desactivas". Y sigue ahi la
+  `toggleMutation` fantasma (`settings/booking/page.tsx:27-37`): declarada, nunca pintada,
+  llamando a la API con cuerpo vacio, con un `useEffect` importado y sin usar en `:3`.
+- **Facturacion**: faltan "Uso del plan" (empleados 5/10, citas del mes, recordatorios) y el
+  bloque "Otros planes / Cambiar de plan". **Y el codigo INVENTA** una lista de planes con
+  boton "Cambiar a X" (`:124-163`) que no dibuja ningun artboard de esa pantalla: eso vive en
+  `CambiarPlan*.dc.html`, que **no tiene ruta**.
+- **Cuenta**: falta la "Zona de peligro" entera (desactivar salon, los 30 dias, confirmacion
+  escribiendo el nombre). No hay ni boton ni dialogo ni llamada.
+- **Notificaciones**: hay artboard (`AjustesNotificaciones*.dc.html`) y **no hay ruta**. Peor:
+  los cinco artboards de escritorio de Ajustes ya listan "Notificaciones" en su submenu, asi que
+  el menu del codigo esta incompleto respecto al canvas.
+
+**Asistente de nueva cita — A MEDIAS.** Los cinco pasos y sus titulos coinciden. Pero (a) su
+cabecera es de ~50px con flecha y `WizardProgress`, y el artboard dibuja **68px** con marca +
+"Nueva cita" a la izquierda y "Cancelar" + X de 38px a la derecha, sobre `#F8F2EA`
+(`NuevaCitaDesktopPaso1.dc.html:29-43`); y (b) **sigue dentro de `(app)`**, asi que hereda
+barra lateral en escritorio y barra inferior + `pb-20` en movil, cuando sus diez artboards
+dibujan pantalla completa sin ninguna de las dos. No existe ningun grupo `(fullscreen)`.
+
+## Cerrado, contra lo que decian las casillas viejas
+
+- **RP.23 — CERRADO E IMPLEMENTADO.** No es una decision pendiente: `SalonService.java:159-163`
+  emite `servicesUnavailable` / `employeesUnavailable`, `SalonPublicResponse.java:28,31` los
+  declara, y `book/[slug]/page.tsx:83` distingue ya "no tiene servicios" de "no se pudo cargar",
+  con test de las dos ramas.
+- **FE.12 — HECHO.** El error de hueco ocupado es una **pantalla propia** con tests
+  (`public-booking-error.tsx`), no el banner del paso 5 que decia la nota.
+- **FE.3, FE.5, FE.6 — HECHOS** (formularios de empleado y cliente, y login), campo a campo
+  contra sus artboards.
+- **Dialogo de anonimizado — HECHO** (`gdpr-panel.tsx:94-118`).
+- **`/clients` — enlazada en ESCRITORIO** desde la barra lateral (`app-nav.ts:45-50`), que
+  anadio el bloque 2. En movil sigue sin camino, y el canvas tampoco lo ofrece: sus artboards
+  dibujan la misma barra de cuatro (Hoy/Citas/Equipo/Mas).
+
+## Huecos nuevos que nadie tenia anotados
+
+- [ ] **`CambiarPlan*.dc.html` sin ruta**, y facturacion inventando en su lugar una lista de
+      planes que ningun artboard dibuja.
+- [ ] **`trialDays` sigue ignorado.** El backend lo envia (`PlanResponse.java:15`, con test de
+      exposicion JSON); `types/billing.ts:18-23` ni lo declara. Cero usos en `src/`.
+- [ ] **QR de la pagina publica**: dibujado en los dos artboards de Reservas, sin componente ni
+      dependencia en el repo.
+- [ ] **El canvas se contradice en la URL publica.** Cinco artboards escriben
+      `rivoo.app/<slug>`; los dos de `Onboarding5` escriben `rivoo.app/book/<slug>`, que es lo
+      que genera el codigo (`settings/booking/page.tsx:23-25`) y la ruta real. Decidir si se
+      corrigen los cinco o se anade un rewrite.
+- [ ] **`ServiceFormSheet` sin artboard**: existen `FormularioCliente*` y `FormularioEmpleado*`,
+      pero no `FormularioServicio*`.
+- [ ] **Vista de semana: confirmado que no hay artboard.** El conmutador esta dibujado en los dos
+      anchos y su segunda opcion no lleva a ninguna parte; el codigo lo omite a proposito y lo
+      documenta (`calendar/page.tsx:53-57`).
+
+---
+
+## BLOQUE 4 — Detalle de cita: CERRADO (2026-08-30)
+
+**Frontend** `rivoo-frontend`, rama `master`, sin subir: 24 commits (`18e3b06..HEAD`).
+**Backend** `rivoo`: 2 commits (`5e3cfb1` dominio, `3c9414a` doc del modulo).
+
+**Puertas finales:** `npx eslint .` 0 errores / 17 avisos · `npx tsc --noEmit` 0 ·
+`npx vitest run` **743 tests en 73 ficheros** · `npm run build` 0. Arbol limpio.
+(Linea base al empezar: 574 tests en 66 ficheros.)
+
+**Revision:** panel de 3 revisores independientes (fidelidad / correccion / mutacion), los tres con
+veredicto de BLOQUEO, mas una re-revision de 2 sobre el lote de correcciones, tambien BLOQUEO.
+Once agentes de correccion. De las 13 mutaciones que sobrevivian, **mueren las 13**.
+
+### Deudas ANOTADAS, no arregladas
+
+- **`/today` en escritorio** sigue abriendo la hoja como dialogo centrado. Es del bloque 5, donde
+  esa pantalla tiene sus propios artboards. (D14)
+- **El panel a 1024px** deja columnas de ~99px, contra los ~237px del artboard; con cinco empleados,
+  ~56px. No se rompe (`minmax(0,1fr)` encoge), pero se lee mal. No se invento un segundo punto de
+  ruptura porque nadie lo ha dibujado. `visual/appointment-detail-vs-artboards.spec.ts` saca una
+  captura a ese ancho para poder decidirlo con ella delante. (D19)
+- **Escritorio no puede marcar "No asistio" sobre una cita PENDING** aunque el servidor ya lo
+  permita: el artboard de escritorio dibuja "Reprogramar" en esa casilla. Si el mostrador lo
+  necesita, hay que DIBUJAR la casilla antes de construirla. (D5)
+- **La hoja de movil no anima al cerrarse** en `/calendar` (en `/today` si). Se probo retener la
+  ultima cita en un `useRef` y se REVIRTIO: violaba `react-hooks/refs` (24 errores) y dejaba el
+  `<Sheet>` montado para siempre. Ningun artboard exige la animacion.
+- **El spinner de las acciones es global**, no por boton. Se probo por accion y se REVIRTIO: con
+  mutacion optimista el boton pulsado deja de existir a mitad de vuelo, asi que no hay ningun boton
+  correcto sobre el que girar.
+- **`updateStatus` a NO_SHOW no cancela los recordatorios programados**, cosa que `cancel()` si
+  hace (`AppointmentService.java:235`). Preexistente para `CONFIRMED -> NO_SHOW`, pero `5e3cfb1`
+  abre la puerta desde `PENDING`, que es justo el estado en que una reserva online puede tener el
+  recordatorio pendiente. Decidirlo explicitamente.
+- **`AppointmentRepositoryIntegrationTest` no se ejecuto**: esta tras el perfil `integration-test` y
+  necesita Docker. Se cubrio por lectura estatica (sus cinco usos de `NO_SHOW` son estado EXCLUIDO
+  en filtros de solape, nunca transicion). Reejecutar donde haya Docker.
+- **`#D8C9B8` sigue escrito a pelo en cuatro sitios** (`booking-stepper.tsx:39,60`,
+  `public-employee-step.tsx:219`, `checkbox.tsx:13`) pese a existir ya como `--border-dashed` y
+  ahora tambien como `--grabber`. Deuda de tokens, ajena a este bloque.
+- **`visual/appointment-detail-vs-artboards.spec.ts` NUNCA se ha ejecutado.** Necesita la pila
+  levantada y credenciales del usuario:
+  `RIVOO_E2E_EMAIL=... RIVOO_E2E_PASSWORD=... npx playwright test -g "detalle de cita"`.
+  No afirma medidas: solo captura imagenes para que las mire una persona. **No cuenta como
+  cobertura de artboard.**
+
+### Pendiente de decision del usuario
+
+- **Los 24 commits del frontend y los 2 del backend estan SIN SUBIR.**
+
+### Deudas de la ultima revision (lote de correcciones), NO arregladas
+
+- **Un fallo de cancelacion en vuelo puede quedar SIN VER.** El `key={appointment.id}` destruye la
+  instancia del dialogo al cambiar de cita, asi que su `onError` se descarta. `useCancelAppointment`
+  revierte la cache (bien), pero `src/providers/query-provider.tsx` NO define
+  `MutationCache.onError` y no hay toast global. Escenario: cancelas a Ana, "Volver", pulsas a
+  Carla, la peticion de Ana falla -> la cita revierte sola en la rejilla y el usuario no ve nada,
+  creyendo que quedo cancelada. **Antes del lote el error SI se veia** (aunque sobre el dialogo
+  equivocado). Recomendacion: `new QueryClient({ mutationCache: new MutationCache({ onError }) })`
+  o un toast. **Es un cambio de alcance de APLICACION, no de este bloque**: merece su propio cambio
+  acotado, no un parche al final.
+- **`appointment-detail-panel.test.tsx:373` fija una transicion que el usuario no puede producir**:
+  hace el `rerender` Ana->Carla con el dialogo de cancelacion abierto, y con el backdrop montado ese
+  clic en la rejilla no llega. Muerde al quitar el `key` (verificado, no es verde falso), pero deja
+  sin cubrir el camino real ("Volver" -> clic -> reabrir). Intercalar el "Volver", como hace el test
+  de la hoja.
+- **El caso `cn() no descarta leading-tight` de ese mismo fichero prueba a tailwind-merge, no al
+  panel**: si twMerge cambia su heuristica se pone rojo sin que haya regresion de producto, y el
+  reordenamiento real de `:170` ya lo caza el caso siguiente. Es redundante; borrarlo o degradarlo
+  a comentario.

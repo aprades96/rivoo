@@ -913,3 +913,258 @@ resulta falso, dilo en vez de improvisar" es lo unico que lo evito.
 verifican: `grep` antes de escribirla. Y mantener en todos los briefs la clausula que autoriza
 al implementador a devolver el brief en vez de cumplirlo — es la red que recoge los errores que
 esta regla no llegue a evitar.
+
+## 2026-08-29 — Una cita de artboard leida en un volcado desplazado es una cita falsa
+
+**Patron.** En el plan del shell de escritorio cite la tarjeta de usuario como
+`EquipoDesktop.dc.html:83-89`. Esta en `:71-77`. Lo que hay en `:83-89` es el CTA
+"Anadir empleado". Los VALORES que transcribi (34px, `#F6E7E0`, 12px/700, 11px `#9A8A7E`)
+eran correctos, porque los lei de verdad; lo que estaba mal era el numero de linea, que
+saque de un `sed` anterior con otro desplazamiento y no volvi a comprobar.
+
+**Por que importa mas de lo que parece.** El implementador hace lo correcto —abrir la
+referencia— y aterriza en un boton terracota. La cita equivocada castiga justo al que
+verifica.
+
+**Regla.** Toda cita `fichero:linea` que entre en un plan se comprueba releyendo ESE rango
+concreto (`sed -n 'N,Mp'`), no el volcado del que salio. Si el rango no contiene lo que
+dice la fila, la fila esta mal.
+
+## 2026-08-29 — No generalizar desde la muestra a la pantalla que vas a tocar
+
+**Patron.** Mire cuatro paginas (`clients`, `settings`, `today`, `staff`) para ver como
+maquetaban, y escribi en el plan "cada pagina trae su propio `p-4 md:py-6` y su propio
+`<h1>`". Tres lo tienen. **`staff/page.tsx` NO tiene ningun `<h1>`** — y era justo la que
+el plan elegia como pantalla piloto. De ahi salio una contradiccion irresoluble: el plan
+prometia "ni un pixel de diferencia en movil" y a la vez que `PageShell` pintara un `<h1>`
+que en esa pantalla no existe.
+
+**Regla.** Cuando una generalizacion sostenga una decision, comprobarla EXPLICITAMENTE en
+el caso concreto que la decision toca, no solo en la muestra que la sugirio. `grep -n "h1"`
+sobre el fichero concreto cuesta un segundo.
+
+## 2026-08-29 — El inventario exhaustivo va ANTES de la primera version del plan
+
+**Patron.** El plan del shell de escritorio necesito CUATRO versiones y cuatro revisiones. En
+cada una yo citaba los artboards que hacian falta para defender la decision de esa version, y
+la revision encontraba los que no habia mirado. La cuarta destapo lo definitivo: **9 de las 13
+pantallas tienen titulo distinto en movil y en escritorio** (`/today` es "Bella Vista" en movil
+y "Buenos dias, Maria" en escritorio; las SEIS subpaginas de ajustes son "Ajustes" en
+escritorio y su propio nombre con flecha atras en movil). Todo mi contrato —`title: string`
+unico para los dos anchos— era imposible desde la primera linea, y se tardaron cuatro rondas en
+verlo porque nunca abri las 26 cabeceras de golpe.
+
+**Coste.** Cuatro ciclos de escritura + revision para un dato que se saca con dos comandos
+`grep` de treinta segundos.
+
+**Regla.** Cuando un plan toque N pantallas, el PRIMER paso —antes de escribir una sola
+decision— es volcar el inventario de las N (movil Y escritorio) en una tabla: titulo, acciones,
+si lleva volver. Las decisiones se derivan de la tabla completa; no se defienden con los tres
+ejemplos que uno miro primero. Si la tabla no cabe, el bloque es demasiado grande.
+
+## 2026-08-29 — Un plan con el mismo hecho repetido en 8 sitios no se puede corregir editando
+
+**Patron.** El plan del shell de escritorio acumulo CINCO revisiones y cinco BLOCK. La
+distribucion de los fallos cuenta la historia: ronda 1, tres de diseno y uno de propagacion;
+ronda 5, **cero de diseno y seis de propagacion**. El diseno convergio pronto. Lo que no
+convergia era el documento: 806 lineas donde "56px" aparecia 19 veces, "AppHeader" 9,
+"git commit" 10. Cada decision vivia en ocho secciones (objetivo, decisiones, inventario
+visual, tabla de ficheros, fases, tareas, orden de ejecucion, dependencias), asi que cambiarla
+exigia ocho ediciones a mano. Corriges siete, se te escapa la octava, y la revision siguiente
+la encuentra. El BLOCK critico de la quinta ronda fue exactamente eso: `AppHeader` desaparecia
+en la decision D2c y seguia montado en el codigo de la tarea T6.
+
+**El error de fondo no fue ninguna de las correcciones: fue seguir parcheando un formato con
+tasa de fallo del 100%.**
+
+**Reglas.**
+1. En un plan, cada hecho vive en UN sitio. Las tareas se REFIEREN a la decision
+   (`ver D2b`), no la repiten. Si un valor aparece dos veces, va a divergir.
+2. Cuando dos revisiones seguidas devuelvan sobre todo fallos de PROPAGACION y no de
+   contenido, dejar de editar: reescribir el documento entero de una pasada. Parchear ya no
+   converge.
+3. No declarar un plan "listo" citando la recomendacion del revisor. Esa recomendacion es una
+   afirmacion mas, y la regla de CLAUDE.md §3 —la sintesis de un subagente es una afirmacion a
+   verificar— no deja de aplicar porque la afirmacion sea agradable.
+
+## 2026-08-29 — Un defecto encontrado en una pantalla hay que buscarlo en sus gemelas
+
+**Patron.** Revisando el bloque del shell descubri que `/staff/[id]` pintaba "Editar" y
+"Desactivar" en la cabecera movil, cuando el artboard los dibuja como botones-icono de 36x36
+en el CUERPO. Lo verifique contra `DetalleEmpleado.dc.html:57,60` y mande la correccion.
+**No comprobe la pantalla gemela.** `/clients/[id]` tenia exactamente el mismo defecto —
+`DetalleCliente.dc.html:33-38` dibuja la cabecera movil vacia y `:47-49` pone el lapiz de
+36x36 en el cuerpo— y ademas, al pedirle a ese agente que quitara un boton que sobraba, se
+perdio por el camino el boton-icono del cuerpo que si existia antes del bloque.
+
+Resultado: dos pantallas hermanas quedaron con tratamientos opuestos, y la que fallaba es
+justo una de las ocho sin test de pantalla.
+
+**Regla.** Cuando una revision destape un defecto en una pantalla, antes de despachar el
+arreglo: listar sus gemelas (detalle/detalle, formulario/formulario, listado/listado) y
+comprobar el mismo punto en todas. El arreglo se manda para el conjunto, no para la que
+salio en el informe. Cuesta un `grep`; no hacerlo cuesta otra ronda de revision entera.
+
+## Un negativo no se afirma desde una comprobacion que no lo cubre
+
+**Patron.** En el inventario del bloque 3 escribi "no hay NI UN test del calendario: ni de la
+pagina ni de los cinco componentes ni de `lib/utils/calendar.ts`". El `ls` que ejecute solo
+miraba `src/components/calendar/*.test.tsx` y `src/app/(app)/calendar/*.test.tsx`. Nunca mire
+`src/lib/utils/calendar.test.ts`, que existia desde `a34c157` con 100 lineas — y tres de sus
+aserciones fijaban el alto de bloque sin el canalon de 4px, o sea que contradecian la tarea.
+El dato falso entro en el plan y de ahi al brief del implementador, que se encontro el fichero
+y tuvo que decidir por su cuenta si borrarlo.
+
+**Regla.** Un "no existe" solo se afirma sobre las rutas que el comando ha mirado de verdad.
+Si la frase enumera tres cosas, la comprobacion enumera las tres. Y para un negativo amplio,
+la herramienta es una busqueda por patron sobre todo el arbol (`Glob **/calendar*.test.*`),
+no un `ls` de dos carpetas elegidas de memoria.
+
+**Coste medido.** El implementador de la T2 lo detecto y lo resolvio bien, pero solo porque
+abrio el fichero antes de escribir. Un agente que se hubiera fiado del brief habria borrado
+tests validos o dejado tres aserciones en rojo culpando a su propio codigo.
+
+## Transcribir un artboard es leer la cascada y los heredados, no la lista de declaraciones
+
+**Patron.** En el inventario del bloque 3 transcribi los valores de los artboards leyendo las
+declaraciones de estilo en linea una por una. Dos cosas se escaparon, y las dos las encontro el
+revisor de fidelidad, no yo:
+
+1. **La cascada dentro de la propia declaracion.** `CalendarioDesktop.dc.html:168` pone
+   `border-left: 3px solid #C08A2E; border-color: #E8D3A6;` EN ESE ORDEN, asi que `border-color`
+   pisa a `border-left-color` y lo que ese fichero pinta de verdad es `#E8D3A6`. Mi §1.2 registro
+   `#C08A2E`. Se salvo por pura suerte: el artboard MOVIL invierte el orden y ahi si gana
+   `#C08A2E`, que es lo que el implementador siguio.
+
+2. **Lo que el artboard NO declara tambien es un valor.** El `body` de los artboards no declara
+   `line-height`, o sea `normal` (~1.25 en Schibsted Grotesk). La preflight de Tailwind del repo
+   impone `line-height: 1.5`. Como yo solo transcribi propiedades DECLARADAS, esa diferencia no
+   entro en ninguna tabla, y el bloque compacto de 30 min quedo con 46,75px de contenido dentro
+   de una caja de 44px con `overflow: hidden` — tres de los ocho bloques dibujados en escritorio,
+   cortados por abajo. La aritmetica del artboard cuadra al decimal con `normal`:
+   `6 + 13·1.25 + 2 + 11·1.25 + 6 = 44,00`.
+
+**Regla.** Al inventariar un artboard: (a) dentro de cada `style`, la ultima declaracion que toca
+una propiedad es la que vale — leer el bloque entero antes de anotar un color de borde; (b) para
+cada propiedad que AFECTE AL TAMANO (`line-height`, `box-sizing`, `font-family`), comprobar que
+hereda el artboard frente a que impone el reset del repo, y anotar la diferencia aunque el
+artboard no la escriba. Y cuando el artboard fija una altura exacta a una caja de texto, **sumar
+las cajas de linea y comprobar que cuadra**: si cuadra al decimal, ese es el `line-height` real.
+
+**Senal de que estaba mal.** El implementador puso `leading-tight` en el nombre y dejo las otras
+dos lineas heredando 1.5, dentro del MISMO componente. Una regla aplicada a medias en un solo
+fichero es sintoma de que el dato nunca estuvo en la especificacion.
+
+## Un mock puesto en `beforeEach` y nunca sobrescrito apaga el codigo que dice cubrir
+
+**Patron.** En el bloque 3, `page.test.tsx:155` hacia
+`useEmployeesWorkingHoursMock.mockReturnValue({ data: {} })` en el `beforeEach`, y NINGUN test lo
+sobrescribia. Con el mapa vacio, `breaks` sale todo `null` y `workingHours[...]` siempre
+`undefined`, asi que **todo el cableado de descansos y hueco libre dejaba de ejecutarse**. La
+auditoria por mutacion lo midio: diez mutaciones supervivientes en un solo fichero, cinco de
+ellas con una sola causa. Se podia borrar `breaks={breaks}` y `freeSlot={freeSlot}` de la pantalla
+y la suite seguia verde. Los doce tests de ese fichero pasaban y daban confianza sobre codigo que
+no llegaban a tocar.
+
+**Regla.** Un mock que devuelve la forma VACIA (`{}`, `[]`, `null`) es un mock que apaga una rama.
+Vale como valor por defecto, pero entonces **al menos un test tiene que sobrescribirlo con datos
+de verdad**. Al escribir el fichero de test, listar que props salen de ese mock y comprobar que
+cada una llega a valer algo en algun caso. Si ninguna lo hace, esa parte de la pantalla no esta
+probada por mucho que el fichero se llame como ella.
+
+**Corolario, del mismo informe.** Un componente cubierto no es un comportamiento cubierto:
+`date-navigator.test.tsx` probaba que los callbacks se disparan, y aun asi se podia hacer que el
+boton "Dia siguiente" RETROCEDIERA con la suite entera verde, porque nadie probaba que la pantalla
+cambiara de dia. Cubrir la pieza y cubrir el cableado son dos trabajos distintos.
+
+**Como se detecta.** Solo mutando. Leer el test y opinar no lo encuentra: hay que romper el codigo
+de produccion a proposito y ver si algo se pone rojo. En este bloque, 51 mutaciones dieron 20
+supervivientes que ninguna lectura habia senalado.
+
+## El dato del brief se copia de la spec, no se recuerda
+
+**Patron.** En el bloque 3 escribi en el plan (D12) que **el artboard movil dibuja el estado
+FILTRADO**, con la pildora "Laura" seleccionada en `Calendario.dc.html:52-55`. Correcto. Horas
+despues, redactando el encargo de una correccion, escribi de memoria lo contrario: *"un filtro de
+pildoras cuyo estado INICIAL es 'Todos', que es ademas el que dibuja el artboard"*. Los
+implementadores lo tomaron como hecho verificado —que es lo que un brief promete ser— y lo
+grabaron **cuatro veces en el fuente**, en comentarios que citan `:51` como prueba. `:51` es la
+pildora "Todos" en REPOSO; la seleccionada es la de al lado. Lo encontro el verificador de la
+segunda ronda, tres olas despues.
+
+**Regla.** Todo dato que entre en un brief se COPIA de §1 del plan o del artboard abierto en ese
+momento; no se escribe de memoria, por fresco que parezca. Si al redactar el brief hace falta un
+valor que no esta en la spec, primero se anade a la spec y luego se copia. Un brief es una fuente
+secundaria, y su unica autoridad es la fidelidad de la copia.
+
+**Y un informe de revision TAMBIEN es fuente secundaria.** Reincidi en el mismo bloque: el
+verificador escribio "la rejilla movil pinta los tres bloques de Laura y ninguno de los otros
+CINCO", yo lo copie al plan y al brief sin contar, y de ahi paso al fuente en tres sitios. Son
+SEIS: el artboard tiene nueve bloques, tres por columna, y Laura aporta dos citas mas un
+descanso. La frase ademas mezclaba bloques con citas para que cuadrase la resta. Un numero se
+CUENTA sobre la fuente; no se hereda de quien lo conto antes, por competente que sea — y este
+verificador lo era, encontro el bloqueante de la ronda.
+
+**Y una casilla sin marcar en `todo.md` tampoco es prueba de nada.** Tercera reincidencia, ya
+fuera del bloque: le presente al usuario el onboarding reanudable como PENDIENTE porque sus
+casillas ON.1-ON.8 seguian sin marcar. Estaba hecho — migracion `V4`, el flag en
+`SalonResponse`, `onboarding-gate.tsx:43` decidiendo por el, `salon-setup` borrada — y me lo
+corrigio el usuario. Un checklist se queda viejo justo cuando el trabajo va rapido, que es
+cuando mas se consulta.
+**Antes de decirle a alguien que algo esta pendiente, se mira el CODIGO**, no la lista. La
+lista sirve para saber que MIRAR, no para saber que hay.
+
+**Por que duele mas que un error normal.** Un dato equivocado en el codigo lo caza un test o una
+revision. Un dato equivocado en un BRIEF se convierte en comentarios que dicen "el artboard dibuja
+X" citando linea y fichero: adquiere apariencia de verificado, sobrevive a las revisiones que
+confian en el, y contamina la siguiente decision que se apoye en el.
+
+Ver [[artboard-es-la-fuente]].
+
+## El nombre del fichero no es el nombre del artboard: manda `canvas.json`
+
+**Patron.** Dije "no existe `Hoy.dc.html`" tras un `ls design/`, y lo presente como si faltara
+la pantalla. El artboard de "Hoy" existe en los dos anchos: su fichero es `Main.dc.html`, y
+`canvas.json` le pone el titulo `'Hoy'` (igual que a `HoyDesktop.dc.html`, `'Hoy - escritorio'`).
+Lo vio el usuario en el canvas publicado, donde los titulos SI se leen. `Main.dc.html` es ademas
+el fichero de entrada por convencion de la herramienta, asi que ese caso se repetira.
+
+**Regla.** Para saber si una pantalla esta dibujada, se mira `design/canvas.json` — el mapa
+fichero -> titulo -> pagina —, no el listado de ficheros. Y al informar: "no encuentro un fichero
+llamado X" y "esa pantalla no esta disenada" son afirmaciones distintas; la primera no autoriza
+la segunda.
+
+Ver [[artboard-es-la-fuente]].
+
+---
+
+## Las puertas de verificacion son las del PROYECTO, no las que yo recuerde
+
+**Patron.** Al cerrar cada ola del bloque de detalle de cita ejecute tres comprobaciones —
+`npm run build`, `npx tsc --noEmit` y `npx vitest run` — y declare "verde" cinco veces seguidas.
+Nunca ejecute `npx eslint`. Un revisor de mutacion lo hizo al final: **27 errores**, todos
+introducidos por los commits de correccion de ese mismo bloque, en un repo que tenia 0.
+
+Peor: los tres focos correspondian a decisiones que yo habia dirigido — un `useRef` escrito
+durante el render (24 errores `react-hooks/refs`), y dos `set-state-in-effect` de arreglos que
+mande resolver "por dentro" en vez de con un `key`. Las tres se acabaron revirtiendo.
+
+**Por que.** Escribi mis puertas de memoria. El plan del bloque 2, en este mismo repo, registra su
+linea base como *"275 tests en 50 ficheros, tsc limpio, **lint 0 errores + 25 avisos**"*. El dato
+estaba escrito; no lo mire.
+
+**Como evitarlo.**
+- Antes de definir la puerta de un bloque, LEER que comprobaciones declaraba la linea base del
+  bloque anterior, y ejecutarlas todas. No inventar la lista.
+- Mirar `package.json`: si hay un script (`lint`, `typecheck`, `format:check`), es parte del
+  contrato del proyecto aunque no me acuerde de el.
+- "Verde" sin decir CON QUE no significa nada. Al declararlo, enumerar los comandos.
+- El lint no es cosmetica: `react-hooks/refs` y `set-state-in-effect` son reglas de correccion.
+  Los tests pasaban con las tres violaciones dentro.
+
+**Corolario, del mismo bloque.** Dos revisores independientes con lentes distintas —correccion y
+mutacion— senalaron las MISMAS lineas por motivos distintos ("los efectos no cierran todos los
+canales" / "esos efectos son 2 errores de lint y se tapan entre si en el test"). Cuando eso pasa,
+lo que esta mal no es el arreglo: es la decision de partida que lo forzo.
+
+Ver [[revision-por-bloque-no-por-tarea]].
