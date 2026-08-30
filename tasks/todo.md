@@ -1975,12 +1975,13 @@ Lo que falta por pantalla:
   los cinco artboards de escritorio de Ajustes ya listan "Notificaciones" en su submenu, asi que
   el menu del codigo esta incompleto respecto al canvas.
 
-**Asistente de nueva cita — A MEDIAS.** Los cinco pasos y sus titulos coinciden. Pero (a) su
-cabecera es de ~50px con flecha y `WizardProgress`, y el artboard dibuja **68px** con marca +
-"Nueva cita" a la izquierda y "Cancelar" + X de 38px a la derecha, sobre `#F8F2EA`
-(`NuevaCitaDesktopPaso1.dc.html:29-43`); y (b) **sigue dentro de `(app)`**, asi que hereda
-barra lateral en escritorio y barra inferior + `pb-20` en movil, cuando sus diez artboards
-dibujan pantalla completa sin ninguna de las dos. No existe ningun grupo `(fullscreen)`.
+**8 · Asistente de nueva cita — HECHO (2026-08-30).** Ya NO esta en `(app)`: hay grupo
+`(fullscreen)` y la ruta se movio alli, asi que deja de heredar barra lateral y barra inferior
+donde los diez artboards dibujan pantalla completa. Cabecera de 68px con marca + "Nueva cita" y
+"Cancelar" + X de 38px, los cinco pasos reescritos contra sus artboards, y dos fallos reales de
+produccion cerrados (el `"any"` que viajaba al endpoint de disponibilidad y el `search` que
+`GET /api/v1/clients` ignoraba en silencio). 20 commits en frontend + 1 en backend. Ver el
+bloque completo al final de este fichero.
 
 ## Cerrado, contra lo que decian las casillas viejas
 
