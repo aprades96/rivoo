@@ -2486,3 +2486,24 @@ propia prueba de mutacion.
 fila "En curso" sin borde propio). **No se ha ejecutado**: necesita la pila
 levantada y credenciales por variable de entorno. Orden:
 `RIVOO_E2E_EMAIL=... RIVOO_E2E_PASSWORD=... npx playwright test visual/shell-vs-artboards.spec.ts`
+
+### Deuda 23 (bloque 5, anadida al cierre) — el reloj de `/today` con la pestana abierta
+
+`now` sale de `dataUpdatedAt` (el instante en que llegaron las citas) y, si aun no
+hay respuesta para esa clave, del instante del montaje. Funciona bien en uso
+normal: cada vez que llegan datos, el reloj va con ellos.
+
+El hueco: al cruzar la **medianoche** con la pestana abierta, la clave cambia de
+dia y `placeholderData` presta las citas de ayer sin fijar `dataUpdatedAt`
+(react-query solo pisa `status` y `data`). En esa ventana se pinta la hora del
+montaje. Tambien ocurre con la query en error o deshabilitada.
+
+**No se arregla ahora, y el motivo es que las dos vias limpias estan cerradas por
+el linter**: `Date.now()` en el render lo prohibe `react-hooks/purity`, y
+re-sembrar el reloj desde un `useEffect` lo prohibe `react-hooks/set-state-in-effect`.
+Salir de ahi pide un `useSyncExternalStore` o similar, desproporcionado para una
+ventana de segundos en un salon que a esa hora esta cerrado.
+
+Si algun dia se retoma: la pregunta de producto de fondo es si `/today` deberia
+pedir "las citas de hoy" (lo que hace, y lo que dibuja el artboard) o "las
+siguientes citas", que no tendria frontera de dia y haria desaparecer esto.
