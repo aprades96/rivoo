@@ -591,7 +591,16 @@ closeTime)`. Nada impide que un salon tenga una cita empezando despues del
 cierre, y "Libre 4h 10min" cuando quedan dos horas de jornada seria falso.
 
 **Fuera de su jornada — todavia sin abrir o ya cerrada — el empleado NO produce
-fila.** Ojo: esto ya no es "se omite igual que en D18", porque D18 ya no omite a
+fila... salvo que tenga una cita EN CURSO.** Una cita solapando `now` gana sobre
+el horario declarado: es evidencia mas dura sobre lo que esta pasando **ahora**
+que un horario que alguien configuro una vez. Alguien atendiendo a un cliente a
+las 20:00 con cierre a las 18:00 esta trabajando, y un panel titulado "Ahora
+mismo" que no lo mencione miente por omision — el mismo fallo que D18 corrige por
+el otro lado. **Solo las filas `free` exigen jornada abierta**; las `busy` no.
+(Encontrado al implementar T3, que aplico la regla anterior al pie de la letra y
+lo reporto.)
+
+Ojo tambien: esto ya no es "se omite igual que en D18", porque D18 ya no omite a
 nadie. Es otra cosa y su consecuencia esta en D37: **cuando NADIE tiene la
 jornada abierta, no se monta el panel entero.** "Ahora mismo" describe el salon
 mientras esta abierto; a las 20:00 no tiene nada que decir, y decirlo con una
@@ -788,7 +797,10 @@ orden sale.** Sin esto cada tarea improvisaria la suya.
   seria una lista de ausencias presentada como el estado del salon. La condicion
   es "hay al menos una jornada abierta", no "hay al menos una fila".
   **Traducido a lo que T8 tiene de verdad en la mano** — que es el array y nada
-  mas —: **existe al menos una fila `busy` o `free`.** Las dos formas son
+  mas —: **existe al menos una fila `busy` o `free`.** Esta forma es ademas la
+  correcta desde que D19 deja que una cita en curso produzca fila fuera del
+  horario declarado: un salon "cerrado" donde alguien esta atendiendo **si**
+  monta el panel, y debe hacerlo. Las dos formas son
   equivalentes gracias a D19 (fuera de jornada no se produce fila), y esta
   segunda es la que se implementa: nadie exporta un booleano de "salon abierto".
 
