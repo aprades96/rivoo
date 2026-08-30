@@ -212,4 +212,15 @@ public class ClientService implements CreateClientUseCase, GetClientUseCase,
         log.atInfo().addKeyValue("externalId", saved.getExternalId()).log("Client created via find-or-create");
         return mapper.toInternalResponse(saved);
     }
+
+    @Override
+    @Transactional
+    public void registerVisit(String tenantId, String clientExternalId, Instant visitAt) {
+        Client client = clientPersistencePort.findByExternalIdAndTenantId(clientExternalId, tenantId)
+                .orElseThrow(() -> new ClientNotFoundException(clientExternalId));
+
+        client.registerVisit(visitAt);
+        clientPersistencePort.save(client);
+        log.atInfo().addKeyValue("clientId", clientExternalId).log("Client visit registered");
+    }
 }

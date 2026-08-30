@@ -54,6 +54,7 @@ class AppointmentServiceTest {
     private static final String EMPLOYEE_EXT_ID = "emp_abc123";
     private static final String SERVICE_EXT_ID = "svc_xyz456";
     private static final String EXTERNAL_ID = "apt_test001";
+    private static final String CLIENT_EXT_ID = "cli_test001";
 
     @Mock private AppointmentPersistencePort appointmentPersistencePort;
     @Mock private StaffServicePort staffServicePort;
@@ -410,6 +411,78 @@ class AppointmentServiceTest {
                     () -> appointmentService.updateStatus(EXTERNAL_ID, "PENDING"));
 
             verify(appointmentPersistencePort, never()).save(any());
+        }
+
+        // D36: transitioning to COMPLETED registers a client visit in client-service.
+
+        @Test
+        @DisplayName("Transition to COMPLETED with a client registers the visit with the appointment's startTime")
+        void completingWithClient_registersVisitWithStartTime() {
+            Appointment inProgress = savedAppointment();
+            inProgress.setStatus(AppointmentStatus.IN_PROGRESS);
+            inProgress.setClientId(CLIENT_EXT_ID);
+
+            when(appointmentPersistencePort.findByExternalId(EXTERNAL_ID))
+                    .thenReturn(Optional.of(inProgress));
+            when(appointmentPersistencePort.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            when(mapper.toResponse(any())).thenAnswer(inv -> stubResponse(inv.getArgument(0)));
+
+            appointmentService.updateStatus(EXTERNAL_ID, "COMPLETED");
+
+            verify(clientServicePort).registerVisit(TENANT_ID, CLIENT_EXT_ID, inProgress.getStartTime());
+        }
+
+        @Test
+        @DisplayName("Transition to COMPLETED without a client does not register a visit")
+        void completingWithoutClient_doesNotRegisterVisit() {
+            Appointment inProgress = savedAppointment(); // clientId is null (walk-in)
+            inProgress.setStatus(AppointmentStatus.IN_PROGRESS);
+
+            when(appointmentPersistencePort.findByExternalId(EXTERNAL_ID))
+                    .thenReturn(Optional.of(inProgress));
+            when(appointmentPersistencePort.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            when(mapper.toResponse(any())).thenAnswer(inv -> stubResponse(inv.getArgument(0)));
+
+            appointmentService.updateStatus(EXTERNAL_ID, "COMPLETED");
+
+            verify(clientServicePort, never()).registerVisit(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("Transition that is not to COMPLETED does not register a visit")
+        void nonCompletingTransition_doesNotRegisterVisit() {
+            Appointment confirmed = savedAppointment();
+            confirmed.setStatus(AppointmentStatus.CONFIRMED);
+            confirmed.setClientId(CLIENT_EXT_ID);
+
+            when(appointmentPersistencePort.findByExternalId(EXTERNAL_ID))
+                    .thenReturn(Optional.of(confirmed));
+            when(appointmentPersistencePort.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            when(mapper.toResponse(any())).thenAnswer(inv -> stubResponse(inv.getArgument(0)));
+
+            appointmentService.updateStatus(EXTERNAL_ID, "IN_PROGRESS");
+
+            verify(clientServicePort, never()).registerVisit(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("Degradation: if client-service fails, the status change still completes and only logs a warning")
+        void registerVisitFails_statusChangeStillCompletes() {
+            Appointment inProgress = savedAppointment();
+            inProgress.setStatus(AppointmentStatus.IN_PROGRESS);
+            inProgress.setClientId(CLIENT_EXT_ID);
+
+            when(appointmentPersistencePort.findByExternalId(EXTERNAL_ID))
+                    .thenReturn(Optional.of(inProgress));
+            when(appointmentPersistencePort.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            when(mapper.toResponse(any())).thenAnswer(inv -> stubResponse(inv.getArgument(0)));
+            org.mockito.Mockito.doThrow(new RuntimeException("client-service down"))
+                    .when(clientServicePort).registerVisit(any(), any(), any());
+
+            AppointmentResponse response = appointmentService.updateStatus(EXTERNAL_ID, "COMPLETED");
+
+            assertNotNull(response);
+            verify(appointmentPersistencePort).save(any());
         }
     }
 }

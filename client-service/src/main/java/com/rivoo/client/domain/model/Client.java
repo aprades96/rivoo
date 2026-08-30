@@ -50,5 +50,12 @@ public class Client {
         this.gender = null;
         this.gdprAnonymizedAt = Instant.now();
         this.active = false;
+        this.totalVisits = 0;
+        this.lastVisitAt = null;
+    }
+
+    public void registerVisit(Instant visitAt) {
+        this.totalVisits++;
+        this.lastVisitAt = (this.lastVisitAt == null || visitAt.isAfter(this.lastVisitAt)) ? visitAt : this.lastVisitAt;
     }
 }

@@ -8,6 +8,8 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
+import java.time.Instant;
+
 @Slf4j
 @Component
 public class ClientServiceAdapter implements ClientServicePort {
@@ -60,5 +62,15 @@ public class ClientServiceAdapter implements ClientServicePort {
             log.atError().setCause(e).addKeyValue("email", email).log("Failed to find-or-create client");
             throw new RuntimeException("Failed to find-or-create client in client-service", e);
         }
+    }
+
+    @Override
+    public void registerVisit(String tenantId, String clientExternalId, Instant visitAt) {
+        log.atInfo().addKeyValue("clientId", clientExternalId).log("Registering client visit in client-service");
+        restClient.post()
+                .uri("/api/internal/clients/{clientId}/visit?tenantId={tenantId}&visitAt={visitAt}",
+                        clientExternalId, tenantId, visitAt)
+                .retrieve()
+                .toBodilessEntity();
     }
 }

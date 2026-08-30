@@ -13,6 +13,7 @@ public record ClientResponse(
         String notes,
         int totalVisits,
         Instant lastVisitAt,
+        Instant gdprConsentAt,
         boolean active,
         Instant createdAt,
         Instant updatedAt

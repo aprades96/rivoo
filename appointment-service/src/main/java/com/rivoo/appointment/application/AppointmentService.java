@@ -206,6 +206,15 @@ public class AppointmentService implements CreateAppointmentUseCase, GetAppointm
                 .addKeyValue("newStatus", newStatus)
                 .log("Appointment status updated");
 
+        if (targetStatus == AppointmentStatus.COMPLETED && saved.getClientId() != null) {
+            try {
+                clientServicePort.registerVisit(saved.getTenantId(), saved.getClientId(), saved.getStartTime());
+            } catch (Exception e) {
+                log.atWarn().addKeyValue("appointmentId", externalId).setCause(e)
+                        .log("Could not register client visit");
+            }
+        }
+
         return mapper.toResponse(saved);
     }
 

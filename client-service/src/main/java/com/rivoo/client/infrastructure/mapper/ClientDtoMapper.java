@@ -16,6 +16,7 @@ public interface ClientDtoMapper {
     @Mapping(target = "id", source = "client.externalId")
     @Mapping(target = "gender", expression = "java(client.getGender() != null ? client.getGender().name() : null)")
     @Mapping(target = "source", expression = "java(client.getSource() != null ? client.getSource().name() : null)")
+    @Mapping(target = "gdprConsentAt", source = "client.gdprConsentAt")
     ClientResponse toResponse(Client client);
 
     @Mapping(target = "id", source = "client.externalId")

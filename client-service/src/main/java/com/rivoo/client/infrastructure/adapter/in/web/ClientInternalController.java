@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
+
 @Slf4j
 @RestController
 @RequestMapping("/api/internal/clients")
@@ -39,5 +41,15 @@ public class ClientInternalController {
         log.atInfo().log("POST /api/internal/clients/find-or-create");
         ClientInternalResponse response = internalClientUseCase.findOrCreate(tenantId, request);
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{clientId}/visit")
+    public ResponseEntity<Void> registerVisit(
+            @PathVariable String clientId,
+            @RequestParam String tenantId,
+            @RequestParam Instant visitAt) {
+        log.atInfo().addKeyValue("clientId", clientId).log("POST /api/internal/clients/{clientId}/visit");
+        internalClientUseCase.registerVisit(tenantId, clientId, visitAt);
+        return ResponseEntity.noContent().build();
     }
 }

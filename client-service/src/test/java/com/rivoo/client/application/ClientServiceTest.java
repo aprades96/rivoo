@@ -60,7 +60,7 @@ class ClientServiceTest {
             Client c = inv.getArgument(0);
             return new ClientResponse(c.getExternalId(), c.getFirstName(), c.getLastName(),
                     c.getEmail(), c.getPhone(), null, "WALK_IN", null,
-                    0, null, true, Instant.now(), Instant.now());
+                    0, null, c.getGdprConsentAt(), true, Instant.now(), Instant.now());
         });
 
         CreateClientRequest request = new CreateClientRequest(
@@ -183,6 +183,38 @@ class ClientServiceTest {
                 .isInstanceOf(ClientNotFoundException.class);
     }
 
+    // ── registerVisit ────────────────────────────────────────────────────
+
+    @Test
+    void registerVisit_existingClient_incrementsCounterAndSaves() {
+        Client client = buildActiveClient();
+        client.setTotalVisits(2);
+        client.setLastVisitAt(Instant.parse("2026-07-01T10:00:00Z"));
+        when(clientPersistencePort.findByExternalIdAndTenantId(CLIENT_EXTERNAL_ID, TENANT_ID))
+                .thenReturn(Optional.of(client));
+        when(clientPersistencePort.save(any(Client.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        clientService.registerVisit(TENANT_ID, CLIENT_EXTERNAL_ID, Instant.parse("2026-08-05T10:00:00Z"));
+
+        ArgumentCaptor<Client> captor = ArgumentCaptor.forClass(Client.class);
+        verify(clientPersistencePort).save(captor.capture());
+        Client saved = captor.getValue();
+
+        assertThat(saved.getTotalVisits()).isEqualTo(3);
+        assertThat(saved.getLastVisitAt()).isEqualTo(Instant.parse("2026-08-05T10:00:00Z"));
+    }
+
+    @Test
+    void registerVisit_clientNotFound_throwsClientNotFoundException() {
+        when(clientPersistencePort.findByExternalIdAndTenantId(CLIENT_EXTERNAL_ID, TENANT_ID))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> clientService.registerVisit(TENANT_ID, CLIENT_EXTERNAL_ID, Instant.now()))
+                .isInstanceOf(ClientNotFoundException.class);
+
+        verify(clientPersistencePort, never()).save(any());
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────
 
     private Client buildActiveClient() {
@@ -211,6 +243,6 @@ class ClientServiceTest {
     private ClientResponse dummyResponse() {
         return new ClientResponse(CLIENT_EXTERNAL_ID, "Ana", "Lopez",
                 "ana@gmail.com", null, null, "WALK_IN", null,
-                0, null, true, Instant.now(), Instant.now());
+                0, null, Instant.now(), true, Instant.now(), Instant.now());
     }
 }
