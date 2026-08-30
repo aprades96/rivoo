@@ -259,7 +259,8 @@ implicada.
    (convencion existente).
 4. **`formatCurrency` emite U+00A0 antes del €.** Toda asercion de precio
    necesita los helpers `normalize`/`exact` (patron en
-   `appointment-block.test.tsx:43-51`).
+   `src/components/calendar/appointment-block.test.tsx:43-51` — en `calendar/`, NO en
+   `appointments/`).
 5. **`src/test/setup.ts` devuelve SIEMPRE `matches: false` en `matchMedia`.**
    Todo test de escritorio necesita su `mockMatchMedia(true)` local y su
    `afterEach`.
