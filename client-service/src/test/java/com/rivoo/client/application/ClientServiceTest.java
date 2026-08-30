@@ -217,6 +217,19 @@ class ClientServiceTest {
         verify(clientPersistencePort, never()).save(any());
     }
 
+    @Test
+    void registerVisit_anonymizedClient_isNoOpAndDoesNotUndoAnonymization() {
+        Client client = buildAlreadyAnonymizedClient();
+        when(clientPersistencePort.findByExternalIdAndTenantId(CLIENT_EXTERNAL_ID, TENANT_ID))
+                .thenReturn(Optional.of(client));
+
+        clientService.registerVisit(TENANT_ID, CLIENT_EXTERNAL_ID, Instant.parse("2026-08-05T10:00:00Z"));
+
+        assertThat(client.getTotalVisits()).isZero();
+        assertThat(client.getLastVisitAt()).isNull();
+        verify(clientPersistencePort, never()).save(any());
+    }
+
     // ── getAppointmentHistory (D38) ─────────────────────────────────────
 
     @Test

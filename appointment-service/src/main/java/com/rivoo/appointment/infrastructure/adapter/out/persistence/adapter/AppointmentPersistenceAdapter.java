@@ -3,6 +3,7 @@ package com.rivoo.appointment.infrastructure.adapter.out.persistence.adapter;
 import com.rivoo.appointment.domain.model.Appointment;
 import com.rivoo.appointment.domain.model.AppointmentStatus;
 import com.rivoo.appointment.domain.port.out.AppointmentPersistencePort;
+import com.rivoo.appointment.infrastructure.adapter.out.persistence.repository.AppointmentAggregateProjection;
 import com.rivoo.appointment.infrastructure.adapter.out.persistence.repository.AppointmentJpaRepository;
 import com.rivoo.appointment.infrastructure.mapper.AppointmentPersistenceMapper;
 import lombok.RequiredArgsConstructor;
@@ -93,10 +94,11 @@ public class AppointmentPersistenceAdapter implements AppointmentPersistencePort
 
     @Override
     public CompletedAppointmentsSummary getCompletedSummaryByClientId(String clientId, String tenantId) {
-        Object[] row = repository.aggregateByClientAndStatus(clientId, tenantId, AppointmentStatus.COMPLETED);
-        long completedCount = row[0] != null ? ((Number) row[0]).longValue() : 0L;
-        BigDecimal billedAmount = row[1] != null ? (BigDecimal) row[1] : BigDecimal.ZERO;
-        Instant lastCompletedAt = (Instant) row[2];
+        AppointmentAggregateProjection aggregate =
+                repository.aggregateByClientAndStatus(clientId, tenantId, AppointmentStatus.COMPLETED);
+        long completedCount = aggregate.completedCount() != null ? aggregate.completedCount() : 0L;
+        BigDecimal billedAmount = aggregate.billedAmount() != null ? aggregate.billedAmount() : BigDecimal.ZERO;
+        Instant lastCompletedAt = aggregate.lastCompletedAt();
         return new CompletedAppointmentsSummary(completedCount, billedAmount, lastCompletedAt);
     }
 }

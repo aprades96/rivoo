@@ -230,6 +230,15 @@ public class ClientService implements CreateClientUseCase, GetClientUseCase,
         Client client = clientPersistencePort.findByExternalIdAndTenantId(clientExternalId, tenantId)
                 .orElseThrow(() -> new ClientNotFoundException(clientExternalId));
 
+        if (client.isAnonymized()) {
+            // GDPR anonymization zeroes totalVisits/lastVisitAt on purpose and is irreversible
+            // (anonymize() rejects an already-anonymized client). Registering a visit here would
+            // silently undo that erasure the next time an existing appointment is completed.
+            log.atWarn().addKeyValue("clientId", clientExternalId)
+                    .log("Ignoring visit registration for anonymized client");
+            return;
+        }
+
         client.registerVisit(visitAt);
         clientPersistencePort.save(client);
         log.atInfo().addKeyValue("clientId", clientExternalId).log("Client visit registered");

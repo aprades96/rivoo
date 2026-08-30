@@ -3,6 +3,7 @@ package com.rivoo.appointment.infrastructure.adapter.out.persistence;
 import com.rivoo.appointment.domain.model.AppointmentSource;
 import com.rivoo.appointment.domain.model.AppointmentStatus;
 import com.rivoo.appointment.infrastructure.adapter.out.persistence.entity.AppointmentJpaEntity;
+import com.rivoo.appointment.infrastructure.adapter.out.persistence.repository.AppointmentAggregateProjection;
 import com.rivoo.appointment.infrastructure.adapter.out.persistence.repository.AppointmentJpaRepository;
 import com.rivoo.common.tenant.TenantContext;
 import org.junit.jupiter.api.AfterEach;
@@ -466,11 +467,12 @@ class AppointmentRepositoryIntegrationTest {
                 .getTotalElements();
         assertThat(totalAppointments).isEqualTo(3);
 
-        Object[] row = repository.aggregateByClientAndStatus(clientId, TENANT, AppointmentStatus.COMPLETED);
+        AppointmentAggregateProjection aggregate =
+                repository.aggregateByClientAndStatus(clientId, TENANT, AppointmentStatus.COMPLETED);
 
-        assertThat(((Number) row[0]).longValue()).isEqualTo(1L);
-        assertThat((BigDecimal) row[1]).isEqualByComparingTo("35.00");
-        assertThat((Instant) row[2]).isEqualTo(completed.getStartTime());
+        assertThat(aggregate.completedCount()).isEqualTo(1L);
+        assertThat(aggregate.billedAmount()).isEqualByComparingTo("35.00");
+        assertThat(aggregate.lastCompletedAt()).isEqualTo(completed.getStartTime());
     }
 
     @Test
@@ -481,11 +483,12 @@ class AppointmentRepositoryIntegrationTest {
         cancelled.setClientId(clientId);
         repository.save(cancelled);
 
-        Object[] row = repository.aggregateByClientAndStatus(clientId, TENANT, AppointmentStatus.COMPLETED);
+        AppointmentAggregateProjection aggregate =
+                repository.aggregateByClientAndStatus(clientId, TENANT, AppointmentStatus.COMPLETED);
 
-        assertThat(((Number) row[0]).longValue()).isEqualTo(0L);
-        assertThat(row[1]).isNull();
-        assertThat(row[2]).isNull();
+        assertThat(aggregate.completedCount()).isEqualTo(0L);
+        assertThat(aggregate.billedAmount()).isNull();
+        assertThat(aggregate.lastCompletedAt()).isNull();
     }
 
     @Test

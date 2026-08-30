@@ -95,13 +95,21 @@ public interface AppointmentJpaRepository extends JpaRepository<AppointmentJpaEn
      * Single aggregate row: {@code COUNT}, {@code SUM(servicePrice)} and
      * {@code MAX(startTime)} over the appointments of one client filtered by status.
      * With no matching rows, SQL still returns one row: count = 0, sum/max = NULL.
+     *
+     * <p>Returns a dedicated projection built via a JPQL {@code new} constructor
+     * expression rather than {@code Object[]}. An {@code Object[]} return type is
+     * collection-like to Spring Data ({@code TypeInformation.isCollectionLike()}
+     * returns {@code true} for arrays), so it would be executed as a
+     * {@code CollectionExecution} and the single aggregate row would come back nested
+     * one level deeper than expected ({@code Object[]{ Object[]{count, sum, max} }}).
      */
     @Query("""
-            SELECT COUNT(a), SUM(a.servicePrice), MAX(a.startTime)
+            SELECT new com.rivoo.appointment.infrastructure.adapter.out.persistence.repository.AppointmentAggregateProjection(
+                COUNT(a), SUM(a.servicePrice), MAX(a.startTime))
             FROM AppointmentJpaEntity a
             WHERE a.clientId = :clientId AND a.tenantId = :tenantId AND a.status = :status
             """)
-    Object[] aggregateByClientAndStatus(
+    AppointmentAggregateProjection aggregateByClientAndStatus(
             @Param("clientId") String clientId,
             @Param("tenantId") String tenantId,
             @Param("status") AppointmentStatus status);
