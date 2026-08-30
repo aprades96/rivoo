@@ -2352,3 +2352,43 @@ hay nada que hacer alli.** Queda escrito para que nadie "unifique"
 `formatDuration` y `formatDurationTight` al ver dos funciones parecidas: son dos
 convenciones de dibujo distintas, cada una con sus artboards detras. Unificarlas
 rompe una pantalla ya cerrada, sea cual sea la direccion en que se unifiquen.
+
+---
+
+# BLOQUE 5 — Pantalla "Hoy"
+
+Plan: `docs/specs/pantalla-hoy/IMPLEMENTATION_PLAN.md` (1518 lineas, 37
+decisiones). Aprobado por el usuario el 2026-08-30 tras tres rondas de revision
+independiente (22 + 10 + 6 hallazgos). **Cero cambios en el backend.**
+
+Linea base al arrancar: frontend en `8981037`, arbol limpio, 916 tests en 86
+ficheros, tsc 0, eslint 0 errores + 9 avisos, build OK.
+
+## Olas
+
+- [ ] **Ola 0 — T0** · Tokens (`--surface-now`, `--surface-now-border`,
+      `--surface-now-text`) y `formatCurrencyRounded`. Corre SOLA: nadie mas
+      toca `globals.css`.
+- [ ] **Ola 1 — T1 ‖ T2 ‖ T3** · El dia viaja de verdad al servidor · `mobileTitle`
+      en `PageShell` · `today-facts.ts` (modulo puro, la tarea mas importante).
+- [ ] **Ola 2 — T4 ‖ T5 ‖ T6 ‖ T7** · `KpiCard` · `NowPanel` · `PendingOnlineCard` ·
+      `AppointmentCard` reescrita.
+- [ ] **Ola 3 — T8** · La pagina.
+- [ ] **Ola 4 — T9** · Spec visual y puertas globales.
+- [ ] **Ola 5 — T10 ‖ T11 ‖ T12** · Panel de 3 revisores independientes en
+      paralelo, instruidos para REFUTAR. Se descarta un hallazgo si la mayoria
+      lo refuta. Luego volcado de deudas aqui.
+
+## Lo que este bloque arregla de paso
+
+1. **`/today` y `/calendar` no filtran por fecha.** El frontend manda `?date=`,
+   el controlador solo acepta `startDate`/`endDate`, Spring lo descarta en
+   silencio y el JPQL ordena `startTime DESC`: las dos pantallas reciben las N
+   citas mas lejanas en el futuro, de cualquier fecha. T1 lo arregla en la capa
+   de API y **repara `/calendar` sin tocar `/calendar`**.
+2. **La tarjeta "Proxima cita" compara UTC contra hora local** y da por futura
+   una cita que empezo hace dos horas. Se borra (ningun artboard la dibuja).
+
+## Deudas nuevas — se anotan al cerrar (T12), no antes
+
+Las 19 estan enumeradas en §T10-T12 del plan.
