@@ -8,5 +8,5 @@ public interface GetClientUseCase {
 
     ClientResponse getByExternalId(String externalId);
 
-    Page<ClientResponse> list(Pageable pageable);
+    Page<ClientResponse> list(String search, Pageable pageable);
 }

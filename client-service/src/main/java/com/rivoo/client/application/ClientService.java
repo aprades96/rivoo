@@ -26,6 +26,7 @@ import com.rivoo.common.util.ExternalIdGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -85,8 +86,20 @@ public class ClientService implements CreateClientUseCase, GetClientUseCase,
 
     @Override
     @Transactional(readOnly = true)
-    public Page<ClientResponse> list(Pageable pageable) {
-        return clientPersistencePort.findAll(pageable).map(mapper::toResponse);
+    public Page<ClientResponse> list(String search, Pageable pageable) {
+        // Order (lastVisitAt DESC, createdAt DESC) is fixed in the repository query,
+        // not delegated to the caller's sort — strip it here so every consumer
+        // (new-appointment assistant, /clients screen) sees the same ordering.
+        Pageable unsorted = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
+        return clientPersistencePort.findAll(normalizeSearch(search), unsorted).map(mapper::toResponse);
+    }
+
+    private String normalizeSearch(String search) {
+        if (search == null) {
+            return null;
+        }
+        String trimmed = search.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     // ── Update Client ───────────────────────────────────────────────────

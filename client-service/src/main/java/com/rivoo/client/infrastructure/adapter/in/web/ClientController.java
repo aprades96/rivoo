@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Slf4j
@@ -41,9 +42,10 @@ public class ClientController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('SALON_OWNER', 'EMPLOYEE')")
-    public ResponseEntity<Page<ClientResponse>> list(Pageable pageable) {
+    public ResponseEntity<Page<ClientResponse>> list(@RequestParam(required = false) String search,
+                                                       Pageable pageable) {
         log.atInfo().log("GET /api/v1/clients");
-        Page<ClientResponse> response = getClientUseCase.list(pageable);
+        Page<ClientResponse> response = getClientUseCase.list(search, pageable);
         return ResponseEntity.ok(response);
     }
 

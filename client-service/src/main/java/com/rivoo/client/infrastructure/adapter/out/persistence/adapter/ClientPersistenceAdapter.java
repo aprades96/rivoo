@@ -47,8 +47,8 @@ public class ClientPersistenceAdapter implements ClientPersistencePort {
     }
 
     @Override
-    public Page<Client> findAll(Pageable pageable) {
-        return repository.findAll(pageable).map(mapper::toDomain);
+    public Page<Client> findAll(String search, Pageable pageable) {
+        return repository.search(search, pageable).map(mapper::toDomain);
     }
 
     @Override

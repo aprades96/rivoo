@@ -18,7 +18,7 @@ public interface ClientPersistencePort {
 
     Optional<Client> findByExternalIdAndTenantId(String externalId, String tenantId);
 
-    Page<Client> findAll(Pageable pageable);
+    Page<Client> findAll(String search, Pageable pageable);
 
     boolean existsByTenantIdAndEmail(String tenantId, String email);
 }
