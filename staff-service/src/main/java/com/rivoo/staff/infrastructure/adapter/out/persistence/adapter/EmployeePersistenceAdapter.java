@@ -38,8 +38,8 @@ public class EmployeePersistenceAdapter implements EmployeePersistencePort {
     }
 
     @Override
-    public Page<Employee> findAllActive(Pageable pageable) {
-        return repository.findByActiveTrue(pageable).map(mapper::toDomain);
+    public Page<Employee> search(boolean includeInactive, Pageable pageable) {
+        return repository.search(includeInactive, pageable).map(mapper::toDomain);
     }
 
     @Override

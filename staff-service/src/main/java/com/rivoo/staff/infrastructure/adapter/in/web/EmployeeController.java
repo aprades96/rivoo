@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -57,9 +58,11 @@ public class EmployeeController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('SALON_OWNER', 'EMPLOYEE')")
-    public ResponseEntity<Page<EmployeeResponse>> list(Pageable pageable) {
+    public ResponseEntity<Page<EmployeeResponse>> list(
+            @RequestParam(defaultValue = "false") boolean includeInactive,
+            Pageable pageable) {
         log.atInfo().log("GET /api/v1/staff/employees");
-        Page<EmployeeResponse> response = getEmployeeUseCase.list(pageable);
+        Page<EmployeeResponse> response = getEmployeeUseCase.list(includeInactive, pageable);
         return ResponseEntity.ok(response);
     }
 

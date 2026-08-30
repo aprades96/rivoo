@@ -12,7 +12,7 @@ public interface GetEmployeeUseCase {
 
     EmployeeResponse getByExternalId(String externalId);
 
-    Page<EmployeeResponse> list(Pageable pageable);
+    Page<EmployeeResponse> list(boolean includeInactive, Pageable pageable);
 
     EmployeeInternalResponse getInternal(String tenantId, String employeeExternalId);
 

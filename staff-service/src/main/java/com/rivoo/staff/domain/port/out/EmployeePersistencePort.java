@@ -15,7 +15,7 @@ public interface EmployeePersistencePort {
 
     Optional<Employee> findByKeycloakUserId(String keycloakUserId);
 
-    Page<Employee> findAllActive(Pageable pageable);
+    Page<Employee> search(boolean includeInactive, Pageable pageable);
 
     long countActiveByTenantId(String tenantId);
 

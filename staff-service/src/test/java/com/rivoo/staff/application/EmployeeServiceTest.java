@@ -1,7 +1,9 @@
 package com.rivoo.staff.application;
 
+import com.rivoo.staff.application.dto.AssignServicesRequest;
 import com.rivoo.staff.application.dto.CreateEmployeeRequest;
 import com.rivoo.staff.application.dto.EmployeeResponse;
+import com.rivoo.staff.application.dto.EmployeeServiceResponse;
 import com.rivoo.staff.domain.exception.EmployeeLimitExceededException;
 import com.rivoo.staff.domain.model.Employee;
 import com.rivoo.staff.domain.model.EmployeeRole;
@@ -19,15 +21,22 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -228,6 +237,76 @@ class EmployeeServiceTest {
 
         verify(authServicePort, never()).registerEmployee(anyString(), anyString(), anyString(),
                 anyString(), anyString(), anyString());
+    }
+
+    // ── list: includeInactive predicate (D35) ─────────────────────────────
+
+    @Test
+    void list_includeInactiveFalse_asksRepositoryToExcludeInactive() {
+        when(employeePersistencePort.search(eq(false), any(Pageable.class))).thenReturn(Page.empty());
+
+        employeeService.list(false, PageRequest.of(0, 20));
+
+        verify(employeePersistencePort).search(eq(false), any(Pageable.class));
+    }
+
+    @Test
+    void list_includeInactiveTrue_asksRepositoryToIncludeInactive() {
+        when(employeePersistencePort.search(eq(true), any(Pageable.class))).thenReturn(Page.empty());
+
+        employeeService.list(true, PageRequest.of(0, 20));
+
+        verify(employeePersistencePort).search(eq(true), any(Pageable.class));
+    }
+
+    // ── list: deterministic default order (D35) ────────────────────────────
+
+    @Test
+    void list_pageableWithoutSort_appliesDeterministicDefaultOrder() {
+        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+        when(employeePersistencePort.search(anyBoolean(), captor.capture())).thenReturn(Page.empty());
+
+        employeeService.list(false, PageRequest.of(0, 20));
+
+        Sort sort = captor.getValue().getSort();
+        assertThat(sort).containsExactly(
+                Sort.Order.desc("active"),
+                Sort.Order.asc("firstName"),
+                Sort.Order.asc("lastName"),
+                Sort.Order.asc("id"));
+    }
+
+    @Test
+    void list_pageableWithExplicitSort_isRespectedAsIs() {
+        Pageable sorted = PageRequest.of(0, 20, Sort.by(Sort.Order.asc("lastName")));
+        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+        when(employeePersistencePort.search(anyBoolean(), captor.capture())).thenReturn(Page.empty());
+
+        employeeService.list(false, sorted);
+
+        assertThat(captor.getValue().getSort()).isEqualTo(sorted.getSort());
+    }
+
+    // ── assignServices: emptying the list is legitimate (D16b) ────────────
+
+    @Test
+    void assignServices_emptyList_deletesExistingAssignments_andDoesNotThrow() {
+        Employee employee = Employee.builder()
+                .id(9L)
+                .externalId("emp_009")
+                .tenantId(TENANT_ID)
+                .active(true)
+                .build();
+        when(employeePersistencePort.findByExternalId("emp_009")).thenReturn(Optional.of(employee));
+        when(employeeServicePersistencePort.findByEmployeeId(9L)).thenReturn(List.of());
+
+        AssignServicesRequest request = new AssignServicesRequest(List.of());
+
+        List<EmployeeServiceResponse> result = employeeService.assignServices(TENANT_ID, "emp_009", request);
+
+        verify(employeeServicePersistencePort).deleteByEmployeeId(9L);
+        verify(employeeServicePersistencePort).saveAll(List.of());
+        assertThat(result).isEmpty();
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────

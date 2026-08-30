@@ -75,6 +75,12 @@ public class EmployeeServicePersistenceAdapter implements EmployeeServicePersist
 
     @Override
     public List<EmployeeServiceAssignment> saveAll(List<EmployeeServiceAssignment> assignments) {
+        if (assignments.isEmpty()) {
+            // D16b: an empty list is a legitimate "unassign everything" request.
+            // assignments.getFirst() below would throw NoSuchElementException on it.
+            return List.of();
+        }
+
         List<EmployeeServiceJpaEntity> entities = assignments.stream()
                 .map(a -> EmployeeServiceJpaEntity.builder()
                         .employeeId(a.getEmployeeId())

@@ -16,7 +16,21 @@ public interface EmployeeJpaRepository extends JpaRepository<EmployeeJpaEntity, 
 
     Optional<EmployeeJpaEntity> findByKeycloakUserId(String keycloakUserId);
 
-    Page<EmployeeJpaEntity> findByActiveTrue(Pageable pageable);
+    /**
+     * Lists employees, optionally including inactive ones. Ordering is left to
+     * {@code Pageable} — {@code EmployeeService.list} fills in a deterministic
+     * default sort when the caller sends none.
+     * <p>
+     * JPQL (not native SQL): Hibernate's {@code tenantFilter} — activated by
+     * {@code TenantFilterAspect} — only applies to HQL/JPQL and Criteria queries,
+     * never to native SQL, so tenant isolation depends on staying in JPQL here
+     * (same warning as {@code ClientJpaRepository}).
+     */
+    @Query("""
+            SELECT e FROM EmployeeJpaEntity e
+            WHERE (:includeInactive = true OR e.active = true)
+            """)
+    Page<EmployeeJpaEntity> search(@Param("includeInactive") boolean includeInactive, Pageable pageable);
 
     @Query("SELECT COUNT(e) FROM EmployeeJpaEntity e WHERE e.tenantId = :tenantId AND e.active = true")
     long countActiveByTenantId(@Param("tenantId") String tenantId);

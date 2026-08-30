@@ -80,7 +80,7 @@ class EmployeeServicePublicListTest {
         employeeService.listPublicByTenant(TENANT_A);
 
         verify(employeePersistencePort).findAllActiveByTenantId(TENANT_A);
-        verify(employeePersistencePort, never()).findAllActive(org.mockito.ArgumentMatchers.any());
+        verify(employeePersistencePort, never()).search(org.mockito.ArgumentMatchers.anyBoolean(), org.mockito.ArgumentMatchers.any());
     }
 
     // ── guard against a missing/blank tenant (anonymous visitor with no context) ──

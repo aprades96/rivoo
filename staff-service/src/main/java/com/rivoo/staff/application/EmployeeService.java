@@ -34,7 +34,9 @@ import com.rivoo.common.util.ExternalIdGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +49,16 @@ import java.util.List;
 public class EmployeeService implements CreateEmployeeUseCase, GetEmployeeUseCase,
         UpdateEmployeeUseCase, DeactivateEmployeeUseCase,
         ManageEmployeeWorkingHoursUseCase, ManageEmployeeServicesUseCase {
+
+    // Deterministic default order for the employee listing (D35): applied only when
+    // the incoming Pageable carries no sort of its own, so an explicit ?sort= is
+    // still honored as-is. Without this, MySQL returns rows in whatever order it
+    // finds them in, which can repeat or skip rows across pages.
+    private static final Sort DEFAULT_SORT = Sort.by(
+            Sort.Order.desc("active"),
+            Sort.Order.asc("firstName"),
+            Sort.Order.asc("lastName"),
+            Sort.Order.asc("id"));
 
     private final EmployeePersistencePort employeePersistencePort;
     private final WorkingHoursPersistencePort workingHoursPersistencePort;
@@ -112,8 +124,11 @@ public class EmployeeService implements CreateEmployeeUseCase, GetEmployeeUseCas
 
     @Override
     @Transactional(readOnly = true)
-    public Page<EmployeeResponse> list(Pageable pageable) {
-        return employeePersistencePort.findAllActive(pageable).map(mapper::toResponse);
+    public Page<EmployeeResponse> list(boolean includeInactive, Pageable pageable) {
+        Pageable effectivePageable = pageable.getSort().isUnsorted()
+                ? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), DEFAULT_SORT)
+                : pageable;
+        return employeePersistencePort.search(includeInactive, effectivePageable).map(mapper::toResponse);
     }
 
     @Override

@@ -129,6 +129,18 @@ class EmployeeServicePersistenceAdapterTest {
         assertThat(logAppender.list).isEmpty();
     }
 
+    // ── saveAll must tolerate the empty list (D16b: clearing all services) ──
+
+    @Test
+    void saveAll_emptyList_returnsEmptyListWithoutThrowing() {
+        // Before the fix this called assignments.getFirst() unconditionally, which
+        // throws NoSuchElementException on an empty list -- turning a legitimate
+        // "unassign every service" request into a 500.
+        List<EmployeeServiceAssignment> result = adapter.saveAll(List.of());
+
+        assertThat(result).isEmpty();
+    }
+
     // ── helpers ────────────────────────────────────────────────────────
 
     private static boolean hasKeyValue(ILoggingEvent event, String key, Object value) {
