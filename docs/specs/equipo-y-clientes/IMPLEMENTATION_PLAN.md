@@ -1222,7 +1222,8 @@ Diferencias reales entre los dos formularios que **se respetan**:
 
 | | Empleado | Cliente |
 |---|---|---|
-| Cerrar en movil | **sin borde ni fondo**, X **18x18** (`FormularioEmpleado:99`) | **con** `border --border` y `bg --card`, X **15x15** (`FormularioCliente:52`) |
+| Cerrar en **movil** | **sin borde ni fondo**, X **18x18** (`FormularioEmpleado:99`) | **con** `border --border` y `bg --card`, X **15x15** (`FormularioCliente:52`) |
+| Cerrar en **escritorio** | **CON** `border --border` y `bg --card`, X **16x16** (`FormularioEmpleadoDesktop:301-304`) | **con** `border --border` y `bg --card`, X **15x15** (`FormularioClienteDesktop:168-171`) |
 | `.lbl` | **12px/600** `--muted-foreground` (`:31`) | **12px/500** `--label` (`:18`) |
 | Alto de campo movil | **44** (`:32`) | **42** (`:19`) |
 | Alto de campo escritorio | **40** (`:21`) | **42** (el modal no redefine `.fld`) |
@@ -1235,9 +1236,19 @@ resto del radio superior de la hoja movil. Es un desliz de dibujo. Misma regla
 que se aplico en el bloque 5 a las desviaciones de aparicion unica entre
 hermanos.
 
+**Tamano del icono X — resuelto durante la ejecucion, no reabrir.** Los cuatro
+artboards de formulario dibujan la X en **18** (`FormularioEmpleado:100`), **16**
+(`FormularioEmpleadoDesktop:304`), **15** (`FormularioCliente:53`) y **15**
+(`FormularioClienteDesktop:171`). El **16 aparece una sola vez**: misma firma de
+desliz de dibujo con la que se resolvieron el radio del modal y el scrim. La
+variante `bordered` usa **15** en las dos familias; `plain` usa 18. **No se anade
+un prop al primitivo compartido para un pixel.**
+
 **Salvo que**: las diferencias de `.lbl`, altura de campo y CTA aparecen de forma
 **consistente en los dos anchos** de cada familia, asi que NO son deslices y se
-conservan.
+conservan. Lo que SI cambia entre anchos en la familia empleado es el **estilo**
+del boton de cerrar (movil sin borde, escritorio con borde), corregido en la
+tabla de arriba.
 
 ### D18 · El modo determina que se pinta, no el ancho
 
