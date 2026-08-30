@@ -1384,3 +1384,106 @@ este componente?" sino **"¿esta probada esta rama?"** — y la unica respuesta
 fiable es mutar la rama y ver si cae algo.
 
 Ver [[agentes-que-mutan-corren-solos]] para el como: quien muta corre solo.
+
+---
+
+# Bloque 6 — Equipo y clientes (2026-08-31)
+
+## L1 · "No tiene precedente en el repo" es una senal de parada, no una nota al pie
+
+**Patron:** el implementador de B3 cerro su informe con esto:
+
+> `Object[]` como tipo de retorno de una query JPQL agregada de una sola fila no
+> tenia precedente exacto en el repo (solo existian `List<Object[]>` para
+> `GROUP BY`); es un patron estandar de Spring Data pero queda anotado por si el
+> revisor prefiere una proyeccion con interfaz.
+
+Lo lei, me parecio razonable, y segui. **Era el fallo critico del bloque.** Spring
+Data trata los arrays como "collection-like", asi que la consulta devolvia
+`Object[]{Object[]{...}}` y el cast lanzaba `ClassCastException` **en cada
+llamada**: el historial de cliente respondia 500 siempre.
+
+**Regla:** cuando un implementador diga que ha hecho algo que **el repo no hace en
+ningun otro sitio**, eso no se archiva. Se verifica antes de cerrar la ola, y se
+verifica **ejecutandolo**, no leyendolo. Un patron sin precedente en un repo
+maduro suele significar una de dos cosas: que nadie lo necesito, o que alguien ya
+descubrio que no funciona.
+
+Corolario: el agente hizo lo correcto — dijo exactamente lo que dudaba y por que.
+El fallo fue del orquestador al no perseguirlo.
+
+## L2 · Un test excluido del build por defecto no es una red, es un adorno
+
+`pom.xml:43` fija `<surefire.excluded.groups>integration</surefire.excluded.groups>`.
+El **unico** test que cubria la consulta rota estaba marcado `@Tag("integration")`,
+asi que **nunca se ejecuto**. El test existia, estaba bien escrito, y no sirvio
+para nada.
+
+Escribirlo y quedarse tranquilo es **peor** que no escribirlo: da sensacion de
+cobertura sin darla.
+
+**Regla:** si la unica prueba de algo esta tras un tag excluido o tras Docker
+—que en esta maquina no hay—, **hace falta ademas una que corra en el build por
+defecto**. Puede ser mas modesta: en este caso, el arreglo incluyo un test que
+inspecciona `TypeInformation.fromReturnTypeOf(method).isCollectionLike()`, o sea
+la misma API con la que Spring Data decide como ejecutar el metodo. No toca la base
+de datos y caza exactamente la reintroduccion.
+
+## L3 · Las puertas verdes no dicen nada sobre lo que no miran
+
+Al cerrar la ola 3 el bloque tenia `tsc` 0, **1179 tests en 104 ficheros**, lint
+limpio y build OK. Y una pantalla entera no funcionaba.
+
+No es que las puertas fallaran: es que **ninguna de ellas mira si la pantalla
+hace lo que dice**. `tsc` comprueba tipos, los tests comprueban lo que alguien
+penso en comprobar, el build comprueba que compila.
+
+**Regla:** las puertas son condicion necesaria para pasar de ola, nunca evidencia
+de que el bloque este bien. Lo que da esa evidencia es un revisor independiente
+leyendo el codigo contra su especificacion, y una campana de mutacion.
+
+## L4 · Documentar una trampa no impide caer en ella
+
+La trampa del primitivo `Card` —fuerza `ring-1` y **no** trae clase `border`, asi
+que fijar el color deja ancho cero— estaba escrita en §1.13 del plan, en la
+seccion que **todos** los implementadores tenian orden de leer antes de escribir
+codigo.
+
+Cayeron igual, cuatro veces, en la misma pantalla.
+
+**Regla:** un aviso en un documento reduce la probabilidad, no la anula. Lo que
+caza este tipo de fallo es **comparar contra el artboard**, que es trabajo de
+revisor, no de lector. Documentar sirve para que el revisor sepa que buscar, no
+para ahorrarselo.
+
+## L5 · Los tests protegen lo que el bloque DECIDIO y no lo que EJECUTA
+
+Resultado de la campana de mutacion: **75 mutaciones, 10 supervivientes**. Y los
+supervivientes tenian todos la misma forma.
+
+Lo que si estaba protegido: las reglas del contador, los KPIs derivados del
+resumen, las ramas de error, los primitivos visuales — todo lo que fue una
+**decision** escrita en el plan.
+
+Lo que sobrevivio: un `vi.fn()` montado y jamas afirmado, un `disabled` en el
+boton destructivo omitido en un test que ya tenia la mutacion en vuelo, un test de
+escritorio que afirma rotulos en vez de contenido. Todo lo que la pantalla
+**hace**.
+
+El mas grave: **se podia reintroducir el fallo de produccion que este bloque
+acababa de arreglar sin que cayera un solo test.**
+
+**Regla:** al cerrar un bloque, preguntar no "¿esta cubierto?" sino "¿que pasa si
+alguien deshace justo lo que acabo de arreglar?". Si la respuesta es "nada", el
+arreglo esta a medias.
+
+## L6 · Repartir el alcance mal deja el arbol en rojo, y es del orquestador
+
+Le di a un corrector `status-badge.tsx` para arreglar una tilde y **no le di su
+fichero de test**, que afirmaba el texto viejo. Dos tests en rojo, y el rotulo
+quedo ademas inconsistente con otras tres copias escritas a mano en pantallas de
+bloques cerrados.
+
+**Regla:** al asignar un fichero fuente, asignar **su test**. Y antes de tocar una
+cadena visible, `grep` de esa cadena en todo `src/`: si aparece mas de una vez, el
+alcance incluye a todas o a ninguna.

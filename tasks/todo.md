@@ -2622,3 +2622,137 @@ build OK.
 - Ningun agente cambia de rama.
 - En una ola paralela, cada implementador ejecuta **solo sus** ficheros de test.
   Las puertas globales las corre el orquestador sobre el arbol quieto.
+
+## BLOQUE 6 CERRADO — 2026-08-31
+
+Frontend `e7210e9..cd32c77`: **19 commits**. Backend `bc44bf5..9351f68`: **6 commits**.
+
+**Puertas finales, medidas sobre el arbol quieto:**
+- Frontend: `tsc` 0 errores · **1232 tests en 104 ficheros** · eslint 0 errores + 5
+  avisos · build OK. Linea base al arrancar: 1021 tests en 92 ficheros.
+- Backend: `BUILD SUCCESS` en los tres modulos con el perfil por defecto ·
+  **122 tests** en appointment-service · 25 en client-service · 101 en staff-service.
+
+**Verificacion de cierre independiente**: `docs/specs/equipo-y-clientes/VERIFICATION.md`
+— 23 hallazgos auditados, **21 cerrados**, 2 parciales (cerrados despues), 0 abiertos,
+**cero regresiones**.
+
+### Como se ejecuto
+
+17 tareas planificadas en 7 olas, mas **7 tareas de correccion no planificadas** que
+salieron del panel de revision. Motor `executing-plans`, elegido por el usuario.
+
+### Lo que este bloque arreglo, mas alla de construir las pantallas
+
+1. **Asignar servicios a un empleado devolvia 400.** El frontend mandaba
+   `{ serviceIds }` a un endpoint que exige `{ services: [{ serviceId }] }`.
+   Llevaba meses roto con su fichero de test en verde.
+2. **Con `@NotEmpty` no se podia desasignar el ultimo servicio** de un empleado.
+   Relajado a `@NotNull`. Y al hacerlo aparecio un tercero: el adaptador hacia
+   `assignments.getFirst()` sin comprobar, asi que la lista vacia daba **500**.
+3. **El historial de citas del cliente devolvia 500 en cada peticion.**
+   `Object[]` como tipo de retorno de una query agregada: Spring Data trata los
+   arrays como *collection-like*, asi que el cast lanzaba `ClassCastException`.
+   Sustituido por una proyeccion con constructor expression.
+4. **Anonimizar un cliente era reversible por accidente e irreparable**: completar
+   una cita suya resucitaba `totalVisits`/`lastVisitAt`, y `anonymize` lanza si ya
+   estaba anonimizado.
+5. **La ficha de cliente pintaba esqueleto para siempre** ante un 404/500, y
+   **la de empleado tambien** (esta se descubrio en la revision).
+6. **El buscador de clientes lanzaba una peticion por pausa de tecleo** y
+   desmontaba la lista en cada letra (`useDeferredValue` usado como debounce).
+7. **Con las peticiones fallando, las dos listas afirmaban "no hay datos".**
+8. **Un lector de pantalla veia una tabla de una sola fila** en `/staff` y
+   `/clients`: la fila con `href` era un `<Link>` sin `role="row"`.
+
+### Lo que el panel de revision destapo, con las puertas en verde
+
+Dos revisores independientes, ninguno implementador de lo que reviso, los dos con
+veredicto **BLOCK**:
+
+- **Correccion y seguridad**: 1 CRITICAL, 4 HIGH, 9 MEDIUM.
+- **Fidelidad al artboard**: 6 HIGH, 14 MEDIUM, ~10 LOW.
+
+Y una campana de mutacion: **75 mutaciones, 10 supervivientes**. El mas grave:
+**se podia reintroducir el fallo de produccion recien arreglado sin que cayera un
+solo test.**
+
+Las lecciones estan en `tasks/lessons.md` (L1-L6). Las tres trampas transferibles
+se anadieron a `rivoo-frontend/AGENTS.md`, que pasa de 71 a 128 lineas.
+
+### Deudas que deja el bloque
+
+**Verificacion pendiente**
+- [ ] **La spec visual nunca se ha ejecutado.** `visual/equipo-clientes.spec.ts`
+      (396 lineas, `3f6fef9`) necesita la pila levantada y credenciales por
+      variable de entorno. **Toda la fidelidad se verifico leyendo el HTML de los
+      artboards contra el TSX**, que no es lo mismo que ver los pixeles. Siete de
+      los 23 hallazgos siguen necesitando esa pasada:
+      `RIVOO_E2E_EMAIL=... RIVOO_E2E_PASSWORD=... npx playwright test visual/equipo-clientes.spec.ts`
+- [ ] Los tests de integracion con Testcontainers **no se ejecutan**: no hay Docker
+      en esta maquina. `mvn test -P integration-test -pl <modulo> -am`
+
+**Sistema de diseno**
+- [ ] **`ui/card.tsx` fuerza `ring-1` y no trae clase `border`.** Cada consumidor
+      tiene que escribir `border` **y** `ring-0` para obtener una tarjeta normal.
+      Doce rutas conviven con eso. Arreglarlo en el primitivo es pequeno y
+      transversal: candidato para el arranque del bloque 7.
+- [ ] `max-w-[1084px]` de `page-shell.tsx` frente a los **1136px** del artboard.
+      **Ya muerde**: las tres tarjetas de la ficha de empleado suman 1106px y esa
+      pantalla lleva un `contentClassName` propio. Es la unica que se sale del
+      carril.
+- [ ] `ui/input.tsx` da `h-8` (32px) y `bg-transparent`; los artboards piden 40/44
+      y fondo blanco. Resuelto por override en los consumidores.
+- [ ] `EmployeeFormSheet` / `ClientFormSheet` conservan el nombre aunque en
+      escritorio ya no sean una hoja.
+- [ ] El rotulo `No asistió` se escribe **a mano en tres sitios** pese a que
+      `status-badge.tsx` exporta `statusConfig` justo para evitarlo
+      (`appointment-actions.tsx:64,76`, `calendar/appointment-block.tsx:84`).
+      Este bloque los unifico; deduplicarlos sigue pendiente.
+
+**Producto / datos**
+- [ ] **La lista y la ficha daran cifras de visitas distintas para siempre**, no
+      solo el dia 1: la lista cuenta desde el despliegue (contador almacenado), la
+      ficha cuenta todo (resumen del historial). Se paga con un recomputo.
+- [ ] **Anonimizar un cliente NO borra su historial de citas**, que vive en
+      appointment-service. La ficha de un anonimizado seguiria mostrando visitas y
+      la tabla completa. **Incumplimiento potencial de RGPD, no mejora.**
+- [ ] El buscador de clientes **no encuentra por nombre completo**: `LIKE` sobre
+      `firstName` **o** `lastName` por separado. Con 248 clientes y sin paginacion,
+      un cliente fuera de los 50 primeros solo es alcanzable por UN nombre,
+      telefono o email. Arreglo: una linea de JPQL, pero cambia el paso 4 del
+      asistente.
+- [ ] `sort` se sigue descartando en silencio en clientes
+      (`ClientService.java` reconstruye el `PageRequest` sin `Sort`).
+- [ ] Los clientes anonimizados siguen apareciendo en el listado.
+- [ ] No hay reactivacion de empleado, ni comprobacion de citas futuras al
+      desactivar, ni desconexion de Keycloak.
+- [ ] `size=100` en empleados y servicios: por encima se trunca. El contador ya no
+      miente (calla el desglose), pero el limite sigue ahi.
+- [ ] `gender` existe en el backend y ningun artboard lo dibuja: no se monta.
+- [ ] Sin validacion de formato de email ni UI de error por campo: ningun artboard
+      la dibuja.
+- [ ] El dialogo de anonimizar sigue sin pedir escribir el nombre para confirmar.
+- [ ] Un email ya guardado **no se puede vaciar** desde el formulario: los campos
+      vacios van como `undefined` y en un `PUT` eso significa "no tocar".
+- [ ] `AppointmentPersistenceAdapter.countByTenantAndStatus` y
+      `.countByTenantAndSource` estan **cableados a devolver `0`** con un
+      comentario que dice que no hacen falta. Si alguien los llama esperando un
+      numero real, fallaran en silencio.
+
+**Documentacion del repo que no coincide con el codigo**
+- [ ] El `CLAUDE.md` raiz documenta `@HttpExchange` + `RestClient` como patron de
+      comunicacion entre servicios. **Ningun adaptador lo usa**: todos van con
+      `RestClient` imperativo, y `InterServiceRestClientConfig` solo expone un
+      `Builder`, sin `HttpServiceProxyFactory`.
+- [ ] `client-service/CLAUDE.md` dice que anonimizar cancela las citas futuras
+      (no lo hace) y que `anonymize` escribe `"ANONIMIZADO"` (escribe
+      `"ANONYMIZED"`). `staff-service/CLAUDE.md` dice que desactivar un empleado
+      comprueba las citas futuras (no lo hace).
+
+### Nota para quien retome esto
+
+Las seis pantallas estan construidas contra sus artboards y verificadas por
+lectura. **Lo que falta para darlas por cerradas de verdad es la spec visual**, que
+es lo unico que compara pixeles. Hasta entonces, cualquier afirmacion sobre
+fidelidad de este bloque es una afirmacion sobre el codigo, no sobre lo que se ve.
