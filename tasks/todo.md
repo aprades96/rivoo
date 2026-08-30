@@ -2507,3 +2507,118 @@ ventana de segundos en un salon que a esa hora esta cerrado.
 Si algun dia se retoma: la pregunta de producto de fondo es si `/today` deberia
 pedir "las citas de hoy" (lo que hace, y lo que dibuja el artboard) o "las
 siguientes citas", que no tendria frontera de dia y haria desaparecer esto.
+
+---
+
+# BLOQUE 6 — Equipo y clientes
+
+Plan: `docs/specs/equipo-y-clientes/IMPLEMENTATION_PLAN.md` (2978 lineas, 40
+decisiones D1-D39 + D16b, 17 tareas). Aprobado por el usuario el 2026-08-30 tras
+**dos rondas de revision con seis agentes independientes** (3 lentes por ronda:
+coherencia, verificacion de hechos, refutacion). Motor: **A — `executing-plans`**,
+elegido por el usuario.
+
+**Alcance COMPLETO: dos repos.** El usuario aprobo las tres tareas de backend;
+sin ellas, la mitad de lo que dibujan los artboards seria imposible de pintar.
+
+Linea base al arrancar: frontend `e7210e9`, backend `bc44bf5`, los dos limpios y
+empujados. `tsc` 0 · **1021 tests en 92 ficheros** · eslint 0 errores + 5 avisos ·
+build OK.
+
+## Seis pantallas, doce artboards
+
+| # | Pantalla | Ruta | Artboards |
+|---|---|---|---|
+| 1 | Equipo (lista) | `/staff` | `Equipo` / `EquipoDesktop` |
+| 2 | Detalle de empleado | `/staff/[id]` | `DetalleEmpleado` / `DetalleEmpleadoDesktop` |
+| 3 | Alta/edicion de empleado | hoja o modal | `FormularioEmpleado` / `FormularioEmpleadoDesktop` |
+| 4 | Clientes (lista) | `/clients` | `Clientes` / `ClientesDesktop` |
+| 5 | Detalle de cliente | `/clients/[id]` | `DetalleCliente` / `DetalleClienteDesktop` |
+| 6 | Alta/edicion de cliente | hoja o modal | `FormularioCliente` / `FormularioClienteDesktop` |
+
+## Olas
+
+**Backend (`E:\IdeaProjects\rivoo`)** — arranca a la vez que el frontend:
+
+- [ ] **Ola B0 — B1 ‖ B2**
+  - [ ] **B1** · empleados: `includeInactive` + orden estable + relajar
+        `@NotEmpty` de `AssignServicesRequest` (D35, D16b)
+  - [ ] **B2** · contadores de visita al pasar una cita a `COMPLETED`,
+        `gdprConsentAt` en el DTO, y `anonymize()` limpiando los contadores
+        (D36, D37)
+- [ ] **Ola B1 — B3** · historial de citas del cliente, paginado, ordenado, con
+      resumen, y **que NO se traga los errores** (D38). Depende de B2.
+
+**Frontend (`E:\IdeaProjects\rivoo-frontend`):**
+
+- [ ] **Ola 0 — T1** · tokens (`--segmented-track`, `--input-border-attention`),
+      helper de avatar, `EmployeeColor`, y la variante `pill` del
+      `SegmentedControl`. **Corre SOLA**: unica que toca `globals.css`
+- [ ] **Ola 1 — T2 ‖ T3 ‖ T4**
+  - [ ] **T2** · primitivo `DataTable` (variantes `screen` y `nested`)
+  - [ ] **T3** · `ResponsiveFormModal` (hoja movil / modal 512px escritorio)
+  - [ ] **T4** · tipos, API y hooks — **y los once fixtures que romperian `tsc`**
+- [ ] **Ola 2 — T5 ‖ T6 ‖ T7 ‖ T8** · `/staff` · `/clients` · formulario de
+      empleado · formulario de cliente
+- [ ] **Ola 3 — T9 ‖ T10** · `/staff/[id]` · `/clients/[id]`
+- [ ] **Ola 4 — T11** · spec visual y puertas globales sobre el arbol quieto
+- [ ] **Ola 5 — T12 ‖ T13** · panel: fidelidad al artboard · correccion y seguridad
+- [ ] **Ola 6 — T14** · pruebas de mutacion. **Corre SOLA** (muta ficheros)
+
+## Lo que este bloque arregla de paso
+
+1. **Asignar servicios a un empleado devuelve 400 hoy.** `staff/[id]/page.tsx:96`
+   manda `{ serviceIds }`; `AssignServicesRequest.java` exige
+   `{ services: [{serviceId}] }` con `@NotEmpty`. Nadie lo vio porque
+   `service-assignment.test.tsx` nunca ejecuta la mutacion.
+2. **Perdida parcial de asignaciones**: con el GET en vuelo, marcar un servicio y
+   guardar borra el resto. Al arreglar el 1, este se vuelve alcanzable.
+3. **No se puede desasignar el ultimo servicio** de un empleado (`@NotEmpty`).
+4. **La ficha de cliente pinta esqueleto para siempre** ante un 404/500
+   (`clients/[id]/page.tsx:31-37` colapsa `isLoading || !client`).
+5. **El buscador de clientes lanza una peticion por pausa de tecleo** y desmonta
+   la lista en cada letra (`useDeferredValue` usado como si fuera un debounce).
+6. **Cinco `lg:hidden`** contra la regla del repo, que dejan arboles duplicados en
+   el DOM y hacen la cobertura por rama no medible.
+
+## Lo que las dos rondas de revision destaparon
+
+- **Once fichero de test** romperian `tsc` al cambiar dos tipos, y ninguno tenia
+  dueno: el arbol habria estado en rojo desde la ola 1 hasta la 4.
+- El freno del dia incompleto, puesto en `save()`, **dejaba un boton mudo** en
+  `(onboarding)/business-hours` y en Ajustes movil, cuyo `catch {}` se traga el
+  rechazo. Ahora vive solo en el CTA interno.
+- `gdprConsentAt` **ya existia** en `types/client.ts:13`; la instruccion original
+  lo habria roto.
+- El artboard del calendario pide **otras metricas** para el segmentado (radio
+  9px, padding 14px, carril `--muted`): se hace con una variante, no cambiando el
+  componente.
+- `anonymize()` limpiando los contadores **no consigue borrado RGPD**: el
+  historial vive en appointment-service.
+- La guarda del contador de Equipo suprimia un desglose **que si es cierto**
+  cuando la pagina ya contiene un inactivo.
+
+## Riesgos asumidos, por escrito
+
+- **La divergencia de visitas entre lista y ficha es PERMANENTE**, no del dia 1:
+  la lista cuenta desde el despliegue, la ficha cuenta todo. Se paga con un
+  recomputo.
+- **El historial de un cliente anonimizado sigue siendo visible.**
+- El buscador de clientes **no encuentra por nombre completo** (`LIKE` sobre
+  `firstName` **o** `lastName` por separado). Con 248 clientes y sin paginacion,
+  un cliente fuera de los 50 primeros solo es alcanzable por UN nombre, telefono
+  o email.
+- Los tests de integracion con Testcontainers **no se ejecutan**: no hay Docker en
+  esta maquina.
+
+## Reglas en vigor durante el bloque
+
+- **El revisor se lanza al terminar el BLOQUE ENTERO, no por tarea.**
+- **Cada despacho es un agente NUEVO. El revisor nunca es el implementador.**
+- Commit: `git add <rutas>` y luego `git commit -o <rutas> -m "..."`.
+  **NUNCA `git add -A`. NUNCA `git commit -m` a secas.**
+- **PROHIBIDO tocar `node_modules`. PROHIBIDO `npm ci`.** Si falta algo:
+  `npm install`.
+- Ningun agente cambia de rama.
+- En una ola paralela, cada implementador ejecuta **solo sus** ficheros de test.
+  Las puertas globales las corre el orquestador sobre el arbol quieto.
