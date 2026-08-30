@@ -2318,6 +2318,30 @@ en movil) cuando los diez dibujan pantalla completa.
       monta el paso viejo con sus queries y solo despues se resetea al paso 1.
       Destello, no perdida de datos.
 
+## Deudas del bloque 8 que destapo la revision INDEPENDIENTE del commit `8981037`
+
+El hook de independencia de revisor salto avisando de que ese commit (correccion
+del orquestador, posterior al panel) no lo habia mirado nadie mas. Se despacho un
+revisor y lo APROBO, pero encontro dos cosas que el panel no vio:
+
+- [ ] **[MEDIUM] El invariante "el asistente no se contradice entre pantallas"
+      NO se cumple todavia en los pasos 1 y 2.** Son los dos unicos que siguen
+      pasando `wizardState` crudo, sin `slotEmployee`
+      (`service-step.tsx:120-121`, `employee-step.tsx:171`). Escenario: "Sin
+      preferencia" + hueco elegido + volver atras hasta el paso 2 (`prevStep` no
+      limpia nada, `wizard-store.ts:65`, y `getDateTimeRow` no tiene puerta por
+      paso). El aside pinta A LA VEZ "Profesional: Sin preferencia" y "Fecha y
+      hora: Jue 28, 11:00". Arreglo: mismo patron que ya usan los pasos 3, 4 y 5.
+- [ ] **[LOW] Tres resoluciones distintas del mismo dato.** El paso 3 busca al
+      dueno del hueco en `activeEmployees` (`datetime-step.tsx:240`); los pasos 4
+      y 5, en la lista completa (`client-step.tsx:75`,
+      `confirmation-step.tsx:139-140`). Si se desactiva a esa persona a mitad del
+      asistente y la query `["employees"]` refresca, el paso 3 dice "Sin
+      preferencia" y los otros dos su nombre. El lado correcto es el de los pasos
+      4/5: la cita se crea con `employeeId: selectedSlotEmployeeId` sin mirar
+      `isActive`, asi que nombrar a esa persona es lo veraz. Arreglo: un unico
+      helper `resolveSlotEmployee(employees, id)` que llamen los tres.
+
 ## Nota para el bloque 6 (Equipo) — NO es una deuda, es un aviso
 
 `DetalleEmpleadoDesktop.dc.html:245,255` y `FormularioEmpleadoDesktop.dc.html`
