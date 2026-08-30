@@ -1168,3 +1168,176 @@ canales" / "esos efectos son 2 errores de lint y se tapan entre si en el test").
 lo que esta mal no es el arreglo: es la decision de partida que lo forzo.
 
 Ver [[revision-por-bloque-no-por-tarea]].
+
+
+---
+
+## "Verificado" quiere decir verificado en el COMPORTAMIENTO, no en el esquema (2026-08-30, bloque 8)
+
+**Patron.** El plan del asistente de nueva cita declaraba su §1 como "LEIDO, no supuesto". Tres
+revisiones seguidas encontraron ahi hechos falsos, y los tres eran de la MISMA familia: yo habia
+comprobado que algo EXISTIA y habia dado por hecho lo que HACIA.
+
+1. Transcribi numeros de linea de artboards leidos con `sed -n 'N,$p' | cat -n`, que **renumera la
+   salida desde 1**. Nueve de los diez ficheros quedaron desviados +21, +10 u +8. Los CONTENIDOS
+   eran correctos; los punteros, no.
+2. Escribi que `ClientJpaEntity.lastVisitAt` "existe" y construi encima un orden de "clientes
+   recientes" y un contador de "N visitas". La columna existe. **Nadie la escribe nunca**:
+   `ClientService.java:66,193` pone `totalVisits(0)` al crear y ahi acaba todo; appointment-service
+   no llama a client-service al completar una cita. En produccion las dos columnas valen 0 y NULL
+   para el 100% de las filas.
+3. Cite `ClientController.list(Pageable)` para decir que no acepta `search` — correcto — pero razone
+   el orden de los NULL sobre **Postgres** cuando el motor es **MySQL 8.0**, donde la regla es la
+   contraria y `NULLS LAST` ni siquiera es sintaxis valida.
+
+**Por que importa.** Una seccion de hechos que se declara verificada no la vuelve a mirar nadie: las
+once tareas la REFERENCIAN en vez de repetirla. Un hecho falso ahi se ejecuta once veces, y las
+cuatro puertas (`tsc`, `eslint`, `vitest`, `build`) no ven ninguno de los tres — jsdom no pinta, y un
+test que siembra a mano el dato que produccion nunca escribe sale verde.
+
+**Reglas.**
+- **Nunca transcribir un numero de linea de un comando que renumera.** Los numeros de `fichero:linea`
+  salen de `grep -n` sobre el fichero entero, o no salen.
+- **Para todo dato que una pantalla vaya a PINTAR u ORDENAR, buscar quien lo ESCRIBE**, no solo donde
+  esta declarado. `grep` del setter y del endpoint que lo alimenta. Si no aparece nadie, el dato es
+  una constante y el plan tiene que decirlo.
+- **Antes de razonar sobre semantica de base de datos, leer el `application-*.yml`.** El motor decide
+  el orden de los NULL, la sintaxis disponible y lo que un test de Testcontainers va a ejercer.
+- Si una revision encuentra un hecho falso en §1, **no basta con corregir ese hecho**: hay que barrer
+  la seccion entera buscando de la misma familia. Las rondas 2 y 3 encontraron mas casos porque la
+  ronda 1 solo corrigio los que nombro.
+
+Ver [[revision-por-bloque-no-por-tarea]], [[artboard-es-la-fuente]].
+
+
+---
+
+## Corregir lo senalado NO es corregir: hay que barrer la familia antes de re-revisar (2026-08-30, bloque 8)
+
+**Correccion del usuario, literal:** *"estoy hasta las narices que necesites 3, 4 o incluso 5 rondas
+de un revisor; cuando te diga que esta mal haz el favor de revisar y corregir y luego volver a
+revisar antes de que te vuelva a decir block el revisor"*.
+
+**Patron.** Cuatro rondas de BLOQUEO sobre el mismo plan. Ninguna ronda repitio un hallazgo de la
+anterior: cada una encontro material NUEVO de la MISMA FAMILIA que la anterior ya habia senalado.
+- Ronda 1 encontro numeros de linea falsos en §1.1/§1.2 → corregi §1.1/§1.2 y despache.
+  Ronda 2 encontro los mismos numeros falsos en §1.4, §1.5, §1.6 y T0.
+- Ronda 2 encontro que `use-staff.ts` faltaba en la tabla de propiedad → lo anadi y despache.
+  Ronda 3 encontro `use-availability.ts` faltando por lo mismo. Siete fallos de esa tabla en tres
+  rondas.
+- Ronda 3 encontro que `lastVisitAt` existe pero nadie lo escribe → lo corregi y despache.
+  Y ni siquiera me pregunte que OTROS campos que los artboards pintan estan en la misma situacion.
+
+El error no es tener hallazgos: es **usar al revisor como bucle de iteracion** en vez de como
+verificacion final. Cada ronda cuesta ~15 minutos de reloj y el usuario los vive todos.
+
+**Reglas.**
+- Cuando un revisor devuelve un hallazgo, ese hallazgo es una MUESTRA de una clase, no un caso
+  aislado. Antes de re-despachar: **barrer el documento entero buscando la clase**, no la instancia.
+  Si el hallazgo es "una referencia de linea es falsa en §1.1", se comprueban TODAS las referencias
+  de TODAS las secciones. Si es "un campo que nadie escribe", se comprueba QUIEN ESCRIBE cada campo
+  que la pantalla pinta.
+- **Escribir en la respuesta al revisor, o en el propio plan, que barrido se ha hecho.** Si no puedo
+  nombrar el barrido, no lo he hecho.
+- La revision del REVISOR se despacha cuando yo ya no encuentro nada mas, no cuando he tachado su
+  lista.
+- Vale igual para el codigo: un `code-reviewer` que senala un bug en un fichero esta describiendo un
+  patron que probablemente vive en los cinco ficheros hermanos.
+
+Ver [[revision-por-bloque-no-por-tarea]].
+
+
+---
+
+## El agente se elige por el ROL del triad, no por el stack que anuncia (2026-08-30, bloque 8)
+
+**Correccion del usuario:** *"por que has lanzado un agente agent-fira-apicore4 si este proyecto no
+es de fira?"*.
+
+**Patron.** Para la tarea de backend del bloque 8 (Rivoo, proyecto PERSONAL) despache
+`agent-fira-apicore4` porque su descripcion decia "Spring Boot 4.0.x, Java 25" y el stack encajaba.
+Intente compensarlo escribiendo en el brief "Rivoo NO es un proyecto de Fira". Eso no arregla nada:
+el agente arranca con su system prompt cargado de api-core, librerias internas y convenciones de
+Fira, que en un repo ajeno es ruido y puede empujarle a patrones inexistentes.
+
+**Lo que dice CLAUDE.md §2, y que me salte:** los `agent-fira-*` son para codigo de Fira —
+"irreemplazable conocimiento interno". Todo lo demas (Spring Boot, React, TS, Python, SQL, tests,
+rendimiento...) va a **`code-implementer` + la skill que encaje**. Literal: *"La especializacion vive
+en las skills, no en agentes-persona"*.
+
+**Reglas.**
+- El `subagent_type` lo decide el ROL en el triad (orquestador / implementador / revisor) y el
+  DOMINIO DEL REPO, nunca la coincidencia de stack en la descripcion del agente.
+- Un `agent-fira-*` fuera de un repo de Fira es un error aunque el lenguaje y el framework coincidan.
+- Si el brief tiene que empezar desmintiendo al agente ("esto NO es de Fira, ignora tus
+  convenciones"), es la senal de que el agente elegido es el equivocado. **Elegir otro, no escribir
+  el desmentido.**
+
+Ver [[revision-por-bloque-no-por-tarea]].
+
+
+---
+
+## Un bloque se dimensiona leyendo los artboards, no el resumen de estado (2026-08-30, bloque 8)
+
+**Correccion del usuario, a mitad de la ola 3:** *"pero que es lo que estas haciendo en este bloque?
+no se suponia que simplemente era mover/sacar el asistente del shell?"*.
+
+**Patron.** Al recomendar el bloque escribi: *"Asistente de nueva cita — **los cinco pasos
+coinciden**, pero sigue dentro de `(app)`"*. Eso salio de la seccion ESTADO REAL de `todo.md`, que
+resume, no de los artboards. Al leerlos despues para escribir §1 resulto que **no coincide ninguno de
+los cinco**: el paso 2 filtra fuera servicios que el artboard dibuja atenuados, el 3 tiene navegador
+de mes donde el artboard pinta tira de dias y corte manana/tarde, el 4 esconde la lista hasta teclear
+dos caracteres, el 1 y el 5 tienen otra maqueta entera.
+
+En vez de volver al usuario con "esto no es lo que te dije, son 5 reescrituras y no un traslado", lo
+meti todo en el mismo bloque. De "sacar del shell" salieron 13 tareas y seis olas. El usuario se
+entero a mitad de la ola 3.
+
+**Reglas.**
+- **Dimensionar un bloque exige leer sus artboards contra el codigo, no un resumen previo.** Un
+  "coincide" en `todo.md` es una nota de otro momento; el artboard es la fuente.
+- Si al escribir el plan el alcance REAL se aleja de lo que anuncie, **eso se dice antes de escribir
+  el plan**, no se absorbe. Ampliar el alcance en silencio es peor que un plan grande: el usuario ha
+  aprobado otra cosa.
+- La regla de "decidir sin preguntar" ([[decidir-sin-preguntar-y-resumir]]) cubre las dudas de
+  ejecucion. **NO cubre cambiar el tamano de lo aprobado**: recortar o ampliar el alcance es del
+  usuario.
+
+Ver [[artboard-es-la-fuente]], [[decidir-sin-preguntar-y-resumir]].
+
+---
+
+## Un revisor que MUTA el codigo no puede correr en paralelo con nadie que EJECUTE la suite
+
+**Fecha:** 2026-08-30 · Bloque 8 (asistente de nueva cita), panel de revision T11.
+
+**Que paso.** Lance las tres lentes del panel a la vez. La lente 3 hacia prueba de mutacion:
+rompia una linea de produccion, ejecutaba, revertia con `git checkout --`, 87 veces. La lente 1,
+en paralelo, ejecutaba la suite para comprobar sus hallazgos, y vio `wizard-summary.test.ts`
+rojo en 4 pasadas seguidas, con un test distinto cada vez y con valores imposibles para un
+modulo puro -- en dos casos, el test recibio exactamente el resultado esperado por el test
+SIGUIENTE del fichero. Lo reporto como "inestabilidad del runner, una puerta que no protege".
+
+No habia tal inestabilidad. Eran las mutaciones de la lente 3 sobre ese mismo fichero (9
+mutaciones, 7 muertas). "El test recibe el valor del test siguiente" es exactamente lo que
+produce cambiar `step >= 4` por `step >= 3` en `getDateTimeRow`. Lo confirme con el arbol
+quieto: 10 pasadas del mismo fichero, 0 fallos.
+
+**Por que importa.** El coste no fue el tiempo: fue que estuve a punto de dar por bueno un
+diagnostico de "carrera del runner" sobre el fichero central del bloque, que habria mandado a
+alguien a perseguir un fantasma en la configuracion de vitest. Un fallo inventado por la propia
+orquestacion se disfraza de fallo del codigo, y llega avalado por un agente que dice haberlo
+medido cuatro veces.
+
+**Regla.**
+1. Los agentes que MUTAN ficheros (prueba de mutacion, bisecciones, `git checkout` de
+   restauracion) corren SOLOS. Nunca a la vez que otro agente que ejecute la suite completa.
+2. En una ola de implementadores en paralelo sobre un mismo arbol, cada agente ejecuta SOLO
+   sus propios ficheros de test. Las puertas globales (`tsc`, `eslint`, `vitest` completo,
+   `build`) las pasa el orquestador al final, sobre el arbol consolidado y quieto.
+3. Cuando un agente reporte un fallo intermitente, la PRIMERA hipotesis es la contencion entre
+   agentes, no el codigo. Se descarta reproduciendo con el arbol quieto ANTES de investigar
+   nada mas.
+
+Ver [[revision-por-bloque-no-por-tarea]].

@@ -1924,13 +1924,10 @@ fichero. Sustituye a las casillas de las secciones de arriba, que estaban desfas
 
 ## Bloques de pantalla pendientes
 
-**4 · Detalle de cita — A MEDIAS.** `appointments/[id]/page.tsx` sigue siendo un stub de 13
-lineas, y **no lo enlaza nadie** (cero `href` a esa ruta en `src/`). Lo que funciona hoy es
-`appointment-detail-sheet.tsx:84-172`, que cubre estructuralmente el artboard MOVIL (hoja
-inferior con velo, `DetalleCita.dc.html:34-41`). Falta el panel acoplado de escritorio:
-`DetalleCitaDesktop.dc.html:249` lo dibuja de `360px` con `border-left`, sobre la rejilla del
-calendario — **no es una ruta**. Decidir ademas que se hace con `/appointments/[id]`, que
-existe sin artboard que la respalde.
+**4 · Detalle de cita — HECHO (2026-08-30).** Hoja de movil reescrita contra su artboard, panel
+acoplado de 360px en escritorio, modo estrecho completo de la rejilla y `PENDING -> NO_SHOW`
+abierto en el dominio. `/appointments/[id]` BORRADA (no tenia artboard y no la enlazaba nadie).
+25 commits en el frontend + 2 en el backend, subidos. Sus deudas, mas abajo en este fichero.
 
 **5 · Hoy — A MEDIAS.** Ojo con el NOMBRE DEL FICHERO, no con la pantalla: el artboard movil
 de "Hoy" existe y en el canvas se llama asi, pero su fichero es **`Main.dc.html`** —
@@ -2090,3 +2087,243 @@ Once agentes de correccion. De las 13 mutaciones que sobrevivian, **mueren las 1
   panel**: si twMerge cambia su heuristica se pone rojo sin que haya regresion de producto, y el
   reordenamiento real de `:170` ya lo caza el caso siguiente. Es redundante; borrarlo o degradarlo
   a comentario.
+
+
+---
+
+# BLOQUE 8 — Asistente de nueva cita (EN CURSO, arrancado 2026-08-30)
+
+Plan: `docs/specs/asistente-nueva-cita/IMPLEMENTATION_PLAN.md` (33 decisiones,
+13 tareas, 4 rondas de revision antes de arrancar).
+
+**Objetivo:** que `/appointments/new` sea identico a sus diez artboards y deje de
+heredar el chasis de la app interna (barra lateral en escritorio, barra inferior
+en movil) cuando los diez dibujan pantalla completa.
+
+**Linea base al arrancar** (`c791751`, arbol limpio): tsc 0 · eslint 0 errores +
+17 avisos · vitest 744 tests en 73 ficheros · build 0.
+
+## Olas
+
+- [x] **Ola 0** — T0 ‖ B1 — CERRADA 2026-08-30
+  - [x] **T0** · dos tokens (`--border-dashed-strong`, `--avatar-muted`) mapeados
+        en `@theme inline`, y `formatDurationTight` junto a `formatDuration` sin
+        tocar esta ultima (D10, D21). Commit `279f687`. Puertas verificadas por
+        el orquestador: tsc 0 · eslint 0 errores + 17 avisos · vitest **746** en
+        73 ficheros (linea base 744, +2 por los dos tests nuevos)
+  - [x] **B1** · `search` y orden `lastVisitAt DESC, createdAt DESC` en
+        `GET /api/v1/clients`, en JPQL (nunca nativo: el `@Filter` multi-tenant
+        no cubre las nativas) y sin `NULLS LAST` (MySQL no lo soporta).
+        Incluye montar la infraestructura de test de integracion, que
+        `client-service` no tiene (D8, D9). Commit `8c5ef43`. JPQL parametrizada
+        (nunca nativa), sin `NULLS LAST`, y el `Sort` entrante se descarta en
+        `ClientService` con `PageRequest.of(page, size)` para que Spring no
+        concatene otro `ORDER BY`. `mvn test -pl client-service -am` →
+        BUILD SUCCESS, 9 tests verdes.
+        **DEUDA: el test de integracion (10 casos) NO SE EJECUTO** — no hay
+        Docker en esta maquina (`docker: command not found`). Compila y esta
+        cableado, pero la asercion real contra MySQL esta pendiente:
+        `mvn test -P integration-test -pl client-service -am`
+- [x] **Ola 1** — T1 ‖ T2 ‖ T4 — CERRADA 2026-08-30. Puertas verificadas por el
+      orquestador sobre el arbol consolidado: tsc 0 · eslint 0 errores + 17
+      avisos · vitest **792 tests en 78 ficheros** · build OK
+  - [x] **T1** · `2e18ca3` · grupo `(fullscreen)` con `OnboardingGate` y traslado de
+        `appointments/` (D1)
+  - [x] **T2** · `afd41ae` · promocion de `WizardStepper` y `WizardSummaryAside` a
+        `components/wizard/` + `AFTERNOON_HOUR` a `dates.ts` (D4, D26, D27)
+  - [x] **T4** · `6ebd8b4` · store (semilla + `selectedSlotEmployeeId`), `useClients` sin la
+        guarda de 2 caracteres y con clave propia, `useEmployeesServices`,
+        `use-wizard-availability` y `wizard-summary.ts` (D6, D9, D16, D17, D20,
+        D22, D28).
+        **Correccion del orquestador (`b993e9c`):** T4 fijaba "Sin elegir" como
+        regla del paso 1, leyendo un ESTADO dibujado como si fuera una regla. Al
+        volver atras con profesional ya elegido, el aside contradecia a la
+        rejilla. Acotado al caso vacio, con test de regresion.
+        **Trampa nueva descubierta por T1, anadida a §1.8 del plan:** tras mover
+        una ruta, `.next/types` queda rancio y `tsc --noEmit` falla con errores
+        ajenos; hay que correr `npx next typegen` antes. Afecta a T3.
+- [x] **Ola 2** — T3 · `ded0293` · CERRADA 2026-08-30. Puertas verificadas por el
+      orquestador: tsc 0 · eslint 0 errores + 17 avisos · vitest **810 tests en
+      81 ficheros** · build OK (23 rutas, `/appointments/new` incluida).
+      Contrato de props fijado para la ola 3: `step`, `title`, `subtitle?` (solo
+      escritorio), `onBack?`, `onClose`, `aside?` (solo escritorio), `footer?`
+      (solo el CONTENIDO; el cromo lo pinta el shell), `children`.
+      `NewAppointmentShell`, progreso movil,
+      `WizardContextPills`, `useWizardNavigation` y `page.tsx` como dispatcher
+      (D2, D3, D5, D18, D26, D32)
+- [x] **Ola 3** — T5 ‖ T6 ‖ T7 ‖ T8 ‖ T9 — CERRADA 2026-08-30. Puertas
+      verificadas por el orquestador sobre el arbol consolidado: tsc 0 · eslint
+      0 errores + **9** avisos (mejor que los 17 de partida: las reescrituras se
+      llevaron imports muertos) · vitest **856 tests en 85 ficheros** · build OK
+  - [x] **T5** · `659ac15` · paso 1, Profesional. Resuelve la semilla
+        `preferredEmployeeId` que la pagina no puede resolver (D16). La fila
+        atenuada "hoy no trabaja" ES pulsable y conserva su chevron (D33).
+        Diagnostico propio: `userEvent` choca con `vi.useFakeTimers`, que ese
+        test necesita para fijar "hoy"; dos tests pasados a `fireEvent` en vez
+        de subir el timeout
+  - [x] **T6** · `4e87c11` · paso 2, Servicio. Prueba de mutacion por
+        iniciativa propia
+  - [x] **T7** · `2e197b1` · paso 3, Fecha y hora. Horizonte de 30 dias
+        intacto: la tira de 6/7 celdas es un ANCHO, no un limite (D29).
+        Borra `use-availability.ts`, que se queda sin consumidores.
+        Hallazgo propio que el plan no recogia: elegir hueco NO debe avanzar de
+        paso — el artboard dibuja el pie con la hora elegida Y el boton
+        "Continuar", asi que avanzando al pulsar no se veria nunca
+  - [x] **T8** · `e8ab0e0` · paso 4, Cliente
+  - [x] **T9** · `fdf858c` · paso 5, Confirmacion. La mutacion manda
+        `selectedSlotEmployeeId`, no el literal `"any"` que mandaba el codigo
+        anterior (§1.5.3: fallo real de produccion, cerrado)
+  - [x] **Correccion del orquestador (`3596799`)** · misma clase de fallo que
+        `b993e9c`, ahora entre dos ficheros: con "Sin preferencia" el aside
+        decia `"Sin preferencia"` en TODOS los pasos, mientras la tarjeta del
+        paso 5 nombraba a la persona concreta que la disponibilidad asigno — la
+        misma pantalla afirmando dos cosas contradictorias, una al lado de la
+        otra. "Sin preferencia" es cierto MIENTRAS no hay hueco; en cuanto lo
+        hay, la cita tiene profesional. `slotEmployee` entra por el estado
+        (el modulo del resumen es puro y el store solo guarda el id).
+        **Test verificado portante**: mutada la fuente a `if (false && ...)`,
+        cayo exactamente ese test; revertido
+- [x] **Ola 4** — T10 · `cb072d0` · CERRADA 2026-08-30.
+      `visual/new-appointment-vs-artboards.spec.ts` (288 lineas). UN solo
+      recorrido: en cada paso captura 390 y 1440 antes de avanzar, aprovechando
+      la invariante que el chasis documenta (`{children}` en la misma posicion
+      del arbol en las dos ramas de `isDesktop`, asi que cambiar de ancho a
+      mitad de paso NO remonta el paso ni pierde el store). Diez pares de
+      imagenes contra los diez artboards. Puertas: tsc 0 · eslint 0 errores + 9
+      avisos · vitest 856 en 85 · build OK (23 rutas).
+      **NO SE EJECUTA** (D25): necesita credenciales y la pila levantada.
+      Tres cosas que el plan no recogia y quedan en la cabecera del fichero:
+      (a) el calendario de escritorio del asistente PAGINA POR SEMANAS
+      (`DESKTOP_WEEK_PAGES = 4`), a diferencia de la tira continua de la reserva
+      publica, asi que el recorrido tiene que paginar para encontrar hueco;
+      (b) con "Sin preferencia" el paso 2 pinta TODOS los servicios como
+      habilitados aunque nadie los ofrezca — `isOffered` es siempre `true` sin
+      empleado concreto — y es el paso 3 quien lo descubre;
+      (c) `handleSlotSelect` es la unica seleccion de las cinco que NO llama a
+      `nextStep()` sola, y es correcto: el artboard dibuja el pie con la hora
+      elegida Y el boton "Continuar"
+- [x] **Ola 5** — T11 · CERRADA 2026-08-30. Panel de TRES revisores
+      independientes en paralelo, agentes nuevos, ninguno implementador,
+      instruidos para REFUTAR. **Las tres devolvieron BLOCK.**
+  - **Lente 1 (fidelidad al artboard)** — 2 HIGH: el aside de escritorio de los
+    pasos 1-4 pintaba "Tu reserva" + la nota de confianza de la reserva PUBLICA
+    ("Sin registro, cancela gratis hasta 24h antes") donde los cuatro artboards
+    dicen "Resumen" y ninguno de los diez dibuja nota — texto FALSO en el
+    asistente interno; y las pildoras del paso 3 mutaban a la forma del paso 4
+    en cuanto habia hueco elegido, que es justo el frame que
+    `NuevaCitaPaso3.dc.html` retrata. Mas 6 MEDIUM y 8 LOW.
+  - **Lente 2 (correccion)** — 2 HIGH: el asistente ATRAPABA al usuario en el
+    paso 2 al entrar desde el calendario (`selectEmployee` no consumia
+    `preferredEmployeeId`, el paso 1 remontaba y rebotaba, y de paso perdia el
+    servicio); y el reintento tras un fallo DUPLICABA el cliente recien creado
+    en BD, con un mensaje de error que invita justamente a reintentar. Mas 5
+    MEDIUM y 6 LOW.
+  - **Lente 3 (regresion y calidad de tests)** — 87 mutaciones al codigo de
+    produccion: **38 muertas, 49 supervivientes** (44%). `confirmation-step` con
+    13 de 13 supervivientes: cobertura CERO en el unico paso con efectos de lado.
+    Dato que resume el bloque: 11 mutaciones de comportamiento simultaneas en 5
+    ficheros dejaban los 856 tests en verde. La reserva publica NO se movio
+    (verificado prop a prop contra `c791751`).
+  - **Ola de correcciones**, seis implementadores nuevos sobre ficheros
+    disjuntos: `c2ab09d` (client + use-clients) · `4904f1d` (confirmation) ·
+    `5d22d7e` (datetime) · `6fc5821` (employee + store + page + navegacion) ·
+    `9b122d6` (shell + stepper + aside) · `248c2d5` (pildoras + service).
+    **Correccion del orquestador `8981037`**: al repartir el trabajo pedi el
+    `slotEmployee` al paso 3 y ya estaba en el 5, pero me deje el paso 4 — el
+    aside habria nombrado a la persona en el 3, dicho "Sin preferencia" en el 4
+    y vuelto a nombrarla en el 5. Test verificado portante por mutacion.
+  - **Puertas finales**, ejecutadas por el orquestador sobre el arbol
+    consolidado y quieto: tsc 0 · eslint 0 errores + 9 avisos · vitest
+    **916 tests en 86 ficheros** · build OK. Linea base del bloque: 744 en 73.
+  - **Dos falsas alarmas, las dos por contencion entre agentes** (leccion
+    anotada en `tasks/lessons.md` y en memoria):
+    1. la lente 1 reporto `wizard-summary.test.ts` "inestable", rojo en 4
+       pasadas con un test distinto cada vez. No lo es: veia las mutaciones que
+       la lente 3 aplicaba a la vez a ese mismo fichero. 10 pasadas sobre arbol
+       quieto, 0 fallos.
+    2. un implementador reporto un comentario `MUTATION` roto en
+       `client-step.tsx:74`. Era un instante en que otro agente tenia una
+       mutacion aplicada. Cero rastro de `MUTATION` en todo `src/`.
+
+## Deudas que este bloque dejara anotadas (a rellenar en T11)
+
+- [ ] endpoint de rango de disponibilidad: cerraria D7 y D30 (contadores
+      "N huecos", estado "Sin huecos" y huecos ocupados tachados) en el
+      asistente Y en la reserva publica a la vez
+- [ ] `totalVisits` / `lastVisitAt` no los escribe NADIE: el paso 4 pintara
+      "0 visitas" en todas las filas. Arreglo: `POST /api/internal/clients/{id}/visit`
+      llamado desde `AppointmentService` al pasar una cita a `COMPLETED`
+- [ ] `rescheduleId` sin artboard: el panel de detalle enlaza una
+      reprogramacion que el canvas nunca dibujo
+- [ ] formulario de alta de cliente en linea, sin artboard
+- [ ] la reserva publica pinta "45 min" donde sus siete artboards dibujan
+      "45min": cambiar sus consumidores a `formatDurationTight`
+- [ ] el stepper se comprime entre 1024 y 1279 y la comparacion visual corre a
+      1440, asi que no lo ve
+- [ ] flechas de navegacion por semanas del paso 3: no las dibuja ningun
+      artboard y se pintan igual (sin ellas media parte del horizonte de 30 dias
+      es inalcanzable)
+- [ ] spec visual sin ejecutar (necesita credenciales y la pila levantada)
+- [ ] **el boton-icono de 38x38 sale `#FBF7F2` donde los artboards dibujan
+      `#FFFFFF`.** La receta del repo (`page-shell.tsx:235-243`) usa
+      `variant="outline"`, que es `bg-background`. Afecta IGUAL al asistente y a
+      `/staff/[id]`, y los dos artboards
+      (`NuevaCitaDesktopPaso1.dc.html`, `DetalleEmpleadoDesktop.dc.html`)
+      dibujan blanco. Es preexistente, de una pantalla cerrada, y son dos
+      caracteres: se arreglan LOS DOS a la vez o se quedan los dos igual, nunca
+      uno solo — lo detecto T3 y lo dejo por escrito en vez de divergir
+
+## Deudas NUEVAS que destapo el panel de revision (2026-08-30)
+
+- [ ] **La reserva publica arrastra los DOS mismos defectos de chasis que el
+      asistente acaba de corregir**, y no se tocaron porque es carril cerrado:
+      1. `booking-step-shell.tsx:99` usa `lg:max-w-[1120px]` con `md:px-10`.
+         Con `box-sizing: border-box` el `max-w` INCLUYE el padding, asi que el
+         contenido real son 1040px donde el artboard dibuja 1120 — la columna
+         principal pierde ~10,5%. En el asistente se arreglo pasando a
+         `max-w-[1200px]` (`new-appointment-shell.tsx:98`).
+      2. `public-datetime-step.tsx:356,437` no da color al nombre del dia de la
+         semana, asi que hereda el `#2A2320` del body donde `ReservaPaso3:62` y
+         `ReservaDesktopPaso3:101` piden `#7A6A5F`. Mismo arreglo que en
+         `datetime-step.tsx`.
+      Los dos son de una linea. Se arreglan cuando se reabra ese carril.
+- [ ] **Con "Sin preferencia", en MOVIL el usuario nunca ve quien le atendera.**
+      En escritorio el aside lo nombra desde el paso 3 (ya arreglado). En movil
+      no hay aside: el resumen son las pildoras, y `WizardContextPills` solo
+      pinta la de profesional si hay `selectedEmployee`, que con "Sin
+      preferencia" es `null`. Ningun artboard dibuja ese estado — los diez
+      retratan el flujo con profesional concreto elegido en el paso 1 — asi que
+      NO se invento la pildora. El canvas deberia decidir que se pinta ahi.
+- [ ] **Correccion al plan, §1.8.9: la premisa del `<Suspense>` NO reproduce.**
+      §1.8.9 afirma que sin el limite de `<Suspense>` alrededor de
+      `useSearchParams`, `npm run build` falla para el grupo de rutas entero. Se
+      midio quitandolo: **build exit 0**, y `/appointments/new` sigue
+      prerenderizada estatica. El limite es correcto y se queda, pero hoy no lo
+      protege NADA — ni vitest ni el build. Si alguien lo borra por "no hace
+      falta", ninguna puerta se entera.
+- [ ] `weekPage` puede salirse del rango que defienden las flechas: entrando en
+      escritorio con `?date=` a 28-29 dias vista, `Math.floor(29/7)` da 4 y
+      `DESKTOP_WEEK_PAGES` solo define 0-3; la rejilla pinta dias 28-34 (fuera
+      del horizonte declarado de 30) y "Semana siguiente" queda deshabilitada
+      mientras "anterior" funciona. Ventana estrecha, no bloqueante.
+- [ ] La resolucion de "primer dia que si trabaje" (D33) es un pestillo de una
+      sola vez que puede fijarse antes de que lleguen los horarios: si corre con
+      `hoursByEmployee` vacio, `isDayClosed` devuelve `false` para todo y el
+      offset se queda en 0. En la practica la cache del paso 1 suele estar
+      caliente, asi que hace falta recorrer 1-2-3 mas rapido que las N
+      peticiones de horarios.
+- [ ] Al salir del asistente con el boton ATRAS del navegador (no con la X, que
+      si llama `reset`), el store conserva `step`; al reabrir, el primer pintado
+      monta el paso viejo con sus queries y solo despues se resetea al paso 1.
+      Destello, no perdida de datos.
+
+## Nota para el bloque 6 (Equipo) — NO es una deuda, es un aviso
+
+`DetalleEmpleadoDesktop.dc.html:245,255` y `FormularioEmpleadoDesktop.dc.html`
+dibujan la duracion **CON espacio** ("45 min"), que es exactamente lo que
+`formatDuration` ya produce, y su consumidor
+(`src/components/staff/service-assignment.tsx:73`) es correcto tal cual. **No
+hay nada que hacer alli.** Queda escrito para que nadie "unifique"
+`formatDuration` y `formatDurationTight` al ver dos funciones parecidas: son dos
+convenciones de dibujo distintas, cada una con sus artboards detras. Unificarlas
+rompe una pantalla ya cerrada, sea cual sea la direccion en que se unifiquen.
