@@ -1,5 +1,6 @@
 package com.rivoo.appointment.infrastructure.adapter.in.web;
 
+import com.rivoo.appointment.application.dto.AppointmentHistoryResponse;
 import com.rivoo.appointment.application.dto.AppointmentInternalResponse;
 import com.rivoo.appointment.application.dto.AppointmentStatsResponse;
 import com.rivoo.appointment.domain.port.in.AppointmentStatsUseCase;
@@ -31,12 +32,30 @@ public class AppointmentInternalController {
         return ResponseEntity.ok(response);
     }
 
+    // Unpaged, unordered — kept exactly as-is for the GDPR export flow (ClientService.export),
+    // which needs the full history and swallows failures on purpose. Do NOT add page/size
+    // here: this endpoint stays selected only when the request has neither.
     @GetMapping("/by-client/{clientId}")
     public ResponseEntity<List<AppointmentInternalResponse>> getByClient(
             @PathVariable String clientId,
             @RequestParam String tenantId) {
         log.atInfo().addKeyValue("clientId", clientId).log("GET /api/internal/admin/appointments/by-client");
         List<AppointmentInternalResponse> response = getAppointmentUseCase.getByClientId(clientId, tenantId);
+        return ResponseEntity.ok(response);
+    }
+
+    // Same path, discriminated by the presence of page/size (Spring dispatches on "params"):
+    // the paginated history for the client screen (D38). Ordered startTime DESC, with a
+    // billing summary computed from aggregate queries.
+    @GetMapping(path = "/by-client/{clientId}", params = {"page", "size"})
+    public ResponseEntity<AppointmentHistoryResponse> getByClientPaged(
+            @PathVariable String clientId,
+            @RequestParam String tenantId,
+            @RequestParam int page,
+            @RequestParam int size) {
+        log.atInfo().addKeyValue("clientId", clientId).addKeyValue("page", page).addKeyValue("size", size)
+                .log("GET /api/internal/admin/appointments/by-client (paginated)");
+        AppointmentHistoryResponse response = getAppointmentUseCase.getHistoryByClientId(clientId, tenantId, page, size);
         return ResponseEntity.ok(response);
     }
 }

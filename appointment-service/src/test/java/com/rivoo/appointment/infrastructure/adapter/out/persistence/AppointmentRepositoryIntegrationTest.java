@@ -418,6 +418,77 @@ class AppointmentRepositoryIntegrationTest {
     }
 
     @Test
+    @DisplayName("findByClientIdAndTenantId (paged) — pagina y ordena startTime DESC")
+    void findByClientIdAndTenantId_paged_ordersByStartTimeDescending() {
+        String clientId = "cli_history-001";
+
+        AppointmentJpaEntity oldest = buildEntity(newExternalId(), BASE_TIME, BASE_TIME.plus(30, ChronoUnit.MINUTES), AppointmentStatus.COMPLETED);
+        oldest.setClientId(clientId);
+        AppointmentJpaEntity middle = buildEntity(newExternalId(), BASE_TIME.plus(1, ChronoUnit.DAYS), BASE_TIME.plus(1, ChronoUnit.DAYS).plus(30, ChronoUnit.MINUTES), AppointmentStatus.NO_SHOW);
+        middle.setClientId(clientId);
+        AppointmentJpaEntity newest = buildEntity(newExternalId(), BASE_TIME.plus(2, ChronoUnit.DAYS), BASE_TIME.plus(2, ChronoUnit.DAYS).plus(30, ChronoUnit.MINUTES), AppointmentStatus.CANCELLED);
+        newest.setClientId(clientId);
+
+        repository.saveAll(List.of(oldest, middle, newest));
+
+        Page<AppointmentJpaEntity> page = repository.findByClientIdAndTenantId(clientId, TENANT,
+                PageRequest.of(0, 7, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "startTime")));
+
+        assertThat(page.getTotalElements()).isEqualTo(3);
+        assertThat(page.getContent())
+                .extracting(AppointmentJpaEntity::getExternalId)
+                .containsExactly(newest.getExternalId(), middle.getExternalId(), oldest.getExternalId());
+    }
+
+    @Test
+    @DisplayName("aggregateByClientAndStatus — D38 mandatory case: COMPLETED(35) + NO_SHOW(75) + CANCELLED(35) "
+            + "gives completedCount=1 and billed=35.00, not 145.00")
+    void aggregateByClientAndStatus_onlyCountsAndSumsTheRequestedStatus() {
+        String clientId = "cli_history-002";
+
+        AppointmentJpaEntity completed = buildEntity(newExternalId(), BASE_TIME, BASE_TIME.plus(30, ChronoUnit.MINUTES), AppointmentStatus.COMPLETED);
+        completed.setClientId(clientId);
+        completed.setServicePrice(new BigDecimal("35.00"));
+
+        AppointmentJpaEntity noShow = buildEntity(newExternalId(), BASE_TIME.plus(1, ChronoUnit.HOURS), BASE_TIME.plus(90, ChronoUnit.MINUTES), AppointmentStatus.NO_SHOW);
+        noShow.setClientId(clientId);
+        noShow.setServicePrice(new BigDecimal("75.00"));
+
+        AppointmentJpaEntity cancelled = buildEntity(newExternalId(), BASE_TIME.plus(2, ChronoUnit.HOURS), BASE_TIME.plus(150, ChronoUnit.MINUTES), AppointmentStatus.CANCELLED);
+        cancelled.setClientId(clientId);
+        cancelled.setServicePrice(new BigDecimal("35.00"));
+
+        repository.saveAll(List.of(completed, noShow, cancelled));
+
+        // totalAppointments (all statuses) comes from the Page's own total, computed in the
+        // service layer from this same unfiltered query — asserted here directly for clarity.
+        long totalAppointments = repository.findByClientIdAndTenantId(clientId, TENANT, PageRequest.of(0, 10))
+                .getTotalElements();
+        assertThat(totalAppointments).isEqualTo(3);
+
+        Object[] row = repository.aggregateByClientAndStatus(clientId, TENANT, AppointmentStatus.COMPLETED);
+
+        assertThat(((Number) row[0]).longValue()).isEqualTo(1L);
+        assertThat((BigDecimal) row[1]).isEqualByComparingTo("35.00");
+        assertThat((Instant) row[2]).isEqualTo(completed.getStartTime());
+    }
+
+    @Test
+    @DisplayName("aggregateByClientAndStatus — sin citas COMPLETED, count=0 y sum/max nulos")
+    void aggregateByClientAndStatus_noCompletedAppointments_returnsZeroAndNulls() {
+        String clientId = "cli_history-003";
+        AppointmentJpaEntity cancelled = buildEntity(newExternalId(), BASE_TIME, BASE_TIME.plus(30, ChronoUnit.MINUTES), AppointmentStatus.CANCELLED);
+        cancelled.setClientId(clientId);
+        repository.save(cancelled);
+
+        Object[] row = repository.aggregateByClientAndStatus(clientId, TENANT, AppointmentStatus.COMPLETED);
+
+        assertThat(((Number) row[0]).longValue()).isEqualTo(0L);
+        assertThat(row[1]).isNull();
+        assertThat(row[2]).isNull();
+    }
+
+    @Test
     @DisplayName("countByStatusGrouped — agrupa y cuenta por estado dentro del mes")
     void countByStatusGrouped() {
         Instant monthStart = Instant.parse("2026-03-01T00:00:00Z");

@@ -1,5 +1,7 @@
 package com.rivoo.appointment.application;
 
+import com.rivoo.appointment.application.dto.AppointmentHistoryResponse;
+import com.rivoo.appointment.application.dto.AppointmentInternalResponse;
 import com.rivoo.appointment.application.dto.AppointmentResponse;
 import com.rivoo.appointment.application.dto.CancelAppointmentRequest;
 import com.rivoo.appointment.application.dto.CreateAppointmentRequest;
@@ -25,6 +27,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -37,6 +44,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -154,6 +162,20 @@ class AppointmentServiceTest {
                 appointment.getSource().name(),
                 null, false,
                 null, null
+        );
+    }
+
+    private AppointmentInternalResponse stubInternalResponse(Appointment appointment) {
+        return new AppointmentInternalResponse(
+                appointment.getExternalId(),
+                appointment.getClientName(),
+                appointment.getEmployeeName(),
+                appointment.getServiceName(),
+                appointment.getServicePrice(),
+                appointment.getStartTime(),
+                appointment.getEndTime(),
+                appointment.getStatus().name(),
+                appointment.getSource() != null ? appointment.getSource().name() : null
         );
     }
 
@@ -483,6 +505,90 @@ class AppointmentServiceTest {
 
             assertNotNull(response);
             verify(appointmentPersistencePort).save(any());
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // getHistoryByClientId() — D38
+    // -------------------------------------------------------------------------
+
+    @Nested
+    @DisplayName("getHistoryByClientId()")
+    class GetHistoryByClientId {
+
+        @Test
+        @DisplayName("D38 mandatory case: COMPLETED(35) + NO_SHOW(75) + CANCELLED(35) "
+                + "-> totalAppointments=3, billedAmount=35.00 (only COMPLETED is billed)")
+        void mandatoryCase_totalCountsAllStatusesButBilledAmountOnlyCounted() {
+            Appointment completed = savedAppointment();
+            completed.setStatus(AppointmentStatus.COMPLETED);
+            completed.setServicePrice(new BigDecimal("35.00"));
+
+            Appointment noShow = savedAppointment();
+            noShow.setStatus(AppointmentStatus.NO_SHOW);
+            noShow.setServicePrice(new BigDecimal("75.00"));
+
+            Appointment cancelled = savedAppointment();
+            cancelled.setStatus(AppointmentStatus.CANCELLED);
+            cancelled.setServicePrice(new BigDecimal("35.00"));
+
+            // The content query is NOT filtered by status: it returns all 3 appointments of
+            // the client. Only the completed-aggregate (mocked below) filters by COMPLETED.
+            Page<Appointment> page = new PageImpl<>(List.of(completed, noShow, cancelled),
+                    PageRequest.of(0, 7, Sort.by(Sort.Direction.DESC, "startTime")), 3);
+
+            when(appointmentPersistencePort.findByClientId(eq(CLIENT_EXT_ID), eq(TENANT_ID), any(Pageable.class)))
+                    .thenReturn(page);
+            when(appointmentPersistencePort.getCompletedSummaryByClientId(CLIENT_EXT_ID, TENANT_ID))
+                    .thenReturn(new AppointmentPersistencePort.CompletedAppointmentsSummary(
+                            1L, new BigDecimal("35.00"), completed.getStartTime()));
+            when(mapper.toInternalResponse(any())).thenAnswer(inv -> stubInternalResponse(inv.getArgument(0)));
+
+            AppointmentHistoryResponse response =
+                    appointmentService.getHistoryByClientId(CLIENT_EXT_ID, TENANT_ID, 0, 7);
+
+            assertEquals(3L, response.summary().totalAppointments());
+            assertEquals(0, response.summary().billedAmount().compareTo(new BigDecimal("35.00")));
+            assertEquals(1L, response.summary().completedCount());
+            assertEquals(3L, response.totalElements());
+        }
+
+        @Test
+        @DisplayName("Builds the Pageable sorted by startTime DESC, not left to the caller")
+        void ordersByStartTimeDescending() {
+            Page<Appointment> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 7), 0);
+            when(appointmentPersistencePort.findByClientId(anyString(), anyString(), any(Pageable.class)))
+                    .thenReturn(emptyPage);
+            when(appointmentPersistencePort.getCompletedSummaryByClientId(anyString(), anyString()))
+                    .thenReturn(new AppointmentPersistencePort.CompletedAppointmentsSummary(0L, BigDecimal.ZERO, null));
+
+            appointmentService.getHistoryByClientId(CLIENT_EXT_ID, TENANT_ID, 0, 7);
+
+            ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+            verify(appointmentPersistencePort).findByClientId(eq(CLIENT_EXT_ID), eq(TENANT_ID), captor.capture());
+            Sort.Order order = captor.getValue().getSort().getOrderFor("startTime");
+            assertNotNull(order);
+            assertEquals(Sort.Direction.DESC, order.getDirection());
+        }
+
+        @Test
+        @DisplayName("No appointments at all -> zeroed summary, lastCompletedAt is null")
+        void noAppointments_summaryIsZeroed() {
+            Page<Appointment> emptyPage = new PageImpl<>(List.of(), PageRequest.of(0, 7), 0);
+            when(appointmentPersistencePort.findByClientId(eq(CLIENT_EXT_ID), eq(TENANT_ID), any(Pageable.class)))
+                    .thenReturn(emptyPage);
+            when(appointmentPersistencePort.getCompletedSummaryByClientId(CLIENT_EXT_ID, TENANT_ID))
+                    .thenReturn(new AppointmentPersistencePort.CompletedAppointmentsSummary(0L, BigDecimal.ZERO, null));
+
+            AppointmentHistoryResponse response =
+                    appointmentService.getHistoryByClientId(CLIENT_EXT_ID, TENANT_ID, 0, 7);
+
+            assertEquals(0L, response.summary().totalAppointments());
+            assertEquals(0, response.summary().billedAmount().compareTo(BigDecimal.ZERO));
+            assertEquals(0L, response.summary().completedCount());
+            assertNotNull(response.content());
+            assertEquals(0, response.content().size());
+            assertNull(response.summary().lastCompletedAt());
         }
     }
 }

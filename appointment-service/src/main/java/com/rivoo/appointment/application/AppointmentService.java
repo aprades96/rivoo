@@ -1,5 +1,6 @@
 package com.rivoo.appointment.application;
 
+import com.rivoo.appointment.application.dto.AppointmentHistoryResponse;
 import com.rivoo.appointment.application.dto.AppointmentInternalResponse;
 import com.rivoo.appointment.application.dto.AppointmentResponse;
 import com.rivoo.appointment.application.dto.AppointmentStatsResponse;
@@ -36,6 +37,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -185,6 +188,29 @@ public class AppointmentService implements CreateAppointmentUseCase, GetAppointm
         return appointmentPersistencePort.findByClientId(clientId, tenantId).stream()
                 .map(mapper::toInternalResponse)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AppointmentHistoryResponse getHistoryByClientId(String clientId, String tenantId, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "startTime"));
+        Page<Appointment> appointmentsPage = appointmentPersistencePort.findByClientId(clientId, tenantId, pageable);
+
+        AppointmentPersistencePort.CompletedAppointmentsSummary completed =
+                appointmentPersistencePort.getCompletedSummaryByClientId(clientId, tenantId);
+
+        AppointmentHistoryResponse.Summary summary = new AppointmentHistoryResponse.Summary(
+                appointmentsPage.getTotalElements(),
+                completed.billedAmount(),
+                completed.completedCount(),
+                completed.lastCompletedAt());
+
+        List<AppointmentInternalResponse> content = appointmentsPage.getContent().stream()
+                .map(mapper::toInternalResponse)
+                .toList();
+
+        return new AppointmentHistoryResponse(content, appointmentsPage.getNumber(), appointmentsPage.getSize(),
+                appointmentsPage.getTotalElements(), appointmentsPage.getTotalPages(), summary);
     }
 
     @Override

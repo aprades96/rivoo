@@ -1,5 +1,6 @@
 package com.rivoo.client.infrastructure.adapter.in.web;
 
+import com.rivoo.client.application.dto.ClientAppointmentsResponse;
 import com.rivoo.client.application.dto.ClientExportResponse;
 import com.rivoo.client.application.dto.ClientResponse;
 import com.rivoo.client.application.dto.CreateClientRequest;
@@ -88,6 +89,17 @@ public class ClientController {
     public ResponseEntity<ClientExportResponse> export(@PathVariable String id) {
         log.atInfo().addKeyValue("clientId", id).log("GET /api/v1/clients/export");
         ClientExportResponse response = exportClientDataUseCase.export(id);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/{id}/appointments")
+    @PreAuthorize("hasAnyRole('SALON_OWNER', 'EMPLOYEE')")
+    public ResponseEntity<ClientAppointmentsResponse> appointments(
+            @PathVariable String id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "7") int size) {
+        log.atInfo().addKeyValue("clientId", id).log("GET /api/v1/clients/{id}/appointments");
+        ClientAppointmentsResponse response = getClientUseCase.getAppointmentHistory(id, page, size);
         return ResponseEntity.ok(response);
     }
 }

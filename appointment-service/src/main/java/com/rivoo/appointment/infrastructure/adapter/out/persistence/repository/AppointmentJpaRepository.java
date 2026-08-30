@@ -83,4 +83,26 @@ public interface AppointmentJpaRepository extends JpaRepository<AppointmentJpaEn
     List<Object[]> countBySourceGrouped(@Param("tenantId") String tenantId, @Param("monthStart") Instant monthStart, @Param("monthEnd") Instant monthEnd);
 
     List<AppointmentJpaEntity> findByClientIdAndTenantId(String clientId, String tenantId);
+
+    /**
+     * Paginated variant for the client appointment history (D38). {@code Pageable}
+     * carries its own {@code Sort} (built by the caller as {@code startTime DESC}) —
+     * this derived query honors it automatically.
+     */
+    Page<AppointmentJpaEntity> findByClientIdAndTenantId(String clientId, String tenantId, Pageable pageable);
+
+    /**
+     * Single aggregate row: {@code COUNT}, {@code SUM(servicePrice)} and
+     * {@code MAX(startTime)} over the appointments of one client filtered by status.
+     * With no matching rows, SQL still returns one row: count = 0, sum/max = NULL.
+     */
+    @Query("""
+            SELECT COUNT(a), SUM(a.servicePrice), MAX(a.startTime)
+            FROM AppointmentJpaEntity a
+            WHERE a.clientId = :clientId AND a.tenantId = :tenantId AND a.status = :status
+            """)
+    Object[] aggregateByClientAndStatus(
+            @Param("clientId") String clientId,
+            @Param("tenantId") String tenantId,
+            @Param("status") AppointmentStatus status);
 }

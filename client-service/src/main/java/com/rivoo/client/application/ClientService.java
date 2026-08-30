@@ -1,6 +1,7 @@
 package com.rivoo.client.application;
 
 import com.rivoo.client.application.dto.ClientAppointmentDto;
+import com.rivoo.client.application.dto.ClientAppointmentsResponse;
 import com.rivoo.client.application.dto.ClientExportResponse;
 import com.rivoo.client.application.dto.ClientInternalResponse;
 import com.rivoo.client.application.dto.ClientResponse;
@@ -92,6 +93,16 @@ public class ClientService implements CreateClientUseCase, GetClientUseCase,
         // (new-appointment assistant, /clients screen) sees the same ordering.
         Pageable unsorted = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
         return clientPersistencePort.findAll(normalizeSearch(search), unsorted).map(mapper::toResponse);
+    }
+
+    // D38: no try/catch here — a failure in appointment-service must reach the caller as a
+    // real error. The export path above (line ~157) is the only one that swallows it.
+    @Override
+    @Transactional(readOnly = true)
+    public ClientAppointmentsResponse getAppointmentHistory(String externalId, int page, int size) {
+        Client client = clientPersistencePort.findByExternalId(externalId)
+                .orElseThrow(() -> new ClientNotFoundException(externalId));
+        return appointmentServicePort.getClientAppointmentsPage(externalId, client.getTenantId(), page, size);
     }
 
     private String normalizeSearch(String search) {

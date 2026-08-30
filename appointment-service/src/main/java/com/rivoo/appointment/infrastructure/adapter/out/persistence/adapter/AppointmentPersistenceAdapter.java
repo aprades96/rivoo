@@ -10,6 +10,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -83,5 +84,19 @@ public class AppointmentPersistenceAdapter implements AppointmentPersistencePort
         return repository.findByClientIdAndTenantId(clientId, tenantId).stream()
                 .map(mapper::toDomain)
                 .toList();
+    }
+
+    @Override
+    public Page<Appointment> findByClientId(String clientId, String tenantId, Pageable pageable) {
+        return repository.findByClientIdAndTenantId(clientId, tenantId, pageable).map(mapper::toDomain);
+    }
+
+    @Override
+    public CompletedAppointmentsSummary getCompletedSummaryByClientId(String clientId, String tenantId) {
+        Object[] row = repository.aggregateByClientAndStatus(clientId, tenantId, AppointmentStatus.COMPLETED);
+        long completedCount = row[0] != null ? ((Number) row[0]).longValue() : 0L;
+        BigDecimal billedAmount = row[1] != null ? (BigDecimal) row[1] : BigDecimal.ZERO;
+        Instant lastCompletedAt = (Instant) row[2];
+        return new CompletedAppointmentsSummary(completedCount, billedAmount, lastCompletedAt);
     }
 }

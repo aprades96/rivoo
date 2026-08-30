@@ -1,5 +1,6 @@
 package com.rivoo.client.application;
 
+import com.rivoo.client.application.dto.ClientAppointmentsResponse;
 import com.rivoo.client.application.dto.ClientResponse;
 import com.rivoo.client.application.dto.CreateClientRequest;
 import com.rivoo.client.domain.exception.ClientAlreadyAnonymizedException;
@@ -23,6 +24,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -213,6 +215,48 @@ class ClientServiceTest {
                 .isInstanceOf(ClientNotFoundException.class);
 
         verify(clientPersistencePort, never()).save(any());
+    }
+
+    // ── getAppointmentHistory (D38) ─────────────────────────────────────
+
+    @Test
+    void getAppointmentHistory_delegatesToAppointmentServicePortWithClientTenant() {
+        Client client = buildActiveClient();
+        when(clientPersistencePort.findByExternalId(CLIENT_EXTERNAL_ID)).thenReturn(Optional.of(client));
+        ClientAppointmentsResponse expected = new ClientAppointmentsResponse(
+                java.util.List.of(), 0, 7, 0L, 0,
+                new ClientAppointmentsResponse.Summary(0L, java.math.BigDecimal.ZERO, 0L, null));
+        when(appointmentServicePort.getClientAppointmentsPage(CLIENT_EXTERNAL_ID, TENANT_ID, 0, 7))
+                .thenReturn(expected);
+
+        ClientAppointmentsResponse result = clientService.getAppointmentHistory(CLIENT_EXTERNAL_ID, 0, 7);
+
+        assertThat(result).isSameAs(expected);
+        verify(appointmentServicePort).getClientAppointmentsPage(CLIENT_EXTERNAL_ID, TENANT_ID, 0, 7);
+    }
+
+    @Test
+    void getAppointmentHistory_clientNotFound_throwsClientNotFoundException() {
+        when(clientPersistencePort.findByExternalId(CLIENT_EXTERNAL_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> clientService.getAppointmentHistory(CLIENT_EXTERNAL_ID, 0, 7))
+                .isInstanceOf(ClientNotFoundException.class);
+
+        verify(appointmentServicePort, never()).getClientAppointmentsPage(anyString(), anyString(), anyInt(), anyInt());
+    }
+
+    // D38: unlike export(), this path does NOT swallow a failure from appointment-service —
+    // it must reach the caller so the UI can show a real error, not an empty page.
+    @Test
+    void getAppointmentHistory_appointmentServiceFails_propagatesException() {
+        Client client = buildActiveClient();
+        when(clientPersistencePort.findByExternalId(CLIENT_EXTERNAL_ID)).thenReturn(Optional.of(client));
+        when(appointmentServicePort.getClientAppointmentsPage(CLIENT_EXTERNAL_ID, TENANT_ID, 0, 7))
+                .thenThrow(new RuntimeException("appointment-service unavailable"));
+
+        assertThatThrownBy(() -> clientService.getAppointmentHistory(CLIENT_EXTERNAL_ID, 0, 7))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("appointment-service unavailable");
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────
