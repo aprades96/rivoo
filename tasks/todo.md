@@ -2392,3 +2392,97 @@ ficheros, tsc 0, eslint 0 errores + 9 avisos, build OK.
 ## Deudas nuevas — se anotan al cerrar (T12), no antes
 
 Las 19 estan enumeradas en §T10-T12 del plan.
+
+## Bloque 5 CERRADO — 2026-08-30
+
+Frontend `8981037..9703d78`: **19 commits**. Backend: **ninguno**, como planeaba.
+
+**Puertas finales, medidas sobre el arbol quieto:** `tsc` 0 errores · **1021 tests
+en 92 ficheros** (base: 916 en 86) · `eslint` **0 errores + 5 avisos** (base: 9
+avisos) · `npm run build` OK.
+
+Panel de tres revisores independientes en paralelo, con lentes distintas e
+instruidos para REFUTAR: fidelidad APROBO con 7 hallazgos LOW; correccion y
+calidad-de-tests BLOQUEARON. **52 mutaciones ejecutadas por la lente 3, 11
+supervivientes.** Todo lo que bloqueaba esta arreglado y verificado con su
+propia prueba de mutacion.
+
+### Dos fallos que solo aparecieron al implementar o al revisar
+
+1. **Una cita EN CURSO gana sobre el horario declarado.** El plan decia "fuera de
+   jornada no produce fila" a secas. Aplicado al pie de la letra, alguien
+   atendiendo a un cliente a las 20:00 con cierre a las 18:00 **desaparecia** del
+   panel "Ahora mismo". Lo destapo el implementador de T3 leyendo la regla para
+   escribir un test; tres rondas de revision del plan no lo habian visto.
+   Corregido en las dos ramas (`isOpen:false` tambien).
+2. **El reloj se desincronizaba de los datos.** `now` congelado al montar +
+   `refetchOnWindowFocus: true` (`query-provider.tsx:21`) = el panel
+   **recalculaba** con reloj viejo sobre datos frescos, imprimiendo una hora
+   caducada como si fuera la actual. Ahora `now` se deriva de `dataUpdatedAt`:
+   **el reloj nunca es mas viejo que los datos que acompana**, por construccion.
+
+### Deudas — anotadas, NO abordadas
+
+**Backend (ninguna se toco; este bloque no entro ahi):**
+1. `source` no es filtrable en el servidor. Anadirlo es JPQL barato y permitiria
+   contar reservas online sin confirmar de cualquier fecha, no solo de hoy.
+2. `PENDING` es el estado inicial de TODAS las citas, mostrador incluido. Para un
+   "pendientes de confirmar" de verdad hace falta distinguir.
+3. El endpoint `stats` esta **roto**: dos de sus tres campos devuelven `{}` por
+   stubs que retornan `0`, y las consultas agrupadas que existen no las llama
+   nadie.
+4. `totalVisits` / `lastVisitAt` no los escribe nadie.
+5. `AvailabilityService.java:153-158` devuelve huecos **ya pasados** cuando no se
+   le manda `serviceId`.
+6. El rol `EMPLOYEE` ve la agenda y la facturacion de **todo** el salon.
+   Decision de producto pendiente.
+7. No hay endpoint de horarios en lote: `/today` hace N peticiones, una por
+   empleado (total 3 + N).
+8. `POST /api/v1/appointments` **no valida horario laboral**: se puede reservar
+   fuera de jornada. Es lo que hace alcanzable el caso del fallo 1 de arriba.
+
+**Frontend:**
+9. `useEmployees()` no manda `size` → Spring devuelve **20** por defecto. Un
+   salon con mas de 20 empleados veria el panel truncado **en silencio**.
+   Afecta a mas pantallas que esta.
+10. `size=100` para un dia: un salon con mas de 100 citas veria la lista
+    truncada **por el peor extremo** — el servidor ordena `startTime DESC`, asi
+    que devolveria las ULTIMAS 100 y el orden ascendente del cliente lo
+    disimularia.
+11. `max-w-[1084px]` (`page-shell.tsx:131`) frente a los 1136px que dibuja el
+    artboard a 1440. El `padding` **si** coincide. Son 12 rutas: no se toca aqui.
+12. El `h1` de la topbar (`page-shell.tsx:256-260`) es `text-2xl` **sin**
+    `leading-*` → 1.333 donde el artboard dibuja 1.1. Es la trampa de la
+    preflight, dentro del chasis compartido.
+13. La zona horaria se toma del dispositivo; `TIMEZONE` (`dates.ts:5`) sigue
+    exportado y sin usar. Cuando haya salones fuera de la peninsula habra que
+    decidir cual manda.
+14. Al pasar la medianoche con la pestana abierta, `today` y `now` divergen por
+    construccion (uno se deriva del reloj real en cada render, el otro de
+    `dataUpdatedAt`). Salones cerrados a esa hora.
+15. Una cita que cruza medianoche no cae en la ventana de ningun dia (el rango
+    es por `startTime`). Irrelevante en peluqueria.
+16. Las dos "En curso" de la pantalla tienen fuentes distintas **a proposito**:
+    el panel va por el reloj, la fila de cita por el estado registrado. Pueden
+    no coincidir. Decidir en canvas si la fila deberia ir tambien por el reloj.
+17. El descanso (`breakStartTime`/`breakEndTime`) no se descuenta del hueco
+    libre. Ningun artboard dibuja estado de descanso.
+18. `AppointmentCard` pide los empleados por su cuenta porque la cita no lleva
+    `colorHex`. Llevarlo en el DTO ahorraria la dependencia.
+19. `formatShortName`/`getInitials` duplican parcialmente `initials()`.
+
+**Canvas — huecos de diseno, no de codigo:**
+20. El artboard de "Hoy" no dibuja el estado "Hoy no trabaja"; se reuso el texto
+    aprobado en `NuevaCitaDesktopPaso1.dc.html:116` y su mecanismo de atenuado.
+21. Ningun artboard dibuja el destino del CTA "Revisar y confirmar" (va a
+    `/calendar`), ni el estado vacio, ni el de carga, ni una fila cancelada.
+22. Ningun artboard dibuja "Siguiente: ..." cuando el empleado no tiene proxima
+    cita; ahi se omite la segunda linea en vez de inventar texto.
+
+### Sin ejecutar
+
+`visual/shell-vs-artboards.spec.ts` tiene el "que mirar" de los dos pares de
+`/today`, con los avisos de las dos diferencias ESPERADAS (el ancho de 1084 y la
+fila "En curso" sin borde propio). **No se ha ejecutado**: necesita la pila
+levantada y credenciales por variable de entorno. Orden:
+`RIVOO_E2E_EMAIL=... RIVOO_E2E_PASSWORD=... npx playwright test visual/shell-vs-artboards.spec.ts`

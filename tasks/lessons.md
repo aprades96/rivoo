@@ -1341,3 +1341,46 @@ medido cuatro veces.
    nada mas.
 
 Ver [[revision-por-bloque-no-por-tarea]].
+
+## Una regla que EXCLUYE necesita saber que la puede anular (bloque 5, 2026-08-30)
+
+**Patron.** Escribi en el plan "fuera de su jornada, el empleado no produce fila".
+Coherente, revisada tres veces por agentes independientes, y **falsa**: alguien
+atendiendo a un cliente a las 20:00 con cierre a las 18:00 desaparecia de un panel
+titulado "Ahora mismo". No lo vio ningun revisor del documento — lo destapo el
+implementador al leer la regla literalmente para escribir su test. Y volvio a
+pasar en la rama gemela (`isOpen: false`), que no actualice al corregir la
+primera.
+
+**Por que se escapa a la revision del plan.** Un revisor comprueba que la regla
+sea CONSISTENTE con el resto del documento. Una regla puede ser perfectamente
+consistente y aun asi equivocarse sobre el mundo. Quien la ejecuta contra casos
+reales es el implementador, y por eso hay que **pedirle explicitamente que
+reporte lo que la regla produce**, no solo que la cumpla.
+
+**Regla que lo previene.** Al escribir una regla de la forma "en la situacion X,
+NO se muestra / NO se hace Y", anadir en el mismo parrafo: **"salvo que ___"**,
+y si la respuesta es "nada", **decirlo por escrito**. La pregunta concreta es:
+*¿que evidencia, si estuviera presente, deberia ganarle a esta regla?* En este
+caso la respuesta era obvia una vez formulada — una cita solapando el reloj es
+evidencia mas dura sobre "ahora" que un horario que alguien configuro una vez.
+
+Y al corregir una regla, **buscar sus ramas gemelas antes de dar por cerrado**
+(`grep` del concepto, no del texto).
+
+## Un default en el arnes de tests deja media pantalla sin probar (bloque 5)
+
+**Patron.** `src/test/setup.ts` devuelve SIEMPRE `matches: false` en `matchMedia`.
+Consecuencia: **todo test que no pida escritorio a mano esta probando movil**. En
+el bloque 5, cuatro piezas de la rama de escritorio de `/today` se podian
+desmontar sin que cayera **ni uno de 1009 tests** — incluida una tarjeta que
+**solo** existe en escritorio. La suite estaba verde y la mitad de la pantalla
+descubierta.
+
+**Regla que lo previene.** Cuando el arnes tiene un DEFAULT para una condicion que
+ramifica la UI (ancho, rol, idioma, feature flag), la cobertura hay que contarla
+**por rama**, no por fichero. En la revision, la pregunta no es "¿esta probado
+este componente?" sino **"¿esta probada esta rama?"** — y la unica respuesta
+fiable es mutar la rama y ver si cae algo.
+
+Ver [[agentes-que-mutan-corren-solos]] para el como: quien muta corre solo.
